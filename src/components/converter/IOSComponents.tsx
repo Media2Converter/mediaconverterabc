@@ -3,27 +3,29 @@ import React from 'react';
 interface ActionSheetProps {
   open: boolean;
   onClose: () => void;
-  options: { label: string; action: () => void }[];
+  options: { label: string; action: () => void; destructive?: boolean }[];
 }
 
 export const IOSActionSheet: React.FC<ActionSheetProps> = ({ open, onClose, options }) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center ios-fade-in" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative w-full max-w-sm mx-4 mb-4 ios-slide-up" onClick={e => e.stopPropagation()}>
-        <div className="bg-card rounded-2xl overflow-hidden mb-2">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="relative w-full max-w-sm mx-2 mb-2 ios-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="bg-popover/95 backdrop-blur-xl rounded-[14px] overflow-hidden mb-2">
           {options.map((opt, i) => (
             <button
               key={i}
               onClick={() => { opt.action(); onClose(); }}
-              className="w-full px-6 py-4 text-foreground text-center text-[17px] font-normal border-b border-border last:border-b-0 active:bg-accent transition-colors"
+              className={`w-full px-4 py-[11px] text-center text-[20px] font-normal border-b border-border/50 last:border-b-0 active:bg-accent/60 transition-colors ${
+                opt.destructive ? 'text-destructive' : 'text-primary'
+              }`}
             >
               {opt.label}
             </button>
           ))}
         </div>
-        <button onClick={onClose} className="w-full bg-card rounded-2xl px-6 py-4 text-primary text-center text-[17px] font-semibold active:bg-accent transition-colors">
+        <button onClick={onClose} className="w-full bg-popover/95 backdrop-blur-xl rounded-[14px] px-4 py-[11px] text-primary text-center text-[20px] font-semibold active:bg-accent/60 transition-colors">
           キャンセル
         </button>
       </div>
@@ -49,15 +51,15 @@ export const IOSPickerModal: React.FC<PickerModalProps> = ({ open, onClose, onSe
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center ios-fade-in" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative w-full max-w-sm mx-4 mb-4 sm:mb-0 ios-slide-up sm:ios-scale-in" onClick={e => e.stopPropagation()}>
-        <div className="bg-card rounded-2xl overflow-hidden max-h-[70vh] flex flex-col">
-          {header && <div className="p-4 border-b border-border">{header}</div>}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="relative w-full max-w-sm mx-2 mb-2 sm:mb-0 ios-slide-up sm:ios-scale-in" onClick={e => e.stopPropagation()}>
+        <div className="bg-popover/95 backdrop-blur-xl rounded-[14px] overflow-hidden max-h-[70vh] flex flex-col">
+          {header && <div className="p-4 border-b border-border/50">{header}</div>}
           <div className="overflow-y-auto overscroll-contain">
             {sections.map((sec, si) => (
               <div key={si}>
                 {sec.title && (
-                  <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">
+                  <div className="px-4 pt-3 pb-1.5 text-muted-foreground text-[13px] font-medium uppercase tracking-wide">
                     {sec.title}
                   </div>
                 )}
@@ -65,19 +67,19 @@ export const IOSPickerModal: React.FC<PickerModalProps> = ({ open, onClose, onSe
                   <button
                     key={oi}
                     onClick={() => { onSelect(opt.value); onClose(); }}
-                    className={`w-full px-5 py-3.5 text-left text-[17px] border-b border-border last:border-b-0 active:bg-accent transition-colors flex items-center justify-between ${
-                      opt.warning ? 'text-ios-warning' : 'text-foreground'
+                    className={`w-full px-4 py-[11px] text-left text-[20px] border-b border-border/30 last:border-b-0 active:bg-accent/60 transition-colors flex items-center justify-between ${
+                      opt.warning ? 'text-ios-warning' : 'text-primary'
                     }`}
                   >
                     <span>{opt.label}</span>
-                    {selected === opt.value && <span className="text-primary text-xl">✓</span>}
+                    {selected === opt.value && <span className="text-primary text-lg">✓</span>}
                   </button>
                 ))}
               </div>
             ))}
           </div>
         </div>
-        <button onClick={onClose} className="w-full bg-card rounded-2xl px-6 py-4 mt-2 text-primary text-center text-[17px] font-semibold active:bg-accent transition-colors">
+        <button onClick={onClose} className="w-full bg-popover/95 backdrop-blur-xl rounded-[14px] px-4 py-[11px] mt-2 text-primary text-center text-[20px] font-semibold active:bg-accent/60 transition-colors">
           キャンセル
         </button>
       </div>
@@ -96,15 +98,51 @@ export const IOSAlertDialog: React.FC<AlertProps> = ({ open, onClose, title, mes
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative w-[280px] bg-card rounded-2xl overflow-hidden ios-scale-in" onClick={e => e.stopPropagation()}>
-        <div className="p-6 text-center">
-          <h3 className="text-foreground text-[17px] font-semibold mb-2">{title}</h3>
-          <p className="text-muted-foreground text-[13px] leading-relaxed">{message}</p>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="relative w-[270px] bg-popover/95 backdrop-blur-xl rounded-[14px] overflow-hidden ios-scale-in" onClick={e => e.stopPropagation()}>
+        <div className="px-4 pt-5 pb-4 text-center">
+          <h3 className="text-foreground text-[17px] font-semibold mb-1">{title}</h3>
+          <p className="text-muted-foreground text-[13px] leading-[18px] whitespace-pre-line">{message}</p>
         </div>
-        <button onClick={onClose} className="w-full py-3.5 text-primary text-[17px] font-semibold border-t border-border active:bg-accent transition-colors">
-          OK
-        </button>
+        <div className="border-t border-border/50">
+          <button onClick={onClose} className="w-full py-[11px] text-primary text-[17px] font-semibold active:bg-accent/60 transition-colors">
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface ConfirmProps {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  destructive?: boolean;
+}
+
+export const IOSConfirmDialog: React.FC<ConfirmProps> = ({ open, onClose, onConfirm, title, message, confirmLabel = '削除', cancelLabel = 'キャンセル', destructive = true }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="relative w-[270px] bg-popover/95 backdrop-blur-xl rounded-[14px] overflow-hidden ios-scale-in" onClick={e => e.stopPropagation()}>
+        <div className="px-4 pt-5 pb-4 text-center">
+          <h3 className="text-foreground text-[17px] font-semibold mb-1">{title}</h3>
+          <p className="text-muted-foreground text-[13px] leading-[18px]">{message}</p>
+        </div>
+        <div className="border-t border-border/50 flex">
+          <button onClick={onClose} className="flex-1 py-[11px] text-primary text-[17px] font-normal border-r border-border/50 active:bg-accent/60 transition-colors">
+            {cancelLabel}
+          </button>
+          <button onClick={() => { onConfirm(); onClose(); }} className={`flex-1 py-[11px] text-[17px] font-semibold active:bg-accent/60 transition-colors ${destructive ? 'text-destructive' : 'text-primary'}`}>
+            {confirmLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

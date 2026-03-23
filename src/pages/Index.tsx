@@ -1,10 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { IOSActionSheet, IOSPickerModal, IOSAlertDialog, ProgressCircle, type PickerSection } from '@/components/converter/IOSComponents';
+import React, { useState, useRef, useCallback } from 'react';
+import { IOSActionSheet, IOSPickerModal, IOSAlertDialog, IOSConfirmDialog, ProgressCircle, type PickerSection } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS, IPHONE_BAD_FORMATS,
   IPHONE_BAD_VIDEO_CODECS, IPHONE_BAD_AUDIO_CODECS,
-  FORMAT_EXT, CODEC_MAP, isVideoFormat,
+  FORMAT_EXT, FORMAT_MIME, CODEC_MAP, isVideoFormat,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
@@ -24,6 +24,7 @@ const Index: React.FC = () => {
   const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
   const [convertedFilename, setConvertedFilename] = useState('');
   const [videoDuration, setVideoDuration] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   const videoFileRef = useRef<HTMLInputElement>(null);
   const videoCaptureRef = useRef<HTMLInputElement>(null);
@@ -40,7 +41,10 @@ const Index: React.FC = () => {
 
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
+      const newFiles = Array.from(e.target.files).filter(
+        f => f.type.startsWith('video/') || f.type.startsWith('audio/')
+      );
+      if (newFiles.length === 0) return;
       setFiles(prev => [...prev, ...newFiles]);
       newFiles.forEach(f => {
         const url = URL.createObjectURL(f);
@@ -59,6 +63,7 @@ const Index: React.FC = () => {
     URL.revokeObjectURL(fileUrls[i]);
     setFiles(prev => prev.filter((_, idx) => idx !== i));
     setFileUrls(prev => prev.filter((_, idx) => idx !== i));
+    setConfirmDelete(null);
   };
 
   const isVideo = files.some(f => f.type.startsWith('video/'));
@@ -124,7 +129,9 @@ const Index: React.FC = () => {
       if (settings.startTime > 0) args.push('-ss', String(settings.startTime));
       if (settings.endTime > 0) args.push('-to', String(settings.endTime));
 
-      if (isVideo && isVideoFormat(selectedFormat!)) {
+      const outputIsVideo = isVideoFormat(selectedFormat!);
+
+      if (isVideo && outputIsVideo) {
         const vCodec = CODEC_MAP[settings.videoCodec] || 'libx264';
         args.push('-c:v', vCodec);
         const vBr = settings.videoBitrate.replace('KBPS', 'k');
@@ -140,7 +147,7 @@ const Index: React.FC = () => {
         if (settings.scanType === 'インターレース方式') {
           args.push('-flags', '+ilme+ildct');
         }
-      } else if (!isVideoFormat(selectedFormat!)) {
+      } else if (!outputIsVideo) {
         args.push('-vn');
       }
 
@@ -157,13 +164,13 @@ const Index: React.FC = () => {
         if (spd <= 2 && spd >= 0.5) {
           args.push('-filter:a', `atempo=${spd}`);
         } else if (spd > 2) {
-          const chain = [];
+          const chain: string[] = [];
           let remaining = spd;
           while (remaining > 2) { chain.push('atempo=2.0'); remaining /= 2; }
           chain.push(`atempo=${remaining}`);
           args.push('-filter:a', chain.join(','));
         } else {
-          const chain = [];
+          const chain: string[] = [];
           let remaining = spd;
           while (remaining < 0.5) { chain.push('atempo=0.5'); remaining /= 0.5; }
           chain.push(`atempo=${remaining}`);
@@ -176,7 +183,8 @@ const Index: React.FC = () => {
       await ffmpeg.exec(args);
       const data = await ffmpeg.readFile(outputName);
       const uint8 = new Uint8Array(data as Uint8Array);
-      const blob = new Blob([uint8], { type: `video/${ext}` });
+      const mimeType = FORMAT_MIME[selectedFormat!] || (outputIsVideo ? 'video/mp4' : 'audio/mpeg');
+      const blob = new Blob([uint8], { type: mimeType });
       const url = URL.createObjectURL(blob);
       setConvertedUrl(url);
       setConvertedFilename(`converted.${ext}`);
@@ -215,7 +223,7 @@ const Index: React.FC = () => {
                 <p className="text-foreground text-[15px] truncate">{f.name}</p>
                 <p className="text-muted-foreground text-[13px]">{(f.size / 1024 / 1024).toFixed(1)} MB</p>
               </div>
-              <button onClick={() => removeFile(i)} className="text-muted-foreground text-xl leading-none active:text-foreground">×</button>
+              <button onClick={() => setConfirmDelete(i)} className="text-muted-foreground text-xl leading-none active:text-foreground">×</button>
             </div>
           ))}
         </div>
@@ -230,9 +238,9 @@ const Index: React.FC = () => {
       </button>
 
       {/* Hidden file inputs */}
-      <input ref={videoFileRef} type="file" accept="video/*" hidden onChange={handleFileSelected} />
+      <input ref={videoFileRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
       <input ref={videoCaptureRef} type="file" accept="video/*" capture="environment" hidden onChange={handleFileSelected} />
-      <input ref={audioCaptureRef} type="file" accept="audio/*" capture="user" hidden onChange={handleFileSelected} />
+      <input ref={audioCaptureRef} type="file" accept="audio/*" hidden onChange={handleFileSelected} />
       <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
 
       {/* Format + Detail settings row */}
@@ -303,6 +311,17 @@ const Index: React.FC = () => {
         videoDuration={videoDuration}
         videoPreviewUrl={isVideo ? fileUrls[0] : undefined}
         isVideo={isVideo}
+      />
+
+      {/* Confirm delete */}
+      <IOSConfirmDialog
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => confirmDelete !== null && removeFile(confirmDelete)}
+        title="ファイルを削除"
+        message={confirmDelete !== null && files[confirmDelete] ? `「${files[confirmDelete].name}」を削除しますか？` : ''}
+        confirmLabel="削除"
+        destructive
       />
 
       {/* Alert */}

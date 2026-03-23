@@ -114,6 +114,15 @@ export const FORMAT_EXT: Record<string, string> = {
   'WAV': 'wav', 'OGG': 'ogg', 'AIFF': 'aiff', 'RAW': 'raw', 'AMR_NB': 'amr', 'AMR_WB': 'amr',
 };
 
+export const FORMAT_MIME: Record<string, string> = {
+  'MP4': 'video/mp4', 'M4V': 'video/x-m4v', 'MOV': 'video/quicktime',
+  '3G2': 'video/3gpp2', '3GP': 'video/3gpp', 'AVI': 'video/x-msvideo',
+  'OPUS': 'audio/opus', 'EAC3': 'audio/eac3', 'AC3': 'audio/ac3', 'AAC': 'audio/aac',
+  'MP3': 'audio/mpeg', 'WAV': 'audio/wav', 'OGG': 'audio/ogg',
+  'AIFF': 'audio/aiff', 'RAW': 'application/octet-stream',
+  'AMR_NB': 'audio/amr', 'AMR_WB': 'audio/amr-wb',
+};
+
 export interface ConvertSettings {
   videoCodec: string;
   aspectRatio: string;
