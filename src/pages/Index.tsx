@@ -175,8 +175,8 @@ const Index: React.FC = () => {
 
       await ffmpeg.exec(args);
       const data = await ffmpeg.readFile(outputName);
-      const uint8 = data as Uint8Array;
-      const blob = new Blob([uint8.buffer], { type: `video/${ext}` });
+      const uint8 = new Uint8Array(data as Uint8Array);
+      const blob = new Blob([uint8], { type: `video/${ext}` });
       const url = URL.createObjectURL(blob);
       setConvertedUrl(url);
       setConvertedFilename(`converted.${ext}`);
