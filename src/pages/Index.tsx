@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { IOSActionSheet, IOSPickerModal, IOSAlertDialog, IOSConfirmDialog, ProgressCircle, type PickerSection } from '@/components/converter/IOSComponents';
+import { ProgressCircle } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS, IPHONE_BAD_FORMATS,
@@ -13,31 +13,20 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util';
 const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [fileUrls, setFileUrls] = useState<string[]>([]);
-  const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
-  const [showFormatPicker, setShowFormatPicker] = useState(false);
   const [showDetailSettings, setShowDetailSettings] = useState(false);
   const [settings, setSettings] = useState<ConvertSettings>(defaultSettings);
-  const [alert, setAlert] = useState<{ title: string; message: string } | null>(null);
   const [converting, setConverting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
   const [convertedFilename, setConvertedFilename] = useState('');
   const [videoDuration, setVideoDuration] = useState(0);
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   const videoFileRef = useRef<HTMLInputElement>(null);
   const videoCaptureRef = useRef<HTMLInputElement>(null);
   const audioCaptureRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const ffmpegRef = useRef<FFmpeg | null>(null);
-
-  const sourceOptions = [
-    { label: '写真ライブラリから選択', action: () => videoFileRef.current?.click() },
-    { label: 'ビデオを録画', action: () => videoCaptureRef.current?.click() },
-    { label: 'オーディオを録音', action: () => audioCaptureRef.current?.click() },
-    { label: 'ファイルから選択', action: () => fileRef.current?.click() },
-  ];
 
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -60,29 +49,28 @@ const Index: React.FC = () => {
   }, []);
 
   const removeFile = (i: number) => {
+    const file = files[i];
+    if (!file) return;
+    const ok = window.confirm(`「${file.name}」を削除しますか？`);
+    if (!ok) return;
     URL.revokeObjectURL(fileUrls[i]);
     setFiles(prev => prev.filter((_, idx) => idx !== i));
     setFileUrls(prev => prev.filter((_, idx) => idx !== i));
-    setConfirmDelete(null);
   };
 
   const isVideo = files.some(f => f.type.startsWith('video/'));
 
-  const formatSections: PickerSection[] = [
-    {
-      title: '動画形式',
-      options: VIDEO_FORMATS.map(f => ({ label: f, value: f, warning: IPHONE_BAD_FORMATS.includes(f) })),
-    },
-    {
-      title: '音声形式',
-      options: AUDIO_FORMATS.map(f => ({ label: f, value: f, warning: IPHONE_BAD_FORMATS.includes(f) })),
-    },
+  const allFormats = [
+    { group: '動画形式', items: VIDEO_FORMATS },
+    { group: '音声形式', items: AUDIO_FORMATS },
   ];
 
-  const handleFormatSelect = (value: string) => {
+  const handleFormatChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (!value) return;
     setSelectedFormat(value);
     if (IPHONE_BAD_FORMATS.includes(value)) {
-      setAlert({ title: '⚠️ 互換性の警告', message: `${value}形式はiPhoneで再生できない可能性があります。` });
+      window.alert(`⚠️ 互換性の警告\n\n${value}形式はiPhoneで再生できない可能性があります。`);
     }
   };
 
@@ -98,7 +86,7 @@ const Index: React.FC = () => {
   const handleConvert = async () => {
     const warning = checkSettingsWarnings();
     if (warning) {
-      setAlert({ title: '⚠️ iPhoneの互換性警告', message: warning });
+      window.alert(`⚠️ iPhoneの互換性警告\n\n${warning}`);
     }
 
     setConverting(true);
@@ -191,7 +179,7 @@ const Index: React.FC = () => {
       setProgress(100);
     } catch (err: any) {
       console.error(err);
-      setAlert({ title: 'エラー', message: `変換に失敗しました: ${err?.message || '不明なエラー'}` });
+      window.alert(`エラー\n\n変換に失敗しました: ${err?.message || '不明なエラー'}`);
     } finally {
       setConverting(false);
     }
@@ -223,35 +211,63 @@ const Index: React.FC = () => {
                 <p className="text-foreground text-[15px] truncate">{f.name}</p>
                 <p className="text-muted-foreground text-[13px]">{(f.size / 1024 / 1024).toFixed(1)} MB</p>
               </div>
-              <button onClick={() => setConfirmDelete(i)} className="text-muted-foreground text-xl leading-none active:text-foreground">×</button>
+              <button onClick={() => removeFile(i)} className="text-muted-foreground text-xl leading-none active:text-foreground">×</button>
             </div>
           ))}
         </div>
       )}
 
-      {/* File selection button */}
-      <button
-        onClick={() => setShowSourcePicker(true)}
-        className="w-full py-4 bg-primary text-primary-foreground rounded-2xl text-[17px] font-semibold active:scale-[0.97] transition-transform"
-      >
-        {files.length > 0 ? 'ファイルを追加' : 'ファイルを選択'}
-      </button>
+      {/* Upload source buttons - each directly triggers native picker */}
+      <div className="w-full grid grid-cols-2 gap-3">
+        <button
+          onClick={() => videoFileRef.current?.click()}
+          className="py-3.5 bg-primary text-primary-foreground rounded-2xl text-[14px] font-semibold active:scale-[0.97] transition-transform"
+        >
+          写真ライブラリ
+        </button>
+        <button
+          onClick={() => videoCaptureRef.current?.click()}
+          className="py-3.5 bg-primary text-primary-foreground rounded-2xl text-[14px] font-semibold active:scale-[0.97] transition-transform"
+        >
+          ビデオを録画
+        </button>
+        <button
+          onClick={() => audioCaptureRef.current?.click()}
+          className="py-3.5 bg-primary text-primary-foreground rounded-2xl text-[14px] font-semibold active:scale-[0.97] transition-transform"
+        >
+          オーディオを録音
+        </button>
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="py-3.5 bg-primary text-primary-foreground rounded-2xl text-[14px] font-semibold active:scale-[0.97] transition-transform"
+        >
+          ファイルから選択
+        </button>
+      </div>
 
       {/* Hidden file inputs */}
       <input ref={videoFileRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
       <input ref={videoCaptureRef} type="file" accept="video/*" capture="environment" hidden onChange={handleFileSelected} />
-      <input ref={audioCaptureRef} type="file" accept="audio/*" hidden onChange={handleFileSelected} />
+      <input ref={audioCaptureRef} type="file" accept="audio/*" capture="user" hidden onChange={handleFileSelected} />
       <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
 
-      {/* Format + Detail settings row */}
+      {/* Format selector - native <select> */}
       {files.length > 0 && (
         <div className="w-full flex gap-3 mt-4">
-          <button
-            onClick={() => setShowFormatPicker(true)}
-            className="flex-1 py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold active:scale-[0.97] transition-transform"
+          <select
+            value={selectedFormat || ''}
+            onChange={handleFormatChange}
+            className="flex-1 py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold text-center appearance-none cursor-pointer"
           >
-            {selectedFormat || '形式'}
-          </button>
+            <option value="" disabled>形式を選択</option>
+            {allFormats.map(group => (
+              <optgroup key={group.group} label={group.group}>
+                {group.items.map(f => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
           {selectedFormat && (
             <button
               onClick={() => setShowDetailSettings(true)}
@@ -290,18 +306,6 @@ const Index: React.FC = () => {
         </button>
       )}
 
-      {/* Source picker action sheet */}
-      <IOSActionSheet open={showSourcePicker} onClose={() => setShowSourcePicker(false)} options={sourceOptions} />
-
-      {/* Format picker */}
-      <IOSPickerModal
-        open={showFormatPicker}
-        onClose={() => setShowFormatPicker(false)}
-        onSelect={handleFormatSelect}
-        sections={formatSections}
-        selected={selectedFormat || ''}
-      />
-
       {/* Detail settings */}
       <DetailSettingsModal
         open={showDetailSettings}
@@ -312,20 +316,6 @@ const Index: React.FC = () => {
         videoPreviewUrl={isVideo ? fileUrls[0] : undefined}
         isVideo={isVideo}
       />
-
-      {/* Confirm delete */}
-      <IOSConfirmDialog
-        open={confirmDelete !== null}
-        onClose={() => setConfirmDelete(null)}
-        onConfirm={() => confirmDelete !== null && removeFile(confirmDelete)}
-        title="ファイルを削除"
-        message={confirmDelete !== null && files[confirmDelete] ? `「${files[confirmDelete].name}」を削除しますか？` : ''}
-        confirmLabel="削除"
-        destructive
-      />
-
-      {/* Alert */}
-      <IOSAlertDialog open={!!alert} onClose={() => setAlert(null)} title={alert?.title || ''} message={alert?.message || ''} />
     </div>
   );
 };

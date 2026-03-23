@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { IOSPickerModal, IOSAlertDialog, type PickerSection } from './IOSComponents';
+import React, { useState, useEffect } from 'react';
 import {
   VIDEO_CODECS, AUDIO_CODECS, ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
@@ -17,7 +16,43 @@ interface Props {
   isVideo: boolean;
 }
 
-type PickerType = 'videoCodec' | 'aspectRatio' | 'scanType' | 'resolution' | 'videoBitrate' | 'framerate' | 'startTime' | 'endTime' | 'speed' | 'audioCodec' | 'audioBitrate' | 'channels' | 'frequency' | null;
+const NativeSelect: React.FC<{
+  label: string;
+  value: string;
+  options: { label: string; value: string; warning?: boolean }[];
+  onChange: (value: string) => void;
+  groups?: { title: string; options: { label: string; value: string; warning?: boolean }[] }[];
+  warning?: boolean;
+}> = ({ label, value, options, onChange, groups, warning }) => {
+  const displayValue = options.find(o => o.value === value)?.label
+    || (groups ? groups.flatMap(g => g.options).find(o => o.value === value)?.label : undefined)
+    || value;
+
+  return (
+    <div className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border">
+      <span className="text-foreground text-[15px]">{label}</span>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className={`bg-transparent text-right text-[15px] appearance-none cursor-pointer pr-1 ${warning ? 'text-ios-warning' : 'text-muted-foreground'}`}
+      >
+        {groups ? (
+          groups.map(g => (
+            <optgroup key={g.title} label={g.title}>
+              {g.options.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </optgroup>
+          ))
+        ) : (
+          options.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))
+        )}
+      </select>
+    </div>
+  );
+};
 
 const SettingRow: React.FC<{ label: string; value: string; onClick: () => void; warning?: boolean }> = ({ label, value, onClick, warning }) => (
   <button onClick={onClick} className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border active:bg-accent transition-colors">
@@ -27,14 +62,12 @@ const SettingRow: React.FC<{ label: string; value: string; onClick: () => void; 
 );
 
 export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, onChange, videoDuration, videoPreviewUrl, isVideo }) => {
-  const [picker, setPicker] = useState<PickerType>(null);
   const [customResW, setCustomResW] = useState('');
   const [customResH, setCustomResH] = useState('');
   const [showCustomRes, setShowCustomRes] = useState(false);
   const [customBitrate, setCustomBitrate] = useState('');
   const [showCustomVBitrate, setShowCustomVBitrate] = useState(false);
   const [showCustomABitrate, setShowCustomABitrate] = useState(false);
-  const [alert, setAlert] = useState<{ title: string; message: string } | null>(null);
   const [showSpeedPitch, setShowSpeedPitch] = useState(false);
   const [speedLongPress, setSpeedLongPress] = useState<ReturnType<typeof setTimeout> | null>(null);
 
@@ -43,12 +76,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const isPortrait = arL < arR;
 
   useEffect(() => {
-    if (!open) { setPicker(null); setShowCustomRes(false); setShowCustomVBitrate(false); setShowCustomABitrate(false); }
+    if (!open) { setShowCustomRes(false); setShowCustomVBitrate(false); setShowCustomABitrate(false); }
   }, [open]);
-
-  const makeCodecSections = (codecs: string[], badList: string[]): PickerSection[] => [{
-    options: codecs.map(c => ({ label: c, value: c, warning: badList.includes(c) }))
-  }];
 
   const resolutionLabel = (tag?: string) => {
     if (!tag) return '';
@@ -56,19 +85,65 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return tag.replace(/(\d+)p/g, '$1I');
   };
 
-  const getResolutionSections = (): PickerSection[] => {
-    const opts = RESOLUTIONS.map(r => {
+  const resolutionOptions = [
+    ...RESOLUTIONS.map(r => {
       const w = isPortrait ? r.h : r.w;
       const h = isPortrait ? r.w : r.h;
       const tagDisplay = resolutionLabel(r.tag);
       const label = `${w}×${h}${tagDisplay ? ` (${tagDisplay})` : ''}${r.desc ? ` ${r.desc}` : ''}`;
       return { label, value: `${r.w}x${r.h}` };
-    });
-    opts.push({ label: '打ち込む', value: 'custom' });
-    return [{ options: opts }];
+    }),
+    { label: '打ち込む', value: 'custom' },
+  ];
+
+  const handleResolutionChange = (value: string) => {
+    if (value === 'custom') {
+      setShowCustomRes(true);
+      return;
+    }
+    const [rw, rh] = value.split('x').map(Number);
+    const s = { ...settings, resolutionW: rw, resolutionH: rh };
+    onChange(s);
+    if (!checkAspectResolutionMatch(settings.aspectRatio, rw, rh)) {
+      window.alert('⚠️ 警告\n\nアスペクト比と解像度が一致しません（5px以上のずれ）。');
+    }
   };
 
-  const getTimeSections = (max: number): PickerSection[] => {
+  const videoBitrateOptions = [
+    ...VIDEO_BITRATES.map(b => ({ label: b, value: b })),
+    { label: '打ち込む', value: 'custom' },
+  ];
+
+  const audioBitrateOptions = [
+    ...AUDIO_BITRATES.map(b => ({ label: b, value: b })),
+    { label: '打ち込む', value: 'custom' },
+  ];
+
+  const handleVideoBitrateChange = (value: string) => {
+    if (value === 'custom') { setShowCustomVBitrate(true); return; }
+    onChange({ ...settings, videoBitrate: value });
+  };
+
+  const handleAudioBitrateChange = (value: string) => {
+    if (value === 'custom') { setShowCustomABitrate(true); return; }
+    onChange({ ...settings, audioBitrate: value });
+  };
+
+  const handleVideoCodecChange = (value: string) => {
+    onChange({ ...settings, videoCodec: value });
+    if (IPHONE_BAD_VIDEO_CODECS.includes(value)) {
+      window.alert(`⚠️ 互換性の警告\n\n${value}はiPhoneで再生エラーが発生する可能性があります。`);
+    }
+  };
+
+  const handleAudioCodecChange = (value: string) => {
+    onChange({ ...settings, audioCodec: value });
+    if (IPHONE_BAD_AUDIO_CODECS.includes(value)) {
+      window.alert(`⚠️ 互換性の警告\n\n${value}はiPhoneで再生エラーが発生する可能性があります。`);
+    }
+  };
+
+  const timeOptions = (max: number) => {
     const opts = [];
     const step = max > 120 ? 5 : max > 30 ? 1 : 0.5;
     for (let t = 0; t <= max; t += step) {
@@ -76,110 +151,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       const s = (t % 60).toFixed(step < 1 ? 1 : 0);
       opts.push({ label: `${m}:${s.padStart(step < 1 ? 4 : 2, '0')}`, value: String(t) });
     }
-    return [{ options: opts }];
-  };
-
-  const handlePickerSelect = (value: string) => {
-    const s = { ...settings };
-    switch (picker) {
-      case 'videoCodec':
-        s.videoCodec = value;
-        if (IPHONE_BAD_VIDEO_CODECS.includes(value))
-          setAlert({ title: '⚠️ 互換性の警告', message: `${value}はiPhoneで再生エラーが発生する可能性があります。` });
-        break;
-      case 'aspectRatio': s.aspectRatio = value; break;
-      case 'scanType': s.scanType = value; break;
-      case 'resolution':
-        if (value === 'custom') { setShowCustomRes(true); setPicker(null); onChange(s); return; }
-        const [rw, rh] = value.split('x').map(Number);
-        s.resolutionW = rw; s.resolutionH = rh;
-        if (!checkAspectResolutionMatch(s.aspectRatio, rw, rh))
-          setAlert({ title: '⚠️ 警告', message: 'アスペクト比と解像度が一致しません（5px以上のずれ）。' });
-        break;
-      case 'videoBitrate': s.videoBitrate = value; break;
-      case 'framerate': s.framerate = value; break;
-      case 'startTime': s.startTime = parseFloat(value); break;
-      case 'endTime': s.endTime = parseFloat(value); break;
-      case 'speed': s.speed = value; break;
-      case 'audioCodec':
-        s.audioCodec = value;
-        if (IPHONE_BAD_AUDIO_CODECS.includes(value))
-          setAlert({ title: '⚠️ 互換性の警告', message: `${value}はiPhoneで再生エラーが発生する可能性があります。` });
-        break;
-      case 'audioBitrate': s.audioBitrate = value; break;
-      case 'channels': s.channels = value; break;
-      case 'frequency': s.frequency = value; break;
-    }
-    onChange(s);
-    setPicker(null);
-  };
-
-  const getSections = (): PickerSection[] => {
-    switch (picker) {
-      case 'videoCodec': return makeCodecSections(VIDEO_CODECS, IPHONE_BAD_VIDEO_CODECS);
-      case 'aspectRatio': return [{ options: ASPECT_RATIOS.map(a => ({ label: a, value: a })) }];
-      case 'scanType': return [{ options: SCAN_TYPES.map(s => ({ label: s, value: s })) }];
-      case 'resolution': return getResolutionSections();
-      case 'videoBitrate': {
-        const opts = VIDEO_BITRATES.map(b => ({ label: b, value: b }));
-        opts.push({ label: '打ち込む', value: 'custom' });
-        return [{ options: opts }];
-      }
-      case 'framerate': return [{ options: FRAMERATES.map(f => ({ label: f, value: f })) }];
-      case 'startTime': return getTimeSections(videoDuration);
-      case 'endTime': return getTimeSections(videoDuration);
-      case 'speed': return [{ options: SPEEDS.map(s => ({ label: `${s}×`, value: s })) }];
-      case 'audioCodec': return makeCodecSections(AUDIO_CODECS, IPHONE_BAD_AUDIO_CODECS);
-      case 'audioBitrate': {
-        const opts = AUDIO_BITRATES.map(b => ({ label: b, value: b }));
-        opts.push({ label: '打ち込む', value: 'custom' });
-        return [{ options: opts }];
-      }
-      case 'channels': return [{ options: CHANNELS.map(c => ({ label: c, value: c })) }];
-      case 'frequency': return [{ options: FREQUENCIES.map(f => ({ label: f, value: f })) }];
-      default: return [];
-    }
-  };
-
-  const getPickerSelected = (): string => {
-    switch (picker) {
-      case 'videoCodec': return settings.videoCodec;
-      case 'aspectRatio': return settings.aspectRatio;
-      case 'scanType': return settings.scanType;
-      case 'resolution': return `${settings.resolutionW}x${settings.resolutionH}`;
-      case 'videoBitrate': return settings.videoBitrate;
-      case 'framerate': return settings.framerate;
-      case 'startTime': return String(settings.startTime);
-      case 'endTime': return String(settings.endTime);
-      case 'speed': return settings.speed;
-      case 'audioCodec': return settings.audioCodec;
-      case 'audioBitrate': return settings.audioBitrate;
-      case 'channels': return settings.channels;
-      case 'frequency': return settings.frequency;
-      default: return '';
-    }
-  };
-
-  const getPickerHeader = () => {
-    if (picker === 'aspectRatio' && videoPreviewUrl) {
-      return (
-        <div className="flex justify-center">
-          <video src={videoPreviewUrl} className="max-h-24 rounded-lg" muted />
-        </div>
-      );
-    }
-    if (picker === 'resolution') {
-      const [al, ar] = settings.aspectRatio.split(':').map(Number);
-      const ratio = al / ar;
-      const boxW = ratio >= 1 ? 80 : 80 * ratio;
-      const boxH = ratio >= 1 ? 80 / ratio : 80;
-      return (
-        <div className="flex justify-center">
-          <div className="border-2 border-primary rounded" style={{ width: boxW, height: boxH }} />
-        </div>
-      );
-    }
-    return undefined;
+    return opts;
   };
 
   const handleSpeedTouchStart = () => {
@@ -208,30 +180,97 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
             {isVideo && (
               <>
                 <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">ビデオ</div>
-                <SettingRow label="ビデオコーデック" value={settings.videoCodec} onClick={() => setPicker('videoCodec')} warning={IPHONE_BAD_VIDEO_CODECS.includes(settings.videoCodec)} />
-                <SettingRow label="縦横比" value={settings.aspectRatio} onClick={() => setPicker('aspectRatio')} />
-                <SettingRow label="フレーム書き出し方式" value={settings.scanType} onClick={() => setPicker('scanType')} />
-                <SettingRow label="解像度" value={`${isPortrait ? settings.resolutionH : settings.resolutionW}×${isPortrait ? settings.resolutionW : settings.resolutionH}`} onClick={() => setPicker('resolution')} />
-                <SettingRow label="動画ビットレート" value={settings.videoBitrate} onClick={() => setPicker('videoBitrate')} />
-                <SettingRow label="フレームレート" value={settings.framerate} onClick={() => setPicker('framerate')} />
-                <SettingRow label="開始時間" value={`${Math.floor(settings.startTime / 60)}:${(settings.startTime % 60).toFixed(0).padStart(2, '0')}`} onClick={() => setPicker('startTime')} />
-                <SettingRow label="終了時間" value={settings.endTime === 0 ? '最後まで' : `${Math.floor(settings.endTime / 60)}:${(settings.endTime % 60).toFixed(0).padStart(2, '0')}`} onClick={() => setPicker('endTime')} />
+                <NativeSelect
+                  label="ビデオコーデック"
+                  value={settings.videoCodec}
+                  options={VIDEO_CODECS.map(c => ({ label: c, value: c, warning: IPHONE_BAD_VIDEO_CODECS.includes(c) }))}
+                  onChange={handleVideoCodecChange}
+                  warning={IPHONE_BAD_VIDEO_CODECS.includes(settings.videoCodec)}
+                />
+                <NativeSelect
+                  label="縦横比"
+                  value={settings.aspectRatio}
+                  options={ASPECT_RATIOS.map(a => ({ label: a, value: a }))}
+                  onChange={v => onChange({ ...settings, aspectRatio: v })}
+                />
+                <NativeSelect
+                  label="フレーム書き出し方式"
+                  value={settings.scanType}
+                  options={SCAN_TYPES.map(s => ({ label: s, value: s }))}
+                  onChange={v => onChange({ ...settings, scanType: v })}
+                />
+                <NativeSelect
+                  label="解像度"
+                  value={`${settings.resolutionW}x${settings.resolutionH}`}
+                  options={resolutionOptions}
+                  onChange={handleResolutionChange}
+                />
+                <NativeSelect
+                  label="動画ビットレート"
+                  value={settings.videoBitrate}
+                  options={videoBitrateOptions}
+                  onChange={handleVideoBitrateChange}
+                />
+                <NativeSelect
+                  label="フレームレート"
+                  value={settings.framerate}
+                  options={FRAMERATES.map(f => ({ label: f, value: f }))}
+                  onChange={v => onChange({ ...settings, framerate: v })}
+                />
+                <NativeSelect
+                  label="開始時間"
+                  value={String(settings.startTime)}
+                  options={timeOptions(videoDuration)}
+                  onChange={v => onChange({ ...settings, startTime: parseFloat(v) })}
+                />
+                <NativeSelect
+                  label="終了時間"
+                  value={String(settings.endTime)}
+                  options={[{ label: '最後まで', value: '0' }, ...timeOptions(videoDuration).slice(1)]}
+                  onChange={v => onChange({ ...settings, endTime: parseFloat(v) })}
+                />
                 <div
                   onTouchStart={handleSpeedTouchStart}
                   onTouchEnd={handleSpeedTouchEnd}
                   onMouseDown={handleSpeedTouchStart}
                   onMouseUp={handleSpeedTouchEnd}
                 >
-                  <SettingRow label="再生速度" value={`${settings.speed}×`} onClick={() => setPicker('speed')} />
+                  <NativeSelect
+                    label="再生速度"
+                    value={settings.speed}
+                    options={SPEEDS.map(s => ({ label: `${s}×`, value: s }))}
+                    onChange={v => onChange({ ...settings, speed: v })}
+                  />
                 </div>
               </>
             )}
 
             <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">オーディオ</div>
-            <SettingRow label="オーディオコーデック" value={settings.audioCodec} onClick={() => setPicker('audioCodec')} warning={IPHONE_BAD_AUDIO_CODECS.includes(settings.audioCodec)} />
-            <SettingRow label="音声ビットレート" value={settings.audioBitrate} onClick={() => setPicker('audioBitrate')} />
-            <SettingRow label="チャンネル数" value={settings.channels} onClick={() => setPicker('channels')} />
-            <SettingRow label="周波数" value={settings.frequency} onClick={() => setPicker('frequency')} />
+            <NativeSelect
+              label="オーディオコーデック"
+              value={settings.audioCodec}
+              options={AUDIO_CODECS.map(c => ({ label: c, value: c, warning: IPHONE_BAD_AUDIO_CODECS.includes(c) }))}
+              onChange={handleAudioCodecChange}
+              warning={IPHONE_BAD_AUDIO_CODECS.includes(settings.audioCodec)}
+            />
+            <NativeSelect
+              label="音声ビットレート"
+              value={settings.audioBitrate}
+              options={audioBitrateOptions}
+              onChange={handleAudioBitrateChange}
+            />
+            <NativeSelect
+              label="チャンネル数"
+              value={settings.channels}
+              options={CHANNELS.map(c => ({ label: c, value: c }))}
+              onChange={v => onChange({ ...settings, channels: v })}
+            />
+            <NativeSelect
+              label="周波数"
+              value={settings.frequency}
+              options={FREQUENCIES.map(f => ({ label: f, value: f }))}
+              onChange={v => onChange({ ...settings, frequency: v })}
+            />
           </div>
 
           <button onClick={onClose} className="w-full py-4 bg-primary text-primary-foreground text-[17px] font-semibold active:opacity-80 transition-opacity">
@@ -239,21 +278,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           </button>
         </div>
       </div>
-
-      <IOSPickerModal
-        open={picker !== null && !showCustomRes}
-        onClose={() => setPicker(null)}
-        onSelect={(v) => {
-          if (v === 'custom') {
-            if (picker === 'videoBitrate') { setShowCustomVBitrate(true); setPicker(null); return; }
-            if (picker === 'audioBitrate') { setShowCustomABitrate(true); setPicker(null); return; }
-          }
-          handlePickerSelect(v);
-        }}
-        sections={getSections()}
-        selected={getPickerSelected()}
-        header={getPickerHeader()}
-      />
 
       {/* Custom resolution input */}
       {showCustomRes && (
@@ -280,7 +304,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
                 const h = parseInt(customResH) || settings.resolutionH;
                 onChange({ ...settings, resolutionW: w, resolutionH: h });
                 if (!checkAspectResolutionMatch(settings.aspectRatio, w, h))
-                  setAlert({ title: '⚠️ 警告', message: 'アスペクト比と解像度が一致しません（5px以上のずれ）。' });
+                  window.alert('⚠️ 警告\n\nアスペクト比と解像度が一致しません（5px以上のずれ）。');
                 setShowCustomRes(false);
               }}
               className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[17px] font-semibold active:opacity-80"
@@ -368,8 +392,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           </div>
         </div>
       )}
-
-      <IOSAlertDialog open={!!alert} onClose={() => setAlert(null)} title={alert?.title || ''} message={alert?.message || ''} />
     </>
   );
 };
