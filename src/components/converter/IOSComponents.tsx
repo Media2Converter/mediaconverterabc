@@ -35,7 +35,7 @@ export const IOSActionSheet: React.FC<ActionSheetProps> = ({ open, onClose, opti
 
 export interface PickerSection {
   title?: string;
-  options: { label: string; value: string; warning?: boolean; dangerLabel?: string; colorClass?: string }[];
+  options: { label: string; value: string; warning?: boolean }[];
 }
 
 interface PickerModalProps {
@@ -68,13 +68,10 @@ export const IOSPickerModal: React.FC<PickerModalProps> = ({ open, onClose, onSe
                     key={oi}
                     onClick={() => { onSelect(opt.value); onClose(); }}
                     className={`w-full px-4 py-[11px] text-left text-[20px] border-b border-border/30 last:border-b-0 active:bg-accent/60 transition-colors flex items-center justify-between ${
-                      opt.colorClass ? opt.colorClass : opt.warning ? 'text-ios-warning' : 'text-primary'
+                      opt.warning ? 'text-ios-warning' : 'text-primary'
                     }`}
                   >
-                    <span>
-                      {opt.label}
-                      {opt.dangerLabel && <span className="text-destructive text-[14px] ml-2">⚠️ {opt.dangerLabel}</span>}
-                    </span>
+                    <span>{opt.label}</span>
                     {selected === opt.value && <span className="text-primary text-lg">✓</span>}
                   </button>
                 ))}
@@ -136,7 +133,7 @@ export const IOSConfirmDialog: React.FC<ConfirmProps> = ({ open, onClose, onConf
       <div className="relative w-[270px] bg-popover/95 backdrop-blur-xl rounded-[14px] overflow-hidden ios-scale-in" onClick={e => e.stopPropagation()}>
         <div className="px-4 pt-5 pb-4 text-center">
           <h3 className="text-foreground text-[17px] font-semibold mb-1">{title}</h3>
-          <p className="text-muted-foreground text-[13px] leading-[18px] whitespace-pre-line">{message}</p>
+          <p className="text-muted-foreground text-[13px] leading-[18px]">{message}</p>
         </div>
         <div className="border-t border-border/50 flex">
           <button onClick={onClose} className="flex-1 py-[11px] text-primary text-[17px] font-normal border-r border-border/50 active:bg-accent/60 transition-colors">
