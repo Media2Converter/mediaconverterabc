@@ -1,10 +1,10 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { ProgressCircle, IOSActionSheet, IOSConfirmDialog, IOSAlertDialog, IOSPickerModal } from '@/components/converter/IOSComponents';
+import { ProgressCircle, IOSActionSheet, IOSConfirmDialog, IOSAlertDialog } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS, IPHONE_BAD_FORMATS,
   FORMAT_EXT, FORMAT_MIME, CODEC_MAP, isVideoFormat,
-  isCodecCompatible, FORMAT_AUDIO_CODEC_COMPAT, FORMAT_VIDEO_CODEC_COMPAT,
+  isCodecCompatible,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
@@ -32,7 +32,7 @@ const Index: React.FC = () => {
   const fileRef = useRef<HTMLInputElement>(null);
   const ffmpegRef = useRef<FFmpeg | null>(null);
 
-  const showAlertMsg = (title: string, message: string) => {
+  const showAlert = (title: string, message: string) => {
     setAlertState({ open: true, title, message });
   };
 
@@ -73,33 +73,36 @@ const Index: React.FC = () => {
   const handleFormatSelect = (value: string) => {
     setSelectedFormat(value);
     if (IPHONE_BAD_FORMATS.includes(value)) {
-      showAlertMsg('⚠️ 互換性の警告', `${value}形式はiPhoneで再生できない可能性があります。`);
+      showAlert('⚠️ 互換性の警告', `${value}形式はiPhoneで再生できない可能性があります。`);
     }
     // Auto-fix codec compatibility
     if (!isCodecCompatible(value, settings.audioCodec, 'audio')) {
-      const compatMap = FORMAT_AUDIO_CODEC_COMPAT;
+      const compatMap: Record<string, string[]> = {
+        'MP4': ['AAC'], 'M4V': ['AAC'], 'MOV': ['AAC'], 'AVI': ['MP3'],
+        '3G2': ['AAC'], '3GP': ['AAC'], 'OPUS': ['OPUS'], 'OGG': ['OGG'],
+        'WAV': ['PCM_S16LE'], 'AIFF': ['PCM_S16LE'], 'MP3': ['MP3'],
+        'AAC': ['AAC'], 'AC3': ['AC3'], 'EAC3': ['EAC3'],
+        'AMR_NB': ['AMR_NB'], 'AMR_WB': ['AMR_WB'], 'RAW': ['PCM_S16LE'],
+      };
       const defaultCodec = compatMap[value]?.[0] || 'AAC';
       setSettings(prev => ({ ...prev, audioCodec: defaultCodec }));
     }
     if (isVideoFormat(value) && !isCodecCompatible(value, settings.videoCodec, 'video')) {
-      const compatMap = FORMAT_VIDEO_CODEC_COMPAT;
-      const defaultCodec = compatMap[value]?.[0] || 'H.264';
-      setSettings(prev => ({ ...prev, videoCodec: defaultCodec }));
+      setSettings(prev => ({ ...prev, videoCodec: 'H.264' }));
     }
   };
 
   const handleConvert = async () => {
-    if (!selectedFormat || files.length === 0) return;
-
+    // Check codec/format compatibility warnings
     const warnings: string[] = [];
-    if (!isCodecCompatible(selectedFormat, settings.audioCodec, 'audio')) {
+    if (!isCodecCompatible(selectedFormat!, settings.audioCodec, 'audio')) {
       warnings.push(`オーディオコーデック「${settings.audioCodec}」は「${selectedFormat}」形式と互換性がありません。`);
     }
-    if (isVideoFormat(selectedFormat) && !isCodecCompatible(selectedFormat, settings.videoCodec, 'video')) {
+    if (isVideoFormat(selectedFormat!) && !isCodecCompatible(selectedFormat!, settings.videoCodec, 'video')) {
       warnings.push(`ビデオコーデック「${settings.videoCodec}」は「${selectedFormat}」形式と互換性がありません。`);
     }
     if (warnings.length > 0) {
-      showAlertMsg('⚠️ 危ない！', warnings.join('\n'));
+      showAlert('⚠️ 危ない！', warnings.join('\n'));
       return;
     }
 
@@ -121,7 +124,7 @@ const Index: React.FC = () => {
       const ffmpeg = ffmpegRef.current;
       const inputFile = files[0];
       const inputName = 'input' + inputFile.name.substring(inputFile.name.lastIndexOf('.'));
-      const ext = FORMAT_EXT[selectedFormat] || 'mp4';
+      const ext = FORMAT_EXT[selectedFormat!] || 'mp4';
       const outputName = `output.${ext}`;
 
       await ffmpeg.writeFile(inputName, await fetchFile(inputFile));
@@ -131,18 +134,21 @@ const Index: React.FC = () => {
       if (settings.startTime > 0) args.push('-ss', String(settings.startTime));
       if (settings.endTime > 0) args.push('-to', String(settings.endTime));
 
-      const outputIsVideo = isVideoFormat(selectedFormat);
+      const outputIsVideo = isVideoFormat(selectedFormat!);
 
       if (isVideo && outputIsVideo) {
         const vCodec = CODEC_MAP[settings.videoCodec] || 'libx264';
         args.push('-c:v', vCodec);
-        args.push('-b:v', settings.videoBitrate.replace('KBPS', 'k'));
-        args.push('-r', settings.framerate.replace('FPS', ''));
+        const vBr = settings.videoBitrate.replace('KBPS', 'k');
+        args.push('-b:v', vBr);
+        const fps = settings.framerate.replace('FPS', '');
+        args.push('-r', fps);
         args.push('-s', `${settings.resolutionW}x${settings.resolutionH}`);
 
         const videoFilters: string[] = [];
         if (settings.speed !== '1') {
-          videoFilters.push(`setpts=PTS/${parseFloat(settings.speed)}`);
+          const spd = parseFloat(settings.speed);
+          videoFilters.push(`setpts=PTS/${spd}`);
         }
         if (settings.scanType === 'インターレース方式') {
           args.push('-flags', '+ilme+ildct');
@@ -156,58 +162,66 @@ const Index: React.FC = () => {
 
       const aCodec = CODEC_MAP[settings.audioCodec] || 'aac';
       args.push('-c:a', aCodec);
-      args.push('-b:a', settings.audioBitrate.replace('KBPS', 'k'));
-      args.push('-ac', settings.channels === 'モノラル' ? '1' : '2');
-      args.push('-ar', settings.frequency.replace('Hz', ''));
 
-      // Audio filters
-      const audioFilters: string[] = [];
+      // Handle AMR-specific bitrate
+      const aBr = settings.audioBitrate.replace('KBPS', 'k');
+      args.push('-b:a', aBr);
+      args.push('-ac', settings.channels === 'モノラル' ? '1' : '2');
+      const freq = settings.frequency.replace('Hz', '');
+      args.push('-ar', freq);
+
+      // Volume
       if (settings.volume !== 'none') {
-        audioFilters.push(`volume=${settings.volume}dB`);
-      }
-      if (settings.speed !== '1') {
+        args.push('-filter:a', `volume=${settings.volume}dB`);
+      } else if (settings.speed !== '1' && parseFloat(settings.speed) !== 1) {
         const spd = parseFloat(settings.speed);
-        if (spd >= 0.5 && spd <= 2) {
-          audioFilters.push(`atempo=${spd}`);
+        if (spd <= 2 && spd >= 0.5) {
+          args.push('-filter:a', `atempo=${spd}`);
         } else if (spd > 2) {
+          const chain: string[] = [];
           let remaining = spd;
-          while (remaining > 2) { audioFilters.push('atempo=2.0'); remaining /= 2; }
-          audioFilters.push(`atempo=${remaining}`);
+          while (remaining > 2) { chain.push('atempo=2.0'); remaining /= 2; }
+          chain.push(`atempo=${remaining}`);
+          args.push('-filter:a', chain.join(','));
         } else {
+          const chain: string[] = [];
           let remaining = spd;
-          while (remaining < 0.5) { audioFilters.push('atempo=0.5'); remaining /= 0.5; }
-          audioFilters.push(`atempo=${remaining}`);
+          while (remaining < 0.5) { chain.push('atempo=0.5'); remaining /= 0.5; }
+          chain.push(`atempo=${remaining}`);
+          args.push('-filter:a', chain.join(','));
         }
       }
-      if (audioFilters.length > 0) {
-        args.push('-filter:a', audioFilters.join(','));
-      }
 
-      args.push('-strict', 'experimental', '-y', outputName);
+      // Strict mode off for compatibility
+      args.push('-strict', 'experimental');
+      args.push('-y', outputName);
 
       await ffmpeg.exec(args);
 
-      // Read output, attempt repair if broken
+      // Try to read output, if fails attempt repair
       let data: any;
       try {
         data = await ffmpeg.readFile(outputName);
       } catch {
+        // Attempt repair by re-muxing
         const repairName = `repaired.${ext}`;
         await ffmpeg.exec(['-i', outputName, '-c', 'copy', '-movflags', '+faststart', '-y', repairName]);
         data = await ffmpeg.readFile(repairName);
       }
 
       const uint8 = new Uint8Array(data as Uint8Array);
-      if (uint8.length === 0) throw new Error('変換結果が空です');
-
-      const mimeType = FORMAT_MIME[selectedFormat] || (outputIsVideo ? 'video/mp4' : 'audio/mpeg');
+      if (uint8.length === 0) {
+        throw new Error('変換結果が空です');
+      }
+      const mimeType = FORMAT_MIME[selectedFormat!] || (outputIsVideo ? 'video/mp4' : 'audio/mpeg');
       const blob = new Blob([uint8], { type: mimeType });
-      setConvertedUrl(URL.createObjectURL(blob));
+      const url = URL.createObjectURL(blob);
+      setConvertedUrl(url);
       setConvertedFilename(`converted.${ext}`);
       setProgress(100);
     } catch (err: any) {
       console.error(err);
-      showAlertMsg('エラー', `変換に失敗しました: ${err?.message || '不明なエラー'}`);
+      showAlert('エラー', `変換に失敗しました: ${err?.message || '不明なエラー'}`);
     } finally {
       setConverting(false);
     }
@@ -245,6 +259,7 @@ const Index: React.FC = () => {
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
       <h1 className="text-2xl font-bold mb-8 tracking-tight">メディアコンバータ</h1>
 
+      {/* File list */}
       {files.length > 0 && (
         <div className="w-full mb-4 space-y-2">
           {files.map((f, i) => (
@@ -264,6 +279,7 @@ const Index: React.FC = () => {
         </div>
       )}
 
+      {/* Single upload button */}
       <button
         onClick={() => setShowUploadMenu(true)}
         className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold active:scale-[0.97] transition-transform"
@@ -271,18 +287,20 @@ const Index: React.FC = () => {
         {files.length > 0 ? 'ファイルを追加' : 'ファイルを選択'}
       </button>
 
+      {/* Hidden file inputs */}
       <input ref={videoFileRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
       <input ref={videoCaptureRef} type="file" accept="video/*" capture="environment" hidden onChange={handleFileSelected} />
       <input ref={audioCaptureRef} type="file" accept="audio/*" capture="user" hidden onChange={handleFileSelected} />
       <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
 
+      {/* Format selector */}
       {files.length > 0 && (
         <div className="w-full flex gap-3 mt-4">
           <button
             onClick={() => setShowFormatPicker(true)}
             className="flex-1 py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold active:scale-[0.97] transition-transform"
           >
-            {selectedFormat || '形式'}
+            {selectedFormat ? selectedFormat : '形式'}
           </button>
           {selectedFormat && (
             <button
@@ -295,33 +313,49 @@ const Index: React.FC = () => {
         </div>
       )}
 
+      {/* Convert button */}
       {selectedFormat && !converting && !convertedUrl && (
-        <button onClick={handleConvert}
-          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl text-[17px] font-semibold active:scale-[0.97] transition-transform">
+        <button
+          onClick={handleConvert}
+          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl text-[17px] font-semibold active:scale-[0.97] transition-transform"
+        >
           変換
         </button>
       )}
 
-      {converting && <div className="mt-8"><ProgressCircle progress={progress} /></div>}
+      {/* Progress */}
+      {converting && (
+        <div className="mt-8">
+          <ProgressCircle progress={progress} />
+        </div>
+      )}
 
+      {/* Download */}
       {convertedUrl && !converting && (
-        <button onClick={handleDownload}
-          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl text-[17px] font-semibold active:scale-[0.97] transition-transform">
+        <button
+          onClick={handleDownload}
+          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl text-[17px] font-semibold active:scale-[0.97] transition-transform"
+        >
           ダウンロード
         </button>
       )}
 
-      {/* Upload context menu */}
-      <IOSActionSheet open={showUploadMenu} onClose={() => setShowUploadMenu(false)} options={uploadMenuOptions} />
-
-      {/* Format picker */}
-      <IOSPickerModal
-        open={showFormatPicker}
-        onClose={() => setShowFormatPicker(false)}
-        sections={formatSections}
-        selected={selectedFormat || ''}
-        onSelect={(v) => { handleFormatSelect(v); setShowFormatPicker(false); }}
+      {/* Upload action sheet */}
+      <IOSActionSheet
+        open={showUploadMenu}
+        onClose={() => setShowUploadMenu(false)}
+        options={uploadMenuOptions}
       />
+
+      {/* Format picker - using IOSPickerModal */}
+      {showFormatPicker && (
+        <FormatPickerOverlay
+          sections={formatSections}
+          selected={selectedFormat}
+          onSelect={(v) => { handleFormatSelect(v); setShowFormatPicker(false); }}
+          onClose={() => setShowFormatPicker(false)}
+        />
+      )}
 
       {/* Delete confirm */}
       <IOSConfirmDialog
@@ -334,6 +368,7 @@ const Index: React.FC = () => {
         destructive
       />
 
+      {/* Alert */}
       <IOSAlertDialog
         open={alertState.open}
         onClose={() => setAlertState({ open: false, title: '', message: '' })}
@@ -341,6 +376,7 @@ const Index: React.FC = () => {
         message={alertState.message}
       />
 
+      {/* Detail settings */}
       <DetailSettingsModal
         open={showDetailSettings}
         onClose={() => setShowDetailSettings(false)}
@@ -354,5 +390,50 @@ const Index: React.FC = () => {
     </div>
   );
 };
+
+// Format picker as context menu style overlay
+const FormatPickerOverlay: React.FC<{
+  sections: { title: string; options: { label: string; value: string; warning?: boolean; dangerLabel?: string }[] }[];
+  selected: string | null;
+  onSelect: (v: string) => void;
+  onClose: () => void;
+}> = ({ sections, selected, onSelect, onClose }) => (
+  <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center ios-fade-in" onClick={onClose}>
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+    <div className="relative w-full max-w-sm mx-2 mb-2 sm:mb-0 ios-slide-up sm:ios-scale-in" onClick={e => e.stopPropagation()}>
+      <div className="bg-popover/95 backdrop-blur-xl rounded-[14px] overflow-hidden max-h-[70vh] flex flex-col">
+        <div className="overflow-y-auto overscroll-contain">
+          {sections.map((sec, si) => (
+            <div key={si}>
+              {sec.title && (
+                <div className="px-4 pt-3 pb-1.5 text-muted-foreground text-[13px] font-medium uppercase tracking-wide">
+                  {sec.title}
+                </div>
+              )}
+              {sec.options.map((opt, oi) => (
+                <button
+                  key={oi}
+                  onClick={() => onSelect(opt.value)}
+                  className={`w-full px-4 py-[11px] text-left text-[20px] border-b border-border/30 last:border-b-0 active:bg-accent/60 transition-colors flex items-center justify-between ${
+                    opt.warning ? 'text-ios-warning' : 'text-primary'
+                  }`}
+                >
+                  <span>
+                    {opt.label}
+                    {opt.dangerLabel && <span className="text-destructive text-[14px] ml-2">⚠️ {opt.dangerLabel}</span>}
+                  </span>
+                  {selected === opt.value && <span className="text-primary text-lg">✓</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <button onClick={onClose} className="w-full bg-popover/95 backdrop-blur-xl rounded-[14px] px-4 py-[11px] mt-2 text-primary text-center text-[20px] font-semibold active:bg-accent/60 transition-colors">
+        キャンセル
+      </button>
+    </div>
+  </div>
+);
 
 export default Index;
