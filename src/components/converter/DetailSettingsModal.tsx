@@ -231,7 +231,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       case 'videoBitrate': return [{ options: [...VIDEO_BITRATES.map(b => ({ label: b, value: b })), { label: '打ち込む', value: 'custom' }] }];
       case 'audioBitrate': return [{ options: [...getAudioBitrates().map(b => ({ label: b, value: b })), { label: '打ち込む', value: 'custom' }] }];
       case 'scanType': return [{ options: SCAN_TYPES.map(s => ({ label: s, value: s })) }];
-      case 'framerate': return [{ options: FRAMERATES.map(f => ({ label: f, value: f })) }];
+      case 'framerate': return [{ options: [...FRAMERATES.map(f => ({ label: f, value: f })), { label: '打ち込む', value: 'custom' }] }];
       case 'startTime': return timeOptions(videoDuration);
       case 'endTime': return [{ options: [{ label: '最後まで', value: '0' }, ...timeOptions(videoDuration)[0].options.slice(1)] }];
       case 'speed': return [{ options: SPEEDS.map(s => ({ label: `${s}×`, value: s })) }];
