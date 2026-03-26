@@ -64,7 +64,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const isPortrait = arL < arR;
 
   useEffect(() => {
-    if (!open) { setActivePicker(null); setShowCustomRes(false); setShowCustomBitrate(null); }
+    if (!open) { setActivePicker(null); setShowCustomRes(false); setShowCustomBitrate(null); setShowCustomFramerate(false); }
   }, [open]);
 
   const showAlert = (title: string, message: string) => setAlertState({ open: true, title, message });
