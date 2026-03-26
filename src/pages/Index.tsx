@@ -218,12 +218,6 @@ const Index: React.FC = () => {
     a.click();
   };
 
-  const uploadMenuOptions = [
-    { label: '写真ライブラリから選択', action: () => videoFileRef.current?.click() },
-    { label: 'ビデオを録画', action: () => videoCaptureRef.current?.click() },
-    { label: 'オーディオを録音', action: () => audioCaptureRef.current?.click() },
-    { label: 'ファイルから選択', action: () => fileRef.current?.click() },
-  ];
 
   const formatSections = [
     { title: '動画形式', options: VIDEO_FORMATS.map(f => ({
