@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { ProgressCircle, IOSActionSheet, IOSConfirmDialog, IOSAlertDialog, IOSPickerModal } from '@/components/converter/IOSComponents';
+import { ProgressCircle, IOSConfirmDialog, IOSAlertDialog, IOSPickerModal } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS, IPHONE_BAD_FORMATS,
@@ -21,15 +21,12 @@ const Index: React.FC = () => {
   const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
   const [convertedFilename, setConvertedFilename] = useState('');
   const [videoDuration, setVideoDuration] = useState(0);
-  const [showUploadMenu, setShowUploadMenu] = useState(false);
+  
   const [showFormatPicker, setShowFormatPicker] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; index: number }>({ open: false, index: -1 });
   const [alertState, setAlertState] = useState<{ open: boolean; title: string; message: string }>({ open: false, title: '', message: '' });
 
-  const videoFileRef = useRef<HTMLInputElement>(null);
-  const videoCaptureRef = useRef<HTMLInputElement>(null);
-  const audioCaptureRef = useRef<HTMLInputElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const ffmpegRef = useRef<FFmpeg | null>(null);
 
   const showAlertMsg = (title: string, message: string) => {
@@ -221,12 +218,6 @@ const Index: React.FC = () => {
     a.click();
   };
 
-  const uploadMenuOptions = [
-    { label: '写真ライブラリから選択', action: () => videoFileRef.current?.click() },
-    { label: 'ビデオを録画', action: () => videoCaptureRef.current?.click() },
-    { label: 'オーディオを録音', action: () => audioCaptureRef.current?.click() },
-    { label: 'ファイルから選択', action: () => fileRef.current?.click() },
-  ];
 
   const formatSections = [
     { title: '動画形式', options: VIDEO_FORMATS.map(f => ({
@@ -265,16 +256,13 @@ const Index: React.FC = () => {
       )}
 
       <button
-        onClick={() => setShowUploadMenu(true)}
+        onClick={() => fileInputRef.current?.click()}
         className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold active:scale-[0.97] transition-transform"
       >
         {files.length > 0 ? 'ファイルを追加' : 'ファイルを選択'}
       </button>
 
-      <input ref={videoFileRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
-      <input ref={videoCaptureRef} type="file" accept="video/*" capture="environment" hidden onChange={handleFileSelected} />
-      <input ref={audioCaptureRef} type="file" accept="audio/*" capture="user" hidden onChange={handleFileSelected} />
-      <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
+      <input ref={fileInputRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
 
       {files.length > 0 && (
         <div className="w-full flex gap-3 mt-4">
@@ -311,8 +299,6 @@ const Index: React.FC = () => {
         </button>
       )}
 
-      {/* Upload context menu */}
-      <IOSActionSheet open={showUploadMenu} onClose={() => setShowUploadMenu(false)} options={uploadMenuOptions} />
 
       {/* Format picker */}
       <IOSPickerModal

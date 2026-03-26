@@ -4,7 +4,6 @@ import {
   VIDEO_CODECS, AUDIO_CODECS, ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
   VOLUME_OPTIONS, AMR_NB_BITRATES, AMR_WB_BITRATES, AMR_NB_FREQUENCIES, AMR_WB_FREQUENCIES,
-  IPHONE_BAD_VIDEO_CODECS, IPHONE_BAD_AUDIO_CODECS,
   FORMAT_AUDIO_CODEC_COMPAT, FORMAT_VIDEO_CODEC_COMPAT,
   isCodecCompatible,
   type ConvertSettings, checkAspectResolutionMatch,
@@ -55,6 +54,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const [customResH, setCustomResH] = useState('');
   const [showCustomBitrate, setShowCustomBitrate] = useState<'video' | 'audio' | null>(null);
   const [customBitrate, setCustomBitrate] = useState('');
+  const [showCustomFramerate, setShowCustomFramerate] = useState(false);
+  const [customFramerate, setCustomFramerate] = useState('');
   const [alertState, setAlertState] = useState<{ open: boolean; title: string; message: string }>({ open: false, title: '', message: '' });
   const [showAudioDeleteWarn, setShowAudioDeleteWarn] = useState(false);
 
@@ -63,7 +64,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const isPortrait = arL < arR;
 
   useEffect(() => {
-    if (!open) { setActivePicker(null); setShowCustomRes(false); setShowCustomBitrate(null); }
+    if (!open) { setActivePicker(null); setShowCustomRes(false); setShowCustomBitrate(null); setShowCustomFramerate(false); }
   }, [open]);
 
   const showAlert = (title: string, message: string) => setAlertState({ open: true, title, message });
@@ -79,13 +80,11 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return [{
       title: 'ビデオコーデック',
       options: VIDEO_CODECS.map(c => {
-        const iphoneBad = IPHONE_BAD_VIDEO_CODECS.includes(c);
         const incompatible = compatible && !compatible.includes(c);
         return {
           label: c,
           value: c,
-          warning: iphoneBad,
-          dangerLabel: incompatible ? '危ない！互換性なし' : iphoneBad ? '危ない！iPhone非対応' : undefined,
+          dangerLabel: incompatible ? '危ない！互換性なし' : undefined,
           colorClass: incompatible ? 'text-destructive' : undefined,
         };
       }),
@@ -97,13 +96,11 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return [{
       title: 'オーディオコーデック',
       options: AUDIO_CODECS.map(c => {
-        const iphoneBad = IPHONE_BAD_AUDIO_CODECS.includes(c);
         const incompatible = compatible && !compatible.includes(c);
         return {
           label: c,
           value: c,
-          warning: iphoneBad,
-          dangerLabel: incompatible ? '危ない！互換性なし' : iphoneBad ? '危ない！iPhone非対応' : undefined,
+          dangerLabel: incompatible ? '危ない！互換性なし' : undefined,
           colorClass: incompatible ? 'text-destructive' : undefined,
         };
       }),
@@ -203,7 +200,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         onChange({ ...settings, audioBitrate: value });
         break;
       case 'scanType': onChange({ ...settings, scanType: value }); break;
-      case 'framerate': onChange({ ...settings, framerate: value }); break;
+      case 'framerate':
+        if (value === 'custom') { setShowCustomFramerate(true); return; }
+        onChange({ ...settings, framerate: value });
+        break;
       case 'startTime': onChange({ ...settings, startTime: parseFloat(value) }); break;
       case 'endTime': onChange({ ...settings, endTime: parseFloat(value) }); break;
       case 'speed': onChange({ ...settings, speed: value }); break;
@@ -233,7 +233,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       case 'videoBitrate': return [{ options: [...VIDEO_BITRATES.map(b => ({ label: b, value: b })), { label: '打ち込む', value: 'custom' }] }];
       case 'audioBitrate': return [{ options: [...getAudioBitrates().map(b => ({ label: b, value: b })), { label: '打ち込む', value: 'custom' }] }];
       case 'scanType': return [{ options: SCAN_TYPES.map(s => ({ label: s, value: s })) }];
-      case 'framerate': return [{ options: FRAMERATES.map(f => ({ label: f, value: f })) }];
+      case 'framerate': return [{ options: [...FRAMERATES.map(f => ({ label: f, value: f })), { label: '打ち込む', value: 'custom' }] }];
       case 'startTime': return timeOptions(videoDuration);
       case 'endTime': return [{ options: [{ label: '最後まで', value: '0' }, ...timeOptions(videoDuration)[0].options.slice(1)] }];
       case 'speed': return [{ options: SPEEDS.map(s => ({ label: `${s}×`, value: s })) }];
@@ -373,6 +373,27 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               const def = showCustomBitrate === 'video' ? '5120' : '128';
               onChange({ ...settings, [key]: `${customBitrate || def}KBPS` });
               setShowCustomBitrate(null);
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[17px] font-semibold active:opacity-80">OK</button>
+          </div>
+        </div>
+      )}
+
+      {/* Custom framerate input */}
+      {showCustomFramerate && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomFramerate(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
+            <h3 className="text-foreground text-[17px] font-semibold text-center mb-4">フレームレートを入力</h3>
+            <div className="flex items-center gap-2 justify-center">
+              <input type="number" inputMode="decimal" placeholder="30"
+                value={customFramerate} onChange={e => setCustomFramerate(e.target.value)}
+                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[17px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[15px]">FPS</span>
+            </div>
+            <button onClick={() => {
+              const val = parseFloat(customFramerate) || 30;
+              onChange({ ...settings, framerate: `${val}FPS` });
+              setShowCustomFramerate(false);
             }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[17px] font-semibold active:opacity-80">OK</button>
           </div>
         </div>
