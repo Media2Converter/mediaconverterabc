@@ -55,6 +55,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const [customResH, setCustomResH] = useState('');
   const [showCustomBitrate, setShowCustomBitrate] = useState<'video' | 'audio' | null>(null);
   const [customBitrate, setCustomBitrate] = useState('');
+  const [showCustomFramerate, setShowCustomFramerate] = useState(false);
+  const [customFramerate, setCustomFramerate] = useState('');
   const [alertState, setAlertState] = useState<{ open: boolean; title: string; message: string }>({ open: false, title: '', message: '' });
   const [showAudioDeleteWarn, setShowAudioDeleteWarn] = useState(false);
 
