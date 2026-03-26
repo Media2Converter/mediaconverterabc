@@ -222,13 +222,9 @@ const Index: React.FC = () => {
   const formatSections = [
     { title: '動画形式', options: VIDEO_FORMATS.map(f => ({
       label: f, value: f,
-      warning: IPHONE_BAD_FORMATS.includes(f),
-      dangerLabel: IPHONE_BAD_FORMATS.includes(f) ? '危ない！' : undefined,
     })) },
     { title: '音声形式', options: AUDIO_FORMATS.map(f => ({
       label: f, value: f,
-      warning: IPHONE_BAD_FORMATS.includes(f),
-      dangerLabel: IPHONE_BAD_FORMATS.includes(f) ? '危ない！' : undefined,
     })) },
   ];
 
