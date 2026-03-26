@@ -4,7 +4,7 @@ export const AUDIO_FORMATS = ['OPUS', 'EAC3', 'AC3', 'AAC', 'MP3', 'WAV', 'OGG',
 export const VIDEO_CODECS = ['AV1', 'H.265', 'H.264', 'H.263', 'H.261', 'H.320', 'MPEG-4', 'DIVX', 'MJPEG'];
 export const AUDIO_CODECS = ['OPUS', 'EAC3', 'AC3', 'AAC', 'MP3', 'WAV', 'OGG', 'AIFF', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711'];
 
-export const ASPECT_RATIOS = ['168:95', '16:9', '22:9', '11:9', '9:7', '4:3', '1:1', '3:4', '7:9', '9:11', '9:22', '9:16', '95:168'];
+export const ASPECT_RATIOS = ['168:95', '16:9', '22:9', '11:9', '11:8', '9:7', '4:3', '1:1', '3:4', '7:9', '8:11', '9:11', '9:22', '9:16', '95:168'];
 
 export const SCAN_TYPES = ['プログレッシブ方式', 'インターレース方式'];
 
@@ -72,6 +72,21 @@ export const AUDIO_BITRATES = [
   '128KBPS', '192KBPS', '256KBPS', '288KBPS', '304KBPS', '320KBPS',
 ];
 
+// AMR NB: fixed bitrates (kbps)
+export const AMR_NB_BITRATES = [
+  '4.75KBPS', '5.15KBPS', '5.90KBPS', '6.70KBPS',
+  '7.40KBPS', '7.95KBPS', '10.2KBPS', '12.2KBPS',
+];
+// AMR WB: fixed bitrates (kbps)
+export const AMR_WB_BITRATES = [
+  '6.60KBPS', '8.85KBPS', '12.65KBPS', '14.25KBPS', '15.85KBPS',
+  '18.25KBPS', '19.85KBPS', '23.05KBPS', '23.85KBPS',
+];
+// AMR NB: only 8000Hz
+export const AMR_NB_FREQUENCIES = ['8000Hz'];
+// AMR WB: only 16000Hz
+export const AMR_WB_FREQUENCIES = ['16000Hz'];
+
 export const FRAMERATES = [
   '1FPS', '2FPS', '4FPS', '5FPS', '8FPS', '12.5FPS', '16FPS', '20FPS',
   '23.976FPS', '24FPS', '25FPS', '29.97FPS', '30FPS', '32FPS', '40FPS',
@@ -93,10 +108,60 @@ export const FREQUENCIES = [
   '18240Hz', '20000Hz', '32000Hz', '48000Hz', '64000Hz', '116736Hz', '192000Hz',
 ];
 
+// Volume options (dB)
+export const VOLUME_OPTIONS: { label: string; value: string; color?: 'orange' | 'red' }[] = [
+  { label: '変えない', value: 'none' },
+  ...Array.from({ length: 130 }, (_, i) => {
+    const db = i + 10;
+    return {
+      label: `${db}dB`,
+      value: `${db}`,
+      color: db >= 126 ? 'red' as const : db >= 100 ? 'orange' as const : undefined,
+    };
+  }),
+];
+
 // iPhone incompatible items
 export const IPHONE_BAD_VIDEO_CODECS = ['AV1', 'H.263', 'H.261', 'H.320', 'DIVX', 'MJPEG'];
 export const IPHONE_BAD_AUDIO_CODECS = ['OPUS', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711'];
 export const IPHONE_BAD_FORMATS = ['AVI', '3G2', '3GP', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'OPUS'];
+
+// Container/Codec compatibility map - which audio codecs work with which formats
+export const FORMAT_AUDIO_CODEC_COMPAT: Record<string, string[]> = {
+  'MP4': ['AAC', 'AC3', 'EAC3', 'MP3'],
+  'M4V': ['AAC', 'AC3', 'EAC3'],
+  'MOV': ['AAC', 'AC3', 'EAC3', 'MP3', 'PCM_S16LE', 'PCM_S32LE'],
+  '3G2': ['AAC', 'AMR_NB', 'AMR_WB'],
+  '3GP': ['AAC', 'AMR_NB', 'AMR_WB'],
+  'AVI': ['MP3', 'PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'AC3'],
+  'OPUS': ['OPUS'],
+  'EAC3': ['EAC3'],
+  'AC3': ['AC3'],
+  'AAC': ['AAC'],
+  'MP3': ['MP3'],
+  'WAV': ['PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711'],
+  'OGG': ['OGG', 'OPUS'],
+  'AIFF': ['PCM_S16LE', 'PCM_S32LE'],
+  'RAW': ['PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'RAW'],
+  'AMR_NB': ['AMR_NB'],
+  'AMR_WB': ['AMR_WB'],
+};
+
+export const FORMAT_VIDEO_CODEC_COMPAT: Record<string, string[]> = {
+  'MP4': ['H.264', 'H.265', 'AV1', 'MPEG-4'],
+  'M4V': ['H.264', 'H.265', 'MPEG-4'],
+  'MOV': ['H.264', 'H.265', 'MPEG-4', 'MJPEG'],
+  '3G2': ['H.263', 'H.264', 'MPEG-4'],
+  '3GP': ['H.263', 'H.264', 'MPEG-4'],
+  'AVI': ['H.264', 'MPEG-4', 'DIVX', 'MJPEG', 'H.263'],
+};
+
+export function isCodecCompatible(format: string, codec: string, type: 'video' | 'audio'): boolean {
+  const map = type === 'video' ? FORMAT_VIDEO_CODEC_COMPAT : FORMAT_AUDIO_CODEC_COMPAT;
+  const compat = map[format];
+  if (!compat) return true; // unknown format, allow
+  return compat.includes(codec);
+}
 
 // FFmpeg codec mapping
 export const CODEC_MAP: Record<string, string> = {
@@ -139,6 +204,7 @@ export interface ConvertSettings {
   audioBitrate: string;
   channels: string;
   frequency: string;
+  volume: string;
 }
 
 export const defaultSettings: ConvertSettings = {
@@ -157,6 +223,7 @@ export const defaultSettings: ConvertSettings = {
   audioBitrate: '128KBPS',
   channels: 'ステレオ',
   frequency: '48000Hz',
+  volume: 'none',
 };
 
 export function isVideoFormat(fmt: string): boolean {
