@@ -256,16 +256,13 @@ const Index: React.FC = () => {
       )}
 
       <button
-        onClick={() => setShowUploadMenu(true)}
+        onClick={() => fileInputRef.current?.click()}
         className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold active:scale-[0.97] transition-transform"
       >
         {files.length > 0 ? 'ファイルを追加' : 'ファイルを選択'}
       </button>
 
-      <input ref={videoFileRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
-      <input ref={videoCaptureRef} type="file" accept="video/*" capture="environment" hidden onChange={handleFileSelected} />
-      <input ref={audioCaptureRef} type="file" accept="audio/*" capture="user" hidden onChange={handleFileSelected} />
-      <input ref={fileRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
+      <input ref={fileInputRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
 
       {files.length > 0 && (
         <div className="w-full flex gap-3 mt-4">
