@@ -95,13 +95,11 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return [{
       title: 'オーディオコーデック',
       options: AUDIO_CODECS.map(c => {
-        const iphoneBad = IPHONE_BAD_AUDIO_CODECS.includes(c);
         const incompatible = compatible && !compatible.includes(c);
         return {
           label: c,
           value: c,
-          warning: iphoneBad,
-          dangerLabel: incompatible ? '危ない！互換性なし' : iphoneBad ? '危ない！iPhone非対応' : undefined,
+          dangerLabel: incompatible ? '危ない！互換性なし' : undefined,
           colorClass: incompatible ? 'text-destructive' : undefined,
         };
       }),
