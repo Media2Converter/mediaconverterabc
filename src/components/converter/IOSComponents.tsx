@@ -50,41 +50,72 @@ interface PickerModalProps {
 export const IOSPickerModal: React.FC<PickerModalProps> = ({ open, onClose, onSelect, sections, selected, header }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center ios-fade-in" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
-      <div className="relative w-full max-w-sm mx-2 mb-2 sm:mb-0 ios-slide-up sm:ios-scale-in" onClick={e => e.stopPropagation()}>
-        <div className="bg-popover/95 backdrop-blur-xl rounded-[14px] overflow-hidden max-h-[70vh] flex flex-col">
-          {header && <div className="p-4 border-b border-border/50">{header}</div>}
-          <div className="overflow-y-auto overscroll-contain">
-            {sections.map((sec, si) => (
-              <div key={si}>
-                {sec.title && (
-                  <div className="px-4 pt-3 pb-1.5 text-muted-foreground text-[13px] font-medium uppercase tracking-wide">
-                    {sec.title}
-                  </div>
-                )}
-                {sec.options.map((opt, oi) => (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center ios-fade-in" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-md" />
+      <div
+        className="relative ios-scale-in"
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: 'min(340px, 88vw)',
+          background: 'rgba(50, 50, 52, 0.9)',
+          backdropFilter: 'blur(50px)',
+          WebkitBackdropFilter: 'blur(50px)',
+          borderRadius: '14px',
+          overflow: 'hidden',
+          maxHeight: '70vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {header && (
+          <div className="px-4 py-3" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.15)' }}>
+            {header}
+          </div>
+        )}
+        <div className="overflow-y-auto overscroll-contain">
+          {sections.map((sec, si) => (
+            <div key={si}>
+              {sec.title && (
+                <div
+                  className="px-4 pt-3 pb-1.5 text-[13px] font-medium uppercase tracking-wide"
+                  style={{ color: 'rgba(255,255,255,0.45)' }}
+                >
+                  {sec.title}
+                </div>
+              )}
+              {sec.options.map((opt, oi) => {
+                const isLast = oi === sec.options.length - 1 && si === sections.length - 1;
+                return (
                   <button
                     key={oi}
                     onClick={() => { onSelect(opt.value); onClose(); }}
-                    className={`w-full px-4 py-[11px] text-left text-[20px] border-b border-border/30 last:border-b-0 active:bg-accent/60 transition-colors flex items-center justify-between ${
-                      opt.colorClass ? opt.colorClass : opt.warning ? 'text-ios-warning' : 'text-primary'
-                    }`}
+                    className={`w-full px-4 py-[13px] text-left text-[17px] flex items-center justify-between transition-colors ${opt.colorClass || ''}`}
+                    style={{
+                      borderBottom: isLast ? 'none' : '0.5px solid rgba(255,255,255,0.12)',
+                      color: opt.colorClass ? undefined : '#fff',
+                      background: 'transparent',
+                    }}
+                    onMouseDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                    onMouseUp={e => (e.currentTarget.style.background = 'transparent')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    onTouchStart={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                    onTouchEnd={e => (e.currentTarget.style.background = 'transparent')}
                   >
                     <span>
                       {opt.label}
-                      {opt.dangerLabel && <span className="text-destructive text-[14px] ml-2">⚠️ {opt.dangerLabel}</span>}
+                      {opt.dangerLabel && (
+                        <span className="text-destructive text-[13px] ml-2">⚠️ {opt.dangerLabel}</span>
+                      )}
                     </span>
-                    {selected === opt.value && <span className="text-primary text-lg">✓</span>}
+                    {selected === opt.value && (
+                      <span style={{ color: '#fff', fontSize: '15px' }}>✓</span>
+                    )}
                   </button>
-                ))}
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
-        <button onClick={onClose} className="w-full bg-popover/95 backdrop-blur-xl rounded-[14px] px-4 py-[11px] mt-2 text-primary text-center text-[20px] font-semibold active:bg-accent/60 transition-colors">
-          キャンセル
-        </button>
       </div>
     </div>
   );
