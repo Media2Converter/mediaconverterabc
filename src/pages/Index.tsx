@@ -21,7 +21,7 @@ const Index: React.FC = () => {
   const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
   const [convertedFilename, setConvertedFilename] = useState('');
   const [videoDuration, setVideoDuration] = useState(0);
-  const [showUploadMenu, setShowUploadMenu] = useState(false);
+  
   const [showFormatPicker, setShowFormatPicker] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; index: number }>({ open: false, index: -1 });
   const [alertState, setAlertState] = useState<{ open: boolean; title: string; message: string }>({ open: false, title: '', message: '' });
