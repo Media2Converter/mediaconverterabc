@@ -299,8 +299,6 @@ const Index: React.FC = () => {
         </button>
       )}
 
-      {/* Upload context menu */}
-      <IOSActionSheet open={showUploadMenu} onClose={() => setShowUploadMenu(false)} options={uploadMenuOptions} />
 
       {/* Format picker */}
       <IOSPickerModal
