@@ -201,7 +201,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         onChange({ ...settings, audioBitrate: value });
         break;
       case 'scanType': onChange({ ...settings, scanType: value }); break;
-      case 'framerate': onChange({ ...settings, framerate: value }); break;
+      case 'framerate':
+        if (value === 'custom') { setShowCustomFramerate(true); return; }
+        onChange({ ...settings, framerate: value });
+        break;
       case 'startTime': onChange({ ...settings, startTime: parseFloat(value) }); break;
       case 'endTime': onChange({ ...settings, endTime: parseFloat(value) }); break;
       case 'speed': onChange({ ...settings, speed: value }); break;
