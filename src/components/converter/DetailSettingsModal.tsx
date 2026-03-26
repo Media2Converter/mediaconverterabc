@@ -379,6 +379,27 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         </div>
       )}
 
+      {/* Custom framerate input */}
+      {showCustomFramerate && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomFramerate(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
+            <h3 className="text-foreground text-[17px] font-semibold text-center mb-4">フレームレートを入力</h3>
+            <div className="flex items-center gap-2 justify-center">
+              <input type="number" inputMode="decimal" placeholder="30"
+                value={customFramerate} onChange={e => setCustomFramerate(e.target.value)}
+                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[17px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[15px]">FPS</span>
+            </div>
+            <button onClick={() => {
+              const val = parseFloat(customFramerate) || 30;
+              onChange({ ...settings, framerate: `${val}FPS` });
+              setShowCustomFramerate(false);
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[17px] font-semibold active:opacity-80">OK</button>
+          </div>
+        </div>
+      )}
+
       {/* Audio track delete warning */}
       <IOSAlertDialog
         open={showAudioDeleteWarn}
