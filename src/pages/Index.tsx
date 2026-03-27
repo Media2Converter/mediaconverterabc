@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { ProgressCircle, IOSConfirmDialog, IOSAlertDialog, IOSPickerModal } from '@/components/converter/IOSComponents';
+import { ProgressCircle } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
-  VIDEO_FORMATS, AUDIO_FORMATS, IPHONE_BAD_FORMATS,
+  VIDEO_FORMATS, AUDIO_FORMATS,
   FORMAT_EXT, FORMAT_MIME, CODEC_MAP, isVideoFormat,
   isCodecCompatible, FORMAT_AUDIO_CODEC_COMPAT, FORMAT_VIDEO_CODEC_COMPAT,
   type ConvertSettings, defaultSettings,
@@ -13,7 +13,7 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util';
 const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [fileUrls, setFileUrls] = useState<string[]>([]);
-  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState<string>('');
   const [showDetailSettings, setShowDetailSettings] = useState(false);
   const [settings, setSettings] = useState<ConvertSettings>(defaultSettings);
   const [converting, setConverting] = useState(false);
@@ -21,17 +21,10 @@ const Index: React.FC = () => {
   const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
   const [convertedFilename, setConvertedFilename] = useState('');
   const [videoDuration, setVideoDuration] = useState(0);
-  
-  const [showFormatPicker, setShowFormatPicker] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; index: number }>({ open: false, index: -1 });
-  const [alertState, setAlertState] = useState<{ open: boolean; title: string; message: string }>({ open: false, title: '', message: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formatSelectRef = useRef<HTMLSelectElement>(null);
   const ffmpegRef = useRef<FFmpeg | null>(null);
-
-  const showAlertMsg = (title: string, message: string) => {
-    setAlertState({ open: true, title, message });
-  };
 
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -54,33 +47,25 @@ const Index: React.FC = () => {
   }, []);
 
   const confirmRemoveFile = (i: number) => {
-    setDeleteConfirm({ open: true, index: i });
-  };
-
-  const removeFile = () => {
-    const i = deleteConfirm.index;
-    if (i < 0 || !files[i]) return;
-    URL.revokeObjectURL(fileUrls[i]);
-    setFiles(prev => prev.filter((_, idx) => idx !== i));
-    setFileUrls(prev => prev.filter((_, idx) => idx !== i));
+    if (window.confirm(`「${files[i].name}」を削除しますか？`)) {
+      URL.revokeObjectURL(fileUrls[i]);
+      setFiles(prev => prev.filter((_, idx) => idx !== i));
+      setFileUrls(prev => prev.filter((_, idx) => idx !== i));
+    }
   };
 
   const isVideo = files.some(f => f.type.startsWith('video/'));
 
   const handleFormatSelect = (value: string) => {
+    if (!value) return;
     setSelectedFormat(value);
-    if (IPHONE_BAD_FORMATS.includes(value)) {
-      showAlertMsg('⚠️ 互換性の警告', `${value}形式はiPhoneで再生できない可能性があります。`);
-    }
     // Auto-fix codec compatibility
     if (!isCodecCompatible(value, settings.audioCodec, 'audio')) {
-      const compatMap = FORMAT_AUDIO_CODEC_COMPAT;
-      const defaultCodec = compatMap[value]?.[0] || 'AAC';
+      const defaultCodec = FORMAT_AUDIO_CODEC_COMPAT[value]?.[0] || 'AAC';
       setSettings(prev => ({ ...prev, audioCodec: defaultCodec }));
     }
     if (isVideoFormat(value) && !isCodecCompatible(value, settings.videoCodec, 'video')) {
-      const compatMap = FORMAT_VIDEO_CODEC_COMPAT;
-      const defaultCodec = compatMap[value]?.[0] || 'H.264';
+      const defaultCodec = FORMAT_VIDEO_CODEC_COMPAT[value]?.[0] || 'H.264';
       setSettings(prev => ({ ...prev, videoCodec: defaultCodec }));
     }
   };
@@ -96,7 +81,7 @@ const Index: React.FC = () => {
       warnings.push(`ビデオコーデック「${settings.videoCodec}」は「${selectedFormat}」形式と互換性がありません。`);
     }
     if (warnings.length > 0) {
-      showAlertMsg('⚠️ 危ない！', warnings.join('\n'));
+      window.alert(warnings.join('\n'));
       return;
     }
 
@@ -157,7 +142,6 @@ const Index: React.FC = () => {
       args.push('-ac', settings.channels === 'モノラル' ? '1' : '2');
       args.push('-ar', settings.frequency.replace('Hz', ''));
 
-      // Audio filters
       const audioFilters: string[] = [];
       if (settings.volume !== 'none') {
         audioFilters.push(`volume=${settings.volume}dB`);
@@ -184,7 +168,6 @@ const Index: React.FC = () => {
 
       await ffmpeg.exec(args);
 
-      // Read output, attempt repair if broken
       let data: any;
       try {
         data = await ffmpeg.readFile(outputName);
@@ -204,7 +187,7 @@ const Index: React.FC = () => {
       setProgress(100);
     } catch (err: any) {
       console.error(err);
-      showAlertMsg('エラー', `変換に失敗しました: ${err?.message || '不明なエラー'}`);
+      window.alert(`変換に失敗しました: ${err?.message || '不明なエラー'}`);
     } finally {
       setConverting(false);
     }
@@ -218,14 +201,9 @@ const Index: React.FC = () => {
     a.click();
   };
 
-
-  const formatSections = [
-    { title: '動画形式', options: VIDEO_FORMATS.map(f => ({
-      label: f, value: f,
-    })) },
-    { title: '音声形式', options: AUDIO_FORMATS.map(f => ({
-      label: f, value: f,
-    })) },
+  const allFormats = [
+    { group: '動画形式', formats: VIDEO_FORMATS },
+    { group: '音声形式', formats: AUDIO_FORMATS },
   ];
 
   return (
@@ -262,12 +240,23 @@ const Index: React.FC = () => {
 
       {files.length > 0 && (
         <div className="w-full flex gap-3 mt-4">
-          <button
-            onClick={() => setShowFormatPicker(true)}
-            className="flex-1 py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold active:scale-[0.97] transition-transform"
-          >
-            {selectedFormat || '形式'}
-          </button>
+          <div className="flex-1 relative">
+            <select
+              ref={formatSelectRef}
+              value={selectedFormat}
+              onChange={e => handleFormatSelect(e.target.value)}
+              className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold text-center appearance-none cursor-pointer"
+            >
+              <option value="" disabled>形式を選択</option>
+              {allFormats.map(g => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.formats.map(f => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
           {selectedFormat && (
             <button
               onClick={() => setShowDetailSettings(true)}
@@ -295,34 +284,6 @@ const Index: React.FC = () => {
         </button>
       )}
 
-
-      {/* Format picker */}
-      <IOSPickerModal
-        open={showFormatPicker}
-        onClose={() => setShowFormatPicker(false)}
-        sections={formatSections}
-        selected={selectedFormat || ''}
-        onSelect={(v) => { handleFormatSelect(v); setShowFormatPicker(false); }}
-      />
-
-      {/* Delete confirm */}
-      <IOSConfirmDialog
-        open={deleteConfirm.open}
-        onClose={() => setDeleteConfirm({ open: false, index: -1 })}
-        onConfirm={removeFile}
-        title="ファイルを削除"
-        message={files[deleteConfirm.index] ? `「${files[deleteConfirm.index].name}」を削除しますか？` : ''}
-        confirmLabel="削除"
-        destructive
-      />
-
-      <IOSAlertDialog
-        open={alertState.open}
-        onClose={() => setAlertState({ open: false, title: '', message: '' })}
-        title={alertState.title}
-        message={alertState.message}
-      />
-
       <DetailSettingsModal
         open={showDetailSettings}
         onClose={() => setShowDetailSettings(false)}
@@ -331,7 +292,7 @@ const Index: React.FC = () => {
         videoDuration={videoDuration}
         videoPreviewUrl={isVideo ? fileUrls[0] : undefined}
         isVideo={isVideo}
-        selectedFormat={selectedFormat}
+        selectedFormat={selectedFormat || null}
       />
     </div>
   );
