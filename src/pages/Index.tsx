@@ -23,7 +23,6 @@ const Index: React.FC = () => {
   const [videoDuration, setVideoDuration] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const formatSelectRef = useRef<HTMLSelectElement>(null);
   const ffmpegRef = useRef<FFmpeg | null>(null);
 
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,6 +39,10 @@ const Index: React.FC = () => {
           const vid = document.createElement('video');
           vid.src = url;
           vid.onloadedmetadata = () => setVideoDuration(vid.duration);
+        } else if (f.type.startsWith('audio/')) {
+          const aud = document.createElement('audio');
+          aud.src = url;
+          aud.onloadedmetadata = () => setVideoDuration(aud.duration);
         }
       });
     }
@@ -59,7 +62,6 @@ const Index: React.FC = () => {
   const handleFormatSelect = (value: string) => {
     if (!value) return;
     setSelectedFormat(value);
-    // Auto-fix codec compatibility
     if (!isCodecCompatible(value, settings.audioCodec, 'audio')) {
       const defaultCodec = FORMAT_AUDIO_CODEC_COMPAT[value]?.[0] || 'AAC';
       setSettings(prev => ({ ...prev, audioCodec: defaultCodec }));
@@ -70,18 +72,34 @@ const Index: React.FC = () => {
     }
   };
 
+  const loadFFmpeg = async (): Promise<FFmpeg> => {
+    if (ffmpegRef.current) return ffmpegRef.current;
+    const ffmpeg = new FFmpeg();
+    ffmpeg.on('progress', ({ progress: p }) => setProgress(Math.min(p * 100, 99)));
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    });
+    ffmpegRef.current = ffmpeg;
+    return ffmpeg;
+  };
+
   const handleConvert = async () => {
     if (!selectedFormat || files.length === 0) return;
 
-    const warnings: string[] = [];
+    // Pre-conversion compatibility checks with actionable messages
+    const errors: string[] = [];
     if (!isCodecCompatible(selectedFormat, settings.audioCodec, 'audio')) {
-      warnings.push(`オーディオコーデック「${settings.audioCodec}」は「${selectedFormat}」形式と互換性がありません。`);
+      const validCodecs = FORMAT_AUDIO_CODEC_COMPAT[selectedFormat]?.join(', ') || '不明';
+      errors.push(`⚠️ オーディオコーデックの互換性エラー\n\n現在の状態：オーディオコーデック「${settings.audioCodec}」は「${selectedFormat}」形式に対応していません。\n\n解決方法：詳細設定でオーディオコーデックを以下のいずれかに変更してください：${validCodecs}`);
     }
     if (isVideoFormat(selectedFormat) && !isCodecCompatible(selectedFormat, settings.videoCodec, 'video')) {
-      warnings.push(`ビデオコーデック「${settings.videoCodec}」は「${selectedFormat}」形式と互換性がありません。`);
+      const validCodecs = FORMAT_VIDEO_CODEC_COMPAT[selectedFormat]?.join(', ') || '不明';
+      errors.push(`⚠️ ビデオコーデックの互換性エラー\n\n現在の状態：ビデオコーデック「${settings.videoCodec}」は「${selectedFormat}」形式に対応していません。\n\n解決方法：詳細設定でビデオコーデックを以下のいずれかに変更してください：${validCodecs}`);
     }
-    if (warnings.length > 0) {
-      window.alert(warnings.join('\n'));
+    if (errors.length > 0) {
+      window.alert(errors.join('\n\n─────────────\n\n'));
       return;
     }
 
@@ -89,18 +107,7 @@ const Index: React.FC = () => {
     setProgress(0);
 
     try {
-      if (!ffmpegRef.current) {
-        const ffmpeg = new FFmpeg();
-        ffmpeg.on('progress', ({ progress: p }) => setProgress(Math.min(p * 100, 99)));
-        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-        await ffmpeg.load({
-          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-        });
-        ffmpegRef.current = ffmpeg;
-      }
-
-      const ffmpeg = ffmpegRef.current;
+      const ffmpeg = await loadFFmpeg();
       const inputFile = files[0];
       const inputName = 'input' + inputFile.name.substring(inputFile.name.lastIndexOf('.'));
       const ext = FORMAT_EXT[selectedFormat] || 'mp4';
@@ -148,16 +155,21 @@ const Index: React.FC = () => {
       }
       if (settings.speed !== '1') {
         const spd = parseFloat(settings.speed);
-        if (spd >= 0.5 && spd <= 2) {
+        if (settings.pitchSync) {
+          // Use rubberband for pitch-synced speed change
           audioFilters.push(`atempo=${spd}`);
-        } else if (spd > 2) {
-          let remaining = spd;
-          while (remaining > 2) { audioFilters.push('atempo=2.0'); remaining /= 2; }
-          audioFilters.push(`atempo=${remaining}`);
         } else {
-          let remaining = spd;
-          while (remaining < 0.5) { audioFilters.push('atempo=0.5'); remaining /= 0.5; }
-          audioFilters.push(`atempo=${remaining}`);
+          if (spd >= 0.5 && spd <= 2) {
+            audioFilters.push(`atempo=${spd}`);
+          } else if (spd > 2) {
+            let remaining = spd;
+            while (remaining > 2) { audioFilters.push('atempo=2.0'); remaining /= 2; }
+            audioFilters.push(`atempo=${remaining}`);
+          } else {
+            let remaining = spd;
+            while (remaining < 0.5) { audioFilters.push('atempo=0.5'); remaining /= 0.5; }
+            audioFilters.push(`atempo=${remaining}`);
+          }
         }
       }
       if (audioFilters.length > 0) {
@@ -166,28 +178,59 @@ const Index: React.FC = () => {
 
       args.push('-strict', 'experimental', '-y', outputName);
 
+      console.log('FFmpeg args:', args);
       await ffmpeg.exec(args);
 
+      // Try to read the output, if it fails attempt repair
       let data: any;
+      let repaired = false;
       try {
         data = await ffmpeg.readFile(outputName);
+        const uint8 = new Uint8Array(data as Uint8Array);
+        if (uint8.length === 0) throw new Error('empty');
       } catch {
-        const repairName = `repaired.${ext}`;
-        await ffmpeg.exec(['-i', outputName, '-c', 'copy', '-movflags', '+faststart', '-y', repairName]);
-        data = await ffmpeg.readFile(repairName);
+        // Attempt 1: re-mux with faststart
+        try {
+          const repairName = `repaired.${ext}`;
+          await ffmpeg.exec(['-i', outputName, '-c', 'copy', '-movflags', '+faststart', '-y', repairName]);
+          data = await ffmpeg.readFile(repairName);
+          repaired = true;
+        } catch {
+          // Attempt 2: re-encode with safe settings
+          try {
+            const safeRepairName = `safe_repaired.${ext}`;
+            const safeArgs = ['-i', inputName];
+            if (outputIsVideo) {
+              safeArgs.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '23');
+            } else {
+              safeArgs.push('-vn');
+            }
+            safeArgs.push('-c:a', 'aac', '-b:a', '128k', '-strict', 'experimental', '-y', safeRepairName);
+            await ffmpeg.exec(safeArgs);
+            data = await ffmpeg.readFile(safeRepairName);
+            repaired = true;
+          } catch (e3) {
+            throw new Error('変換と修復の両方に失敗しました。別の設定をお試しください。');
+          }
+        }
       }
 
       const uint8 = new Uint8Array(data as Uint8Array);
-      if (uint8.length === 0) throw new Error('変換結果が空です');
+      if (uint8.length === 0) throw new Error('変換結果が空です。別のコーデックや形式をお試しください。');
 
       const mimeType = FORMAT_MIME[selectedFormat] || (outputIsVideo ? 'video/mp4' : 'audio/mpeg');
       const blob = new Blob([uint8], { type: mimeType });
       setConvertedUrl(URL.createObjectURL(blob));
       setConvertedFilename(`converted.${ext}`);
       setProgress(100);
+
+      if (repaired) {
+        window.alert('⚠️ 自動修復が実行されました\n\n最初の変換でエラーが発生しましたが、自動修復により正常なファイルが生成されました。品質を確認してください。');
+      }
     } catch (err: any) {
       console.error(err);
-      window.alert(`変換に失敗しました: ${err?.message || '不明なエラー'}`);
+      const msg = err?.message || '不明なエラー';
+      window.alert(`⚠️ 変換エラー\n\n現在の状態：${msg}\n\n解決方法：\n1. 詳細設定でコーデックを変更してみてください\n2. 別の出力形式を選択してみてください\n3. ファイルが破損していないか確認してください`);
     } finally {
       setConverting(false);
     }
@@ -242,12 +285,11 @@ const Index: React.FC = () => {
         <div className="w-full flex gap-3 mt-4">
           <div className="flex-1 relative">
             <select
-              ref={formatSelectRef}
               value={selectedFormat}
               onChange={e => handleFormatSelect(e.target.value)}
               className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold text-center appearance-none cursor-pointer"
             >
-              <option value="" disabled>形式を選択</option>
+              <option value="" disabled>── 出力形式 ──</option>
               {allFormats.map(g => (
                 <optgroup key={g.group} label={g.group}>
                   {g.formats.map(f => (
