@@ -3,12 +3,11 @@ import { ProgressCircle } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
-  FORMAT_EXT, FORMAT_MIME, CODEC_MAP, isVideoFormat,
+  FORMAT_EXT, FORMAT_MIME, isVideoFormat,
   isCodecCompatible, FORMAT_AUDIO_CODEC_COMPAT, FORMAT_VIDEO_CODEC_COMPAT,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { convertWithShotstack } from '@/services/shotstackApi';
 
 const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -21,9 +20,9 @@ const Index: React.FC = () => {
   const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
   const [convertedFilename, setConvertedFilename] = useState('');
   const [videoDuration, setVideoDuration] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const ffmpegRef = useRef<FFmpeg | null>(null);
 
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -72,29 +71,18 @@ const Index: React.FC = () => {
     }
   };
 
-  const loadFFmpeg = async (): Promise<FFmpeg> => {
-    if (ffmpegRef.current) return ffmpegRef.current;
-    const ffmpeg = new FFmpeg();
-    ffmpeg.on('progress', ({ progress: p }) => setProgress(Math.min(p * 100, 99)));
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
-    ffmpegRef.current = ffmpeg;
-    return ffmpeg;
-  };
-
   const handleConvert = async () => {
     if (!selectedFormat || files.length === 0) return;
 
-    // Pre-conversion compatibility checks with actionable messages
+    // Pre-conversion compatibility checks
     const errors: string[] = [];
-    if (!isCodecCompatible(selectedFormat, settings.audioCodec, 'audio')) {
+    if (settings.audioCodec !== 'copy' && settings.audioCodec !== 'none' &&
+        !isCodecCompatible(selectedFormat, settings.audioCodec, 'audio')) {
       const validCodecs = FORMAT_AUDIO_CODEC_COMPAT[selectedFormat]?.join(', ') || '不明';
       errors.push(`⚠️ オーディオコーデックの互換性エラー\n\n現在の状態：オーディオコーデック「${settings.audioCodec}」は「${selectedFormat}」形式に対応していません。\n\n解決方法：詳細設定でオーディオコーデックを以下のいずれかに変更してください：${validCodecs}`);
     }
-    if (isVideoFormat(selectedFormat) && !isCodecCompatible(selectedFormat, settings.videoCodec, 'video')) {
+    if (isVideoFormat(selectedFormat) && settings.videoCodec !== 'copy' &&
+        !isCodecCompatible(selectedFormat, settings.videoCodec, 'video')) {
       const validCodecs = FORMAT_VIDEO_CODEC_COMPAT[selectedFormat]?.join(', ') || '不明';
       errors.push(`⚠️ ビデオコーデックの互換性エラー\n\n現在の状態：ビデオコーデック「${settings.videoCodec}」は「${selectedFormat}」形式に対応していません。\n\n解決方法：詳細設定でビデオコーデックを以下のいずれかに変更してください：${validCodecs}`);
     }
@@ -105,132 +93,31 @@ const Index: React.FC = () => {
 
     setConverting(true);
     setProgress(0);
+    setConvertedUrl(null);
+    setStatusMessage('アップロード準備中...');
 
     try {
-      const ffmpeg = await loadFFmpeg();
       const inputFile = files[0];
-      const inputName = 'input' + inputFile.name.substring(inputFile.name.lastIndexOf('.'));
       const ext = FORMAT_EXT[selectedFormat] || 'mp4';
-      const outputName = `output.${ext}`;
 
-      await ffmpeg.writeFile(inputName, await fetchFile(inputFile));
+      const downloadUrl = await convertWithShotstack(inputFile, (pct) => {
+        setProgress(pct);
+        if (pct < 30) setStatusMessage('ファイルをアップロード中...');
+        else if (pct < 35) setStatusMessage('ソースファイルを処理中...');
+        else if (pct < 50) setStatusMessage('レンダリングを開始中...');
+        else if (pct < 85) setStatusMessage('変換中...');
+        else if (pct < 100) setStatusMessage('ファイルを保存中...');
+        else setStatusMessage('完了！');
+      });
 
-      const args: string[] = ['-i', inputName];
-
-      if (settings.startTime > 0) args.push('-ss', String(settings.startTime));
-      if (settings.endTime > 0) args.push('-to', String(settings.endTime));
-
-      const outputIsVideo = isVideoFormat(selectedFormat);
-
-      if (isVideo && outputIsVideo) {
-        const vCodec = CODEC_MAP[settings.videoCodec] || 'libx264';
-        args.push('-c:v', vCodec);
-        args.push('-b:v', settings.videoBitrate.replace('KBPS', 'k'));
-        args.push('-r', settings.framerate.replace('FPS', ''));
-        args.push('-s', `${settings.resolutionW}x${settings.resolutionH}`);
-
-        const videoFilters: string[] = [];
-        if (settings.speed !== '1') {
-          videoFilters.push(`setpts=PTS/${parseFloat(settings.speed)}`);
-        }
-        if (settings.scanType === 'インターレース方式') {
-          args.push('-flags', '+ilme+ildct');
-        }
-        if (videoFilters.length > 0) {
-          args.push('-filter:v', videoFilters.join(','));
-        }
-      } else if (!outputIsVideo) {
-        args.push('-vn');
-      }
-
-      const aCodec = CODEC_MAP[settings.audioCodec] || 'aac';
-      args.push('-c:a', aCodec);
-      args.push('-b:a', settings.audioBitrate.replace('KBPS', 'k'));
-      args.push('-ac', settings.channels === 'モノラル' ? '1' : '2');
-      args.push('-ar', settings.frequency.replace('Hz', ''));
-
-      const audioFilters: string[] = [];
-      if (settings.volume !== 'none') {
-        audioFilters.push(`volume=${settings.volume}dB`);
-      }
-      if (settings.speed !== '1') {
-        const spd = parseFloat(settings.speed);
-        if (settings.pitchSync) {
-          // Use rubberband for pitch-synced speed change
-          audioFilters.push(`atempo=${spd}`);
-        } else {
-          if (spd >= 0.5 && spd <= 2) {
-            audioFilters.push(`atempo=${spd}`);
-          } else if (spd > 2) {
-            let remaining = spd;
-            while (remaining > 2) { audioFilters.push('atempo=2.0'); remaining /= 2; }
-            audioFilters.push(`atempo=${remaining}`);
-          } else {
-            let remaining = spd;
-            while (remaining < 0.5) { audioFilters.push('atempo=0.5'); remaining /= 0.5; }
-            audioFilters.push(`atempo=${remaining}`);
-          }
-        }
-      }
-      if (audioFilters.length > 0) {
-        args.push('-filter:a', audioFilters.join(','));
-      }
-
-      args.push('-strict', 'experimental', '-y', outputName);
-
-      console.log('FFmpeg args:', args);
-      await ffmpeg.exec(args);
-
-      // Try to read the output, if it fails attempt repair
-      let data: any;
-      let repaired = false;
-      try {
-        data = await ffmpeg.readFile(outputName);
-        const uint8 = new Uint8Array(data as Uint8Array);
-        if (uint8.length === 0) throw new Error('empty');
-      } catch {
-        // Attempt 1: re-mux with faststart
-        try {
-          const repairName = `repaired.${ext}`;
-          await ffmpeg.exec(['-i', outputName, '-c', 'copy', '-movflags', '+faststart', '-y', repairName]);
-          data = await ffmpeg.readFile(repairName);
-          repaired = true;
-        } catch {
-          // Attempt 2: re-encode with safe settings
-          try {
-            const safeRepairName = `safe_repaired.${ext}`;
-            const safeArgs = ['-i', inputName];
-            if (outputIsVideo) {
-              safeArgs.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '23');
-            } else {
-              safeArgs.push('-vn');
-            }
-            safeArgs.push('-c:a', 'aac', '-b:a', '128k', '-strict', 'experimental', '-y', safeRepairName);
-            await ffmpeg.exec(safeArgs);
-            data = await ffmpeg.readFile(safeRepairName);
-            repaired = true;
-          } catch (e3) {
-            throw new Error('変換と修復の両方に失敗しました。別の設定をお試しください。');
-          }
-        }
-      }
-
-      const uint8 = new Uint8Array(data as Uint8Array);
-      if (uint8.length === 0) throw new Error('変換結果が空です。別のコーデックや形式をお試しください。');
-
-      const mimeType = FORMAT_MIME[selectedFormat] || (outputIsVideo ? 'video/mp4' : 'audio/mpeg');
-      const blob = new Blob([uint8], { type: mimeType });
-      setConvertedUrl(URL.createObjectURL(blob));
+      setConvertedUrl(downloadUrl);
       setConvertedFilename(`converted.${ext}`);
       setProgress(100);
-
-      if (repaired) {
-        window.alert('⚠️ 自動修復が実行されました\n\n最初の変換でエラーが発生しましたが、自動修復により正常なファイルが生成されました。品質を確認してください。');
-      }
+      setStatusMessage('変換完了！ダウンロードできます');
     } catch (err: any) {
-      console.error(err);
+      console.error('Shotstack conversion error:', err);
       const msg = err?.message || '不明なエラー';
-      window.alert(`⚠️ 変換エラー\n\n現在の状態：${msg}\n\n解決方法：\n1. 詳細設定でコーデックを変更してみてください\n2. 別の出力形式を選択してみてください\n3. ファイルが破損していないか確認してください`);
+      window.alert(`⚠️ 変換エラー\n\n現在の状態：${msg}\n\n解決方法：\n1. ファイルが破損していないか確認してください\n2. 別の出力形式を選択してみてください\n3. インターネット接続を確認してください`);
     } finally {
       setConverting(false);
     }
@@ -241,6 +128,7 @@ const Index: React.FC = () => {
     const a = document.createElement('a');
     a.href = convertedUrl;
     a.download = convertedFilename;
+    a.target = '_blank';
     a.click();
   };
 
@@ -317,7 +205,12 @@ const Index: React.FC = () => {
         </button>
       )}
 
-      {converting && <div className="mt-8"><ProgressCircle progress={progress} /></div>}
+      {converting && (
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <ProgressCircle progress={progress} />
+          <p className="text-muted-foreground text-sm">{statusMessage}</p>
+        </div>
+      )}
 
       {convertedUrl && !converting && (
         <button onClick={handleDownload}
