@@ -122,17 +122,24 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   };
 
   // Build video codec options - incompatible ones are disabled
-  const videoCodecOptions = VIDEO_CODECS.map(c => {
-    const compatible = selectedFormat ? FORMAT_VIDEO_CODEC_COMPAT[selectedFormat] : null;
-    const incompatible = compatible && !compatible.includes(c);
-    return { label: incompatible ? `${c}（互換性なし）` : c, value: c, disabled: !!incompatible };
-  });
+  const videoCodecOptions = [
+    { label: 'コピー', value: 'copy' },
+    ...VIDEO_CODECS.map(c => {
+      const compatible = selectedFormat ? FORMAT_VIDEO_CODEC_COMPAT[selectedFormat] : null;
+      const incompatible = compatible && !compatible.includes(c);
+      return { label: incompatible ? `${c}（互換性なし）` : c, value: c, disabled: !!incompatible };
+    }),
+  ];
 
-  const audioCodecOptions = AUDIO_CODECS.map(c => {
-    const compatible = selectedFormat ? FORMAT_AUDIO_CODEC_COMPAT[selectedFormat] : null;
-    const incompatible = compatible && !compatible.includes(c);
-    return { label: incompatible ? `${c}（互換性なし）` : c, value: c, disabled: !!incompatible };
-  });
+  const audioCodecOptions = [
+    { label: 'コピー', value: 'copy' },
+    { label: '音声を消します', value: 'none' },
+    ...AUDIO_CODECS.map(c => {
+      const compatible = selectedFormat ? FORMAT_AUDIO_CODEC_COMPAT[selectedFormat] : null;
+      const incompatible = compatible && !compatible.includes(c);
+      return { label: incompatible ? `${c}（互換性なし）` : c, value: c, disabled: !!incompatible };
+    }),
+  ];
 
   const aspectRatioOptions = ASPECT_RATIOS.map(a => ({ label: a, value: a }));
 

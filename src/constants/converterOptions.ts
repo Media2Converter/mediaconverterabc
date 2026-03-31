@@ -4,7 +4,7 @@ export const AUDIO_FORMATS = ['OPUS', 'EAC3', 'AC3', 'AAC', 'MP3', 'WAV', 'OGG',
 export const VIDEO_CODECS = ['AV1', 'H.265', 'H.264', 'H.263', 'H.261', 'H.320', 'MPEG-4', 'DIVX', 'MJPEG'];
 export const AUDIO_CODECS = ['OPUS', 'EAC3', 'AC3', 'AAC', 'MP3', 'WAV', 'OGG', 'AIFF', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711'];
 
-export const ASPECT_RATIOS = ['168:95', '16:9', '22:9', '11:9', '11:8', '9:7', '4:3', '1:1', '3:4', '7:9', '8:11', '9:11', '9:22', '9:16', '95:168'];
+export const ASPECT_RATIOS = ['自由', '16:9', '22:9', '11:9', '11:8', '9:7', '4:3', '1:1', '3:4', '7:9', '8:11', '9:11', '9:22', '9:16'];
 
 export const SCAN_TYPES = ['プログレッシブ方式', 'インターレース方式'];
 
