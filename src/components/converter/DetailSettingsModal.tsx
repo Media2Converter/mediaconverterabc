@@ -76,7 +76,7 @@ const NativePickerRow: React.FC<{
         className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
         style={{ fontSize: '16px' }}
       >
-        {pickerHeader && <option disabled value="">{`── ${pickerHeader} ──`}</option>}
+        {pickerHeader && <option disabled value="">{pickerHeader}</option>}
         {groups ? (
           groups.map(g => (
             <optgroup key={g.label} label={g.label}>
