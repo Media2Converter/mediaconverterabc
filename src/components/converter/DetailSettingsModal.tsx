@@ -76,7 +76,7 @@ const NativePickerRow: React.FC<{
         className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
         style={{ fontSize: '16px' }}
       >
-        {pickerHeader && <option disabled value="">{`── ${pickerHeader} ──`}</option>}
+        {pickerHeader && <option disabled value="">{pickerHeader}</option>}
         {groups ? (
           groups.map(g => (
             <optgroup key={g.label} label={g.label}>
@@ -122,17 +122,24 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   };
 
   // Build video codec options - incompatible ones are disabled
-  const videoCodecOptions = VIDEO_CODECS.map(c => {
-    const compatible = selectedFormat ? FORMAT_VIDEO_CODEC_COMPAT[selectedFormat] : null;
-    const incompatible = compatible && !compatible.includes(c);
-    return { label: incompatible ? `${c}（互換性なし）` : c, value: c, disabled: !!incompatible };
-  });
+  const videoCodecOptions = [
+    { label: 'コピー', value: 'copy' },
+    ...VIDEO_CODECS.map(c => {
+      const compatible = selectedFormat ? FORMAT_VIDEO_CODEC_COMPAT[selectedFormat] : null;
+      const incompatible = compatible && !compatible.includes(c);
+      return { label: incompatible ? `${c}（互換性なし）` : c, value: c, disabled: !!incompatible };
+    }),
+  ];
 
-  const audioCodecOptions = AUDIO_CODECS.map(c => {
-    const compatible = selectedFormat ? FORMAT_AUDIO_CODEC_COMPAT[selectedFormat] : null;
-    const incompatible = compatible && !compatible.includes(c);
-    return { label: incompatible ? `${c}（互換性なし）` : c, value: c, disabled: !!incompatible };
-  });
+  const audioCodecOptions = [
+    { label: 'コピー', value: 'copy' },
+    { label: '音声を消します', value: 'none' },
+    ...AUDIO_CODECS.map(c => {
+      const compatible = selectedFormat ? FORMAT_AUDIO_CODEC_COMPAT[selectedFormat] : null;
+      const incompatible = compatible && !compatible.includes(c);
+      return { label: incompatible ? `${c}（互換性なし）` : c, value: c, disabled: !!incompatible };
+    }),
+  ];
 
   const aspectRatioOptions = ASPECT_RATIOS.map(a => ({ label: a, value: a }));
 
@@ -309,24 +316,14 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
                 <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
                   options={speedOptions} selected={settings.speed}
                   onSelect={v => handleSelect('speed', v)}
-                  onLongPress={() => {
-                    // Show pitch sync picker via native select
-                    const pitchSelect = document.getElementById('pitch-sync-select') as HTMLSelectElement;
-                    if (pitchSelect) { pitchSelect.focus(); pitchSelect.click(); }
-                  }}
                   pickerHeader="再生速度" />
-                {/* Hidden pitch sync native select for long-press */}
-                <select
-                  id="pitch-sync-select"
-                  value={settings.pitchSync ? 'on' : 'off'}
-                  onChange={e => handleSelect('pitchSync', e.target.value)}
-                  className="absolute opacity-0 pointer-events-none"
-                  style={{ fontSize: '16px' }}
-                >
-                  <option disabled value="">── ピッチを再生速度に合わせる ──</option>
-                  <option value="on">オン</option>
-                  <option value="off">オフ</option>
-                </select>
+                {settings.speed !== '1' && (
+                  <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
+                    options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
+                    selected={settings.pitchSync ? 'on' : 'off'}
+                    onSelect={v => handleSelect('pitchSync', v)}
+                    pickerHeader="ピッチを再生速度に合わせる" />
+                )}
               </>
             )}
 
@@ -346,22 +343,14 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
                 <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
                   options={speedOptions} selected={settings.speed}
                   onSelect={v => handleSelect('speed', v)}
-                  onLongPress={() => {
-                    const pitchSelect = document.getElementById('pitch-sync-select-audio') as HTMLSelectElement;
-                    if (pitchSelect) { pitchSelect.focus(); pitchSelect.click(); }
-                  }}
                   pickerHeader="再生速度" />
-                <select
-                  id="pitch-sync-select-audio"
-                  value={settings.pitchSync ? 'on' : 'off'}
-                  onChange={e => handleSelect('pitchSync', e.target.value)}
-                  className="absolute opacity-0 pointer-events-none"
-                  style={{ fontSize: '16px' }}
-                >
-                  <option disabled value="">── ピッチを再生速度に合わせる ──</option>
-                  <option value="on">オン</option>
-                  <option value="off">オフ</option>
-                </select>
+                {settings.speed !== '1' && (
+                  <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
+                    options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
+                    selected={settings.pitchSync ? 'on' : 'off'}
+                    onSelect={v => handleSelect('pitchSync', v)}
+                    pickerHeader="ピッチを再生速度に合わせる" />
+                )}
               </>
             )}
 
