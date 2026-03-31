@@ -289,7 +289,7 @@ const Index: React.FC = () => {
               onChange={e => handleFormatSelect(e.target.value)}
               className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold text-center appearance-none cursor-pointer"
             >
-              <option value="" disabled>── 出力形式 ──</option>
+              <option value="" disabled>出力形式</option>
               {allFormats.map(g => (
                 <optgroup key={g.group} label={g.group}>
                   {g.formats.map(f => (
