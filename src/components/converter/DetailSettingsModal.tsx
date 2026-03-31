@@ -316,24 +316,14 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
                 <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
                   options={speedOptions} selected={settings.speed}
                   onSelect={v => handleSelect('speed', v)}
-                  onLongPress={() => {
-                    // Show pitch sync picker via native select
-                    const pitchSelect = document.getElementById('pitch-sync-select') as HTMLSelectElement;
-                    if (pitchSelect) { pitchSelect.focus(); pitchSelect.click(); }
-                  }}
                   pickerHeader="再生速度" />
-                {/* Hidden pitch sync native select for long-press */}
-                <select
-                  id="pitch-sync-select"
-                  value={settings.pitchSync ? 'on' : 'off'}
-                  onChange={e => handleSelect('pitchSync', e.target.value)}
-                  className="absolute opacity-0 pointer-events-none"
-                  style={{ fontSize: '16px' }}
-                >
-                  <option disabled value="">── ピッチを再生速度に合わせる ──</option>
-                  <option value="on">オン</option>
-                  <option value="off">オフ</option>
-                </select>
+                {settings.speed !== '1' && (
+                  <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
+                    options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
+                    selected={settings.pitchSync ? 'on' : 'off'}
+                    onSelect={v => handleSelect('pitchSync', v)}
+                    pickerHeader="ピッチを再生速度に合わせる" />
+                )}
               </>
             )}
 
