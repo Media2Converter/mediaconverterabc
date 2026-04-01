@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  VIDEO_CODECS, AUDIO_CODECS, ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
+  ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
   VOLUME_OPTIONS, AMR_NB_BITRATES, AMR_WB_BITRATES, AMR_NB_FREQUENCIES, AMR_WB_FREQUENCIES,
-  FORMAT_AUDIO_CODEC_COMPAT, FORMAT_VIDEO_CODEC_COMPAT,
+  getCompatibleVideoCodecs, getCompatibleAudioCodecs,
   isCodecCompatible,
   type ConvertSettings, checkAspectResolutionMatch, isVideoFormat,
 } from '@/constants/converterOptions';
@@ -95,6 +95,21 @@ const NativePickerRow: React.FC<{
   );
 };
 
+/** Simple toggle row */
+const ToggleRow: React.FC<{
+  label: string;
+  value: boolean;
+  onToggle: (v: boolean) => void;
+}> = ({ label, value, onToggle }) => (
+  <button
+    onClick={() => onToggle(!value)}
+    className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border active:bg-accent transition-colors"
+  >
+    <span className="text-foreground text-[15px]">{label}</span>
+    <span className="text-muted-foreground text-[15px]">{value ? 'オン' : 'オフ'} ›</span>
+  </button>
+);
+
 export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, onChange, videoDuration, videoPreviewUrl, isVideo, selectedFormat }) => {
   const [showCustomRes, setShowCustomRes] = useState(false);
   const [customResW, setCustomResW] = useState('');
@@ -103,17 +118,17 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const [customBitrate, setCustomBitrate] = useState('');
   const [showCustomFramerate, setShowCustomFramerate] = useState(false);
   const [customFramerate, setCustomFramerate] = useState('');
+  const [showThumbnailPicker, setShowThumbnailPicker] = useState(false);
 
   const isInterlace = settings.scanType === 'インターレース方式';
-  const [arL, arR] = settings.aspectRatio.split(':').map(Number);
-  const isPortrait = arL < arR;
+  const arParts = settings.aspectRatio.split(':').map(Number);
+  const isPortrait = arParts.length === 2 && arParts[0] < arParts[1];
 
-  // Whether the output is audio-only
   const outputIsAudioOnly = selectedFormat ? !isVideoFormat(selectedFormat) : false;
   const isAmr = settings.audioCodec === 'AMR_NB' || settings.audioCodec === 'AMR_WB';
 
   useEffect(() => {
-    if (!open) { setShowCustomRes(false); setShowCustomBitrate(null); setShowCustomFramerate(false); }
+    if (!open) { setShowCustomRes(false); setShowCustomBitrate(null); setShowCustomFramerate(false); setShowThumbnailPicker(false); }
   }, [open]);
 
   const resolutionLabel = (tag?: string) => {
@@ -121,24 +136,24 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return isInterlace ? tag.replace(/(\d+)p/g, '$1I') : tag;
   };
 
-  // Build video codec options - incompatible ones are disabled
+  // Build codec options - only show compatible ones + copy/none
   const videoCodecOptions = [
     { label: 'コピー', value: 'copy' },
-    ...VIDEO_CODECS.map(c => {
-      const compatible = selectedFormat ? FORMAT_VIDEO_CODEC_COMPAT[selectedFormat] : null;
-      const incompatible = compatible && !compatible.includes(c);
-      return { label: incompatible ? `${c}（互換性なし）` : c, value: c, disabled: !!incompatible };
-    }),
+    ...getCompatibleVideoCodecs(selectedFormat).map(c => ({ label: c, value: c })),
   ];
+
+  const audioCodecDisplayName = (c: string) => {
+    if (c === 'LPCM') return 'PCM_L';
+    return c;
+  };
 
   const audioCodecOptions = [
     { label: 'コピー', value: 'copy' },
     { label: '音声を消します', value: 'none' },
-    ...AUDIO_CODECS.map(c => {
-      const compatible = selectedFormat ? FORMAT_AUDIO_CODEC_COMPAT[selectedFormat] : null;
-      const incompatible = compatible && !compatible.includes(c);
-      return { label: incompatible ? `${c}（互換性なし）` : c, value: c, disabled: !!incompatible };
-    }),
+    ...getCompatibleAudioCodecs(selectedFormat).map(c => ({
+      label: audioCodecDisplayName(c),
+      value: c,
+    })),
   ];
 
   const aspectRatioOptions = ASPECT_RATIOS.map(a => ({ label: a, value: a }));
@@ -168,13 +183,11 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return FREQUENCIES;
   };
 
-  // AMR: no custom bitrate option
   const audioBitrateOptions = [
     ...getAudioBitrates().map(b => ({ label: b, value: b })),
     ...(!isAmr ? [{ label: '打ち込む（カスタム）', value: 'custom' }] : []),
   ];
 
-  // AMR: mono only
   const getChannelOptions = () => {
     if (isAmr) return [{ label: 'モノラル', value: 'モノラル' }];
     return CHANNELS.map(c => ({ label: c, value: c }));
@@ -203,7 +216,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const volumeDisplay = settings.volume === 'none' ? '変えない' : `${settings.volume}dB`;
 
-  // Force AMR to mono when codec changes
   useEffect(() => {
     if (isAmr && settings.channels !== 'モノラル') {
       onChange({ ...settings, channels: 'モノラル' });
@@ -212,22 +224,15 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const handleSelect = (picker: string, value: string) => {
     switch (picker) {
-      case 'videoCodec': {
-        // Don't allow selecting incompatible codecs
-        const compat = selectedFormat ? FORMAT_VIDEO_CODEC_COMPAT[selectedFormat] : null;
-        if (compat && !compat.includes(value)) return;
+      case 'videoCodec':
         onChange({ ...settings, videoCodec: value });
         break;
-      }
-      case 'audioCodec': {
-        const compat = selectedFormat ? FORMAT_AUDIO_CODEC_COMPAT[selectedFormat] : null;
-        if (compat && !compat.includes(value)) return;
+      case 'audioCodec':
         onChange({ ...settings, audioCodec: value });
         break;
-      }
       case 'aspectRatio':
         onChange({ ...settings, aspectRatio: value });
-        if (!checkAspectResolutionMatch(value, settings.resolutionW, settings.resolutionH)) {
+        if (value !== '自由' && !checkAspectResolutionMatch(value, settings.resolutionW, settings.resolutionH)) {
           window.alert('⚠️ アスペクト比と解像度のずれ\n\n現在の解像度がアスペクト比と一致しません（5px以上のずれ）。\n\n解決方法：解像度の設定でアスペクト比に合った値を選択してください。');
         }
         break;
@@ -235,7 +240,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         if (value === 'custom') { setShowCustomRes(true); return; }
         { const [rw, rh] = value.split('x').map(Number);
           onChange({ ...settings, resolutionW: rw, resolutionH: rh });
-          if (!checkAspectResolutionMatch(settings.aspectRatio, rw, rh)) {
+          if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, rw, rh)) {
             window.alert('⚠️ アスペクト比と解像度のずれ\n\n選択した解像度がアスペクト比と一致しません（5px以上のずれ）。\n\n解決方法：アスペクト比の設定を変更するか、別の解像度を選択してください。');
           }
         }
@@ -266,6 +271,9 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   if (!open) return null;
 
   const showVideoSection = isVideo && !outputIsAudioOnly;
+  const audioCodecDisplay = settings.audioCodec === 'none' ? '音声を消します'
+    : settings.audioCodec === 'copy' ? 'コピー'
+    : audioCodecDisplayName(settings.audioCodec);
 
   return (
     <>
@@ -280,10 +288,9 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
             {showVideoSection && (
               <>
                 <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">ビデオ</div>
-                <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec}
+                <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
                   options={videoCodecOptions} selected={settings.videoCodec}
                   onSelect={v => handleSelect('videoCodec', v)}
-                  warning={selectedFormat ? !isCodecCompatible(selectedFormat, settings.videoCodec, 'video') : false}
                   pickerHeader="ビデオコーデック" />
                 <NativePickerRow label="縦横比" displayValue={settings.aspectRatio}
                   options={aspectRatioOptions} selected={settings.aspectRatio}
@@ -305,6 +312,16 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
                   options={framerateOptions} selected={settings.framerate}
                   onSelect={v => handleSelect('framerate', v)}
                   pickerHeader="フレームレート" />
+
+                {/* Thumbnail picker */}
+                <button
+                  onClick={() => setShowThumbnailPicker(true)}
+                  className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border active:bg-accent transition-colors"
+                >
+                  <span className="text-foreground text-[15px]">サムネイル</span>
+                  <span className="text-muted-foreground text-[15px]">{settings.thumbnailTime.toFixed(1)}s ›</span>
+                </button>
+
                 <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
                   options={startTimeOptions} selected={String(settings.startTime)}
                   onSelect={v => handleSelect('startTime', v)}
@@ -329,53 +346,63 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
             <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">オーディオ</div>
 
-            {/* When audio-only output, show start/end/speed here */}
-            {outputIsAudioOnly && (
+            {/* Audio on/off toggle */}
+            <ToggleRow
+              label="音声"
+              value={settings.audioEnabled}
+              onToggle={v => onChange({ ...settings, audioEnabled: v })}
+            />
+
+            {settings.audioEnabled && (
               <>
-                <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
-                  options={startTimeOptions} selected={String(settings.startTime)}
-                  onSelect={v => handleSelect('startTime', v)}
-                  pickerHeader="開始時間" />
-                <NativePickerRow label="終了時間" displayValue={settings.endTime > 0 ? `${settings.endTime}s` : '最後まで'}
-                  options={endTimeOptions} selected={String(settings.endTime)}
-                  onSelect={v => handleSelect('endTime', v)}
-                  pickerHeader="終了時間" />
-                <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
-                  options={speedOptions} selected={settings.speed}
-                  onSelect={v => handleSelect('speed', v)}
-                  pickerHeader="再生速度" />
-                {settings.speed !== '1' && (
-                  <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
-                    options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
-                    selected={settings.pitchSync ? 'on' : 'off'}
-                    onSelect={v => handleSelect('pitchSync', v)}
-                    pickerHeader="ピッチを再生速度に合わせる" />
+                {/* When audio-only output, show start/end/speed here */}
+                {outputIsAudioOnly && (
+                  <>
+                    <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
+                      options={startTimeOptions} selected={String(settings.startTime)}
+                      onSelect={v => handleSelect('startTime', v)}
+                      pickerHeader="開始時間" />
+                    <NativePickerRow label="終了時間" displayValue={settings.endTime > 0 ? `${settings.endTime}s` : '最後まで'}
+                      options={endTimeOptions} selected={String(settings.endTime)}
+                      onSelect={v => handleSelect('endTime', v)}
+                      pickerHeader="終了時間" />
+                    <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
+                      options={speedOptions} selected={settings.speed}
+                      onSelect={v => handleSelect('speed', v)}
+                      pickerHeader="再生速度" />
+                    {settings.speed !== '1' && (
+                      <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
+                        options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
+                        selected={settings.pitchSync ? 'on' : 'off'}
+                        onSelect={v => handleSelect('pitchSync', v)}
+                        pickerHeader="ピッチを再生速度に合わせる" />
+                    )}
+                  </>
                 )}
+
+                <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
+                  options={audioCodecOptions} selected={settings.audioCodec}
+                  onSelect={v => handleSelect('audioCodec', v)}
+                  pickerHeader="オーディオコーデック" />
+                <NativePickerRow label="音声ビットレート" displayValue={settings.audioBitrate}
+                  options={audioBitrateOptions} selected={settings.audioBitrate}
+                  onSelect={v => handleSelect('audioBitrate', v)}
+                  pickerHeader="音声ビットレート" />
+                <NativePickerRow label="チャンネル数" displayValue={settings.channels}
+                  options={getChannelOptions()} selected={settings.channels}
+                  onSelect={v => handleSelect('channels', v)}
+                  pickerHeader="チャンネル数" />
+                <NativePickerRow label="周波数" displayValue={settings.frequency}
+                  options={frequencyOptions} selected={settings.frequency}
+                  onSelect={v => handleSelect('frequency', v)}
+                  pickerHeader="周波数" />
+                <NativePickerRow label="音量" displayValue={volumeDisplay}
+                  options={volumeOptions} selected={settings.volume}
+                  onSelect={v => handleSelect('volume', v)}
+                  onLongPress={() => window.alert('⚠️ 音声トラックの削除\n\n音量を変更すると、元の音声トラックが上書きされます。この操作は元に戻せません。')}
+                  pickerHeader="音量" />
               </>
             )}
-
-            <NativePickerRow label="オーディオコーデック" displayValue={settings.audioCodec}
-              options={audioCodecOptions} selected={settings.audioCodec}
-              onSelect={v => handleSelect('audioCodec', v)}
-              warning={selectedFormat ? !isCodecCompatible(selectedFormat, settings.audioCodec, 'audio') : false}
-              pickerHeader="オーディオコーデック" />
-            <NativePickerRow label="音声ビットレート" displayValue={settings.audioBitrate}
-              options={audioBitrateOptions} selected={settings.audioBitrate}
-              onSelect={v => handleSelect('audioBitrate', v)}
-              pickerHeader="音声ビットレート" />
-            <NativePickerRow label="チャンネル数" displayValue={settings.channels}
-              options={getChannelOptions()} selected={settings.channels}
-              onSelect={v => handleSelect('channels', v)}
-              pickerHeader="チャンネル数" />
-            <NativePickerRow label="周波数" displayValue={settings.frequency}
-              options={frequencyOptions} selected={settings.frequency}
-              onSelect={v => handleSelect('frequency', v)}
-              pickerHeader="周波数" />
-            <NativePickerRow label="音量" displayValue={volumeDisplay}
-              options={volumeOptions} selected={settings.volume}
-              onSelect={v => handleSelect('volume', v)}
-              onLongPress={() => window.alert('⚠️ 音声トラックの削除\n\n音量を変更すると、元の音声トラックが上書きされます。この操作は元に戻せません。')}
-              pickerHeader="音量" />
           </div>
 
           <button onClick={onClose} className="w-full py-4 bg-primary text-primary-foreground text-[17px] font-semibold active:opacity-80 transition-opacity">
@@ -383,6 +410,17 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           </button>
         </div>
       </div>
+
+      {/* Thumbnail picker modal */}
+      {showThumbnailPicker && videoPreviewUrl && (
+        <ThumbnailPicker
+          videoUrl={videoPreviewUrl}
+          duration={videoDuration}
+          value={settings.thumbnailTime}
+          onSelect={t => { onChange({ ...settings, thumbnailTime: t }); setShowThumbnailPicker(false); }}
+          onClose={() => setShowThumbnailPicker(false)}
+        />
+      )}
 
       {/* Custom resolution input */}
       {showCustomRes && (
@@ -403,7 +441,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               const w = parseInt(customResW) || settings.resolutionW;
               const h = parseInt(customResH) || settings.resolutionH;
               onChange({ ...settings, resolutionW: w, resolutionH: h });
-              if (!checkAspectResolutionMatch(settings.aspectRatio, w, h))
+              if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, w, h))
                 window.alert('⚠️ アスペクト比と解像度のずれ\n\n入力した解像度がアスペクト比と一致しません（5px以上のずれ）。\n\n解決方法：アスペクト比を変更するか、別の解像度を入力してください。');
               setShowCustomRes(false);
             }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[17px] font-semibold active:opacity-80">OK</button>
@@ -449,7 +487,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
             </div>
             <button onClick={() => {
               const val = parseFloat(customFramerate) || 30;
-              // Set custom framerate - picker will show unselected since this value isn't in the list
               onChange({ ...settings, framerate: `${val}FPS` });
               setShowCustomFramerate(false);
             }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[17px] font-semibold active:opacity-80">OK</button>
@@ -457,5 +494,68 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         </div>
       )}
     </>
+  );
+};
+
+/** Thumbnail picker with video preview and slider */
+const ThumbnailPicker: React.FC<{
+  videoUrl: string;
+  duration: number;
+  value: number;
+  onSelect: (time: number) => void;
+  onClose: () => void;
+}> = ({ videoUrl, duration, value, onSelect, onClose }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [currentTime, setCurrentTime] = useState(value);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = currentTime;
+    }
+  }, [currentTime]);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md mx-4 bg-card rounded-2xl overflow-hidden ios-scale-in" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-border text-center">
+          <h3 className="text-foreground text-[17px] font-semibold">サムネイル</h3>
+        </div>
+
+        {/* Video preview */}
+        <div className="px-4 pt-4">
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            className="w-full rounded-lg bg-secondary"
+            muted
+            playsInline
+          />
+        </div>
+
+        {/* Time slider */}
+        <div className="px-5 py-4">
+          <input
+            type="range"
+            min={0}
+            max={duration || 1}
+            step={0.1}
+            value={currentTime}
+            onChange={e => setCurrentTime(parseFloat(e.target.value))}
+            className="w-full h-2 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+          />
+          <p className="text-center text-muted-foreground text-[13px] mt-2">
+            {currentTime.toFixed(1)}s / {duration.toFixed(1)}s
+          </p>
+        </div>
+
+        <button
+          onClick={() => onSelect(currentTime)}
+          className="w-full py-4 bg-primary text-primary-foreground text-[17px] font-semibold active:opacity-80 transition-opacity"
+        >
+          OK
+        </button>
+      </div>
+    </div>
   );
 };
