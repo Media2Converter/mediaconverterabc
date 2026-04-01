@@ -2,7 +2,7 @@ export const VIDEO_FORMATS = ['MP4', 'M4V', 'MOV', '3G2', '3GP', 'AVI'];
 export const AUDIO_FORMATS = ['OPUS', 'EAC3', 'AC3', 'AAC', 'MP3', 'WAV', 'OGG', 'AIFF', 'RAW', 'AMR_NB', 'AMR_WB'];
 
 export const VIDEO_CODECS = ['AV1', 'H.265', 'H.264', 'H.263', 'H.261', 'H.320', 'MPEG-4', 'DIVX', 'MJPEG'];
-export const AUDIO_CODECS = ['OPUS', 'EAC3', 'AC3', 'AAC', 'MP3', 'WAV', 'OGG', 'AIFF', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711'];
+export const AUDIO_CODECS = ['OPUS', 'EAC3', 'AC3', 'AAC', 'MP3', 'WAV', 'OGG', 'AIFF', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM'];
 
 export const ASPECT_RATIOS = ['自由', '16:9', '22:9', '11:9', '11:8', '9:7', '4:3', '1:1', '3:4', '7:9', '8:11', '9:11', '9:22', '9:16'];
 
@@ -124,26 +124,26 @@ export const VOLUME_OPTIONS: { label: string; value: string; color?: 'orange' | 
 
 // iPhone incompatible items
 export const IPHONE_BAD_VIDEO_CODECS = ['AV1', 'H.263', 'H.261', 'H.320', 'DIVX', 'MJPEG'];
-export const IPHONE_BAD_AUDIO_CODECS = ['OPUS', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711'];
+export const IPHONE_BAD_AUDIO_CODECS = ['OPUS', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM'];
 export const IPHONE_BAD_FORMATS = ['AVI', '3G2', '3GP', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'OPUS'];
 
 // Container/Codec compatibility map - which audio codecs work with which formats
 export const FORMAT_AUDIO_CODEC_COMPAT: Record<string, string[]> = {
   'MP4': ['AAC', 'AC3', 'EAC3', 'MP3'],
   'M4V': ['AAC', 'AC3', 'EAC3'],
-  'MOV': ['AAC', 'AC3', 'EAC3', 'MP3', 'PCM_S16LE', 'PCM_S32LE'],
+  'MOV': ['AAC', 'AC3', 'EAC3', 'MP3', 'PCM_S16LE', 'PCM_S32LE', 'LPCM'],
   '3G2': ['AAC', 'AMR_NB', 'AMR_WB'],
   '3GP': ['AAC', 'AMR_NB', 'AMR_WB'],
-  'AVI': ['MP3', 'PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'AC3'],
+  'AVI': ['MP3', 'PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'AC3', 'LPCM'],
   'OPUS': ['OPUS'],
   'EAC3': ['EAC3'],
   'AC3': ['AC3'],
   'AAC': ['AAC'],
   'MP3': ['MP3'],
-  'WAV': ['PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711'],
+  'WAV': ['PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'LPCM'],
   'OGG': ['OGG', 'OPUS'],
-  'AIFF': ['PCM_S16LE', 'PCM_S32LE'],
-  'RAW': ['PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'RAW'],
+  'AIFF': ['PCM_S16LE', 'PCM_S32LE', 'LPCM'],
+  'RAW': ['PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'RAW', 'LPCM'],
   'AMR_NB': ['AMR_NB'],
   'AMR_WB': ['AMR_WB'],
 };
@@ -158,10 +158,22 @@ export const FORMAT_VIDEO_CODEC_COMPAT: Record<string, string[]> = {
 };
 
 export function isCodecCompatible(format: string, codec: string, type: 'video' | 'audio'): boolean {
+  if (codec === 'copy' || codec === 'none') return true;
   const map = type === 'video' ? FORMAT_VIDEO_CODEC_COMPAT : FORMAT_AUDIO_CODEC_COMPAT;
   const compat = map[format];
-  if (!compat) return true; // unknown format, allow
+  if (!compat) return true;
   return compat.includes(codec);
+}
+
+/** Get compatible codecs for a format. Returns all codecs if format is unknown. */
+export function getCompatibleVideoCodecs(format: string | null): string[] {
+  if (!format) return VIDEO_CODECS;
+  return FORMAT_VIDEO_CODEC_COMPAT[format] || VIDEO_CODECS;
+}
+
+export function getCompatibleAudioCodecs(format: string | null): string[] {
+  if (!format) return AUDIO_CODECS;
+  return FORMAT_AUDIO_CODEC_COMPAT[format] || AUDIO_CODECS;
 }
 
 // FFmpeg codec mapping
@@ -172,6 +184,7 @@ export const CODEC_MAP: Record<string, string> = {
   'MP3': 'libmp3lame', 'WAV': 'pcm_s16le', 'OGG': 'libvorbis', 'AIFF': 'pcm_s16be',
   'RAW': 'pcm_s16le', 'AMR_NB': 'libopencore_amrnb', 'AMR_WB': 'libopencore_amrwb',
   'PCM_U8': 'pcm_u8', 'PCM_S16LE': 'pcm_s16le', 'PCM_S32LE': 'pcm_s32le', 'PCM_G.711': 'pcm_alaw',
+  'LPCM': 'pcm_s16le',
 };
 
 export const FORMAT_EXT: Record<string, string> = {
@@ -206,6 +219,8 @@ export interface ConvertSettings {
   channels: string;
   frequency: string;
   volume: string;
+  audioEnabled: boolean;
+  thumbnailTime: number;
 }
 
 export const defaultSettings: ConvertSettings = {
@@ -225,6 +240,8 @@ export const defaultSettings: ConvertSettings = {
   channels: 'ステレオ',
   frequency: '48000Hz',
   volume: 'none',
+  audioEnabled: true,
+  thumbnailTime: 0,
 };
 
 export function isVideoFormat(fmt: string): boolean {
@@ -238,6 +255,7 @@ export function getResolutionForAspect(ratio: string, w: number, h: number): { w
 }
 
 export function checkAspectResolutionMatch(ratio: string, w: number, h: number): boolean {
+  if (ratio === '自由') return true;
   const [rw, rh] = ratio.split(':').map(Number);
   const expectedH = Math.round((w / rw) * rh);
   return Math.abs(expectedH - h) <= 5;
