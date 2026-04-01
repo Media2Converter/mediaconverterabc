@@ -172,7 +172,8 @@ export async function convertWithFFmpeg(
   onProgress?.(96);
 
   const mime = FORMAT_MIME[format] || 'application/octet-stream';
-  const blob = new Blob([data], { type: mime });
+  const uint8 = data instanceof Uint8Array ? data : new TextEncoder().encode(data as string);
+  const blob = new Blob([uint8.buffer as ArrayBuffer], { type: mime });
   const url = URL.createObjectURL(blob);
 
   // Cleanup
