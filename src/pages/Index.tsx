@@ -3,11 +3,13 @@ import { ProgressCircle } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
-  FORMAT_EXT, FORMAT_MIME, isVideoFormat,
-  isCodecCompatible, FORMAT_AUDIO_CODEC_COMPAT, FORMAT_VIDEO_CODEC_COMPAT,
+  FORMAT_EXT, isVideoFormat,
+  getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { convertWithShotstack } from '@/services/shotstackApi';
+import { convertWithFFmpeg } from '@/services/ffmpegConverter';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -61,63 +63,92 @@ const Index: React.FC = () => {
   const handleFormatSelect = (value: string) => {
     if (!value) return;
     setSelectedFormat(value);
-    if (!isCodecCompatible(value, settings.audioCodec, 'audio')) {
-      const defaultCodec = FORMAT_AUDIO_CODEC_COMPAT[value]?.[0] || 'AAC';
-      setSettings(prev => ({ ...prev, audioCodec: defaultCodec }));
+    // Auto-fix incompatible codecs
+    const compatAudio = getCompatibleAudioCodecs(value);
+    if (settings.audioCodec !== 'copy' && settings.audioCodec !== 'none' && !compatAudio.includes(settings.audioCodec)) {
+      setSettings(prev => ({ ...prev, audioCodec: compatAudio[0] || 'AAC' }));
     }
-    if (isVideoFormat(value) && !isCodecCompatible(value, settings.videoCodec, 'video')) {
-      const defaultCodec = FORMAT_VIDEO_CODEC_COMPAT[value]?.[0] || 'H.264';
-      setSettings(prev => ({ ...prev, videoCodec: defaultCodec }));
+    if (isVideoFormat(value)) {
+      const compatVideo = getCompatibleVideoCodecs(value);
+      if (settings.videoCodec !== 'copy' && !compatVideo.includes(settings.videoCodec)) {
+        setSettings(prev => ({ ...prev, videoCodec: compatVideo[0] || 'H.264' }));
+      }
+    }
+  };
+
+  /** Call AI error analysis edge function */
+  const analyzeError = async (errorMessage: string, logs: string[]) => {
+    if (!SUPABASE_URL) return null;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-error-analysis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          errorMessage,
+          logs,
+          settings,
+          format: selectedFormat,
+        }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.analysis;
+    } catch {
+      return null;
     }
   };
 
   const handleConvert = async () => {
     if (!selectedFormat || files.length === 0) return;
 
-    // Pre-conversion compatibility checks
-    const errors: string[] = [];
-    if (settings.audioCodec !== 'copy' && settings.audioCodec !== 'none' &&
-        !isCodecCompatible(selectedFormat, settings.audioCodec, 'audio')) {
-      const validCodecs = FORMAT_AUDIO_CODEC_COMPAT[selectedFormat]?.join(', ') || '不明';
-      errors.push(`⚠️ オーディオコーデックの互換性エラー\n\n現在の状態：オーディオコーデック「${settings.audioCodec}」は「${selectedFormat}」形式に対応していません。\n\n解決方法：詳細設定でオーディオコーデックを以下のいずれかに変更してください：${validCodecs}`);
-    }
-    if (isVideoFormat(selectedFormat) && settings.videoCodec !== 'copy' &&
-        !isCodecCompatible(selectedFormat, settings.videoCodec, 'video')) {
-      const validCodecs = FORMAT_VIDEO_CODEC_COMPAT[selectedFormat]?.join(', ') || '不明';
-      errors.push(`⚠️ ビデオコーデックの互換性エラー\n\n現在の状態：ビデオコーデック「${settings.videoCodec}」は「${selectedFormat}」形式に対応していません。\n\n解決方法：詳細設定でビデオコーデックを以下のいずれかに変更してください：${validCodecs}`);
-    }
-    if (errors.length > 0) {
-      window.alert(errors.join('\n\n─────────────\n\n'));
-      return;
-    }
-
     setConverting(true);
     setProgress(0);
     setConvertedUrl(null);
-    setStatusMessage('アップロード準備中...');
+    setStatusMessage('FFmpegを読み込み中...');
+
+    const ffmpegLogs: string[] = [];
 
     try {
       const inputFile = files[0];
-      const ext = FORMAT_EXT[selectedFormat] || 'mp4';
 
-      const downloadUrl = await convertWithShotstack(inputFile, (pct) => {
-        setProgress(pct);
-        if (pct < 30) setStatusMessage('ファイルをアップロード中...');
-        else if (pct < 35) setStatusMessage('ソースファイルを処理中...');
-        else if (pct < 50) setStatusMessage('レンダリングを開始中...');
-        else if (pct < 85) setStatusMessage('変換中...');
-        else if (pct < 100) setStatusMessage('ファイルを保存中...');
-        else setStatusMessage('完了！');
-      });
+      const result = await convertWithFFmpeg(
+        inputFile,
+        selectedFormat,
+        settings,
+        isVideo,
+        (pct) => {
+          setProgress(pct);
+          if (pct < 15) setStatusMessage('FFmpegを読み込み中...');
+          else if (pct < 25) setStatusMessage('ファイルを読み込み中...');
+          else if (pct < 90) setStatusMessage('変換中...');
+          else if (pct < 100) setStatusMessage('ファイルを保存中...');
+          else setStatusMessage('完了！');
+        },
+        (msg) => ffmpegLogs.push(msg),
+      );
 
-      setConvertedUrl(downloadUrl);
-      setConvertedFilename(`converted.${ext}`);
+      setConvertedUrl(result.url);
+      setConvertedFilename(result.filename);
       setProgress(100);
       setStatusMessage('変換完了！ダウンロードできます');
     } catch (err: any) {
-      console.error('Shotstack conversion error:', err);
-      const msg = err?.message || '不明なエラー';
-      window.alert(`⚠️ 変換エラー\n\n現在の状態：${msg}\n\n解決方法：\n1. ファイルが破損していないか確認してください\n2. 別の出力形式を選択してみてください\n3. インターネット接続を確認してください`);
+      console.error('FFmpeg conversion error:', err);
+      const errorMsg = err?.message || '不明なエラー';
+
+      // Try AI error analysis
+      setStatusMessage('AIがエラーを分析中...');
+      const analysis = await analyzeError(errorMsg, ffmpegLogs);
+
+      if (analysis) {
+        const solutions = (analysis.solutions || []).map((s: string, i: number) => `${i + 1}. ${s}`).join('\n');
+        window.alert(
+          `⚠️ 変換エラー\n\n現在の状態：${analysis.status}\n\n原因：${analysis.cause}\n\n解決方法：\n${solutions}`
+        );
+      } else {
+        window.alert(
+          `⚠️ 変換エラー\n\n現在の状態：${errorMsg}\n\n解決方法：\n1. ファイルが破損していないか確認してください\n2. 別の出力形式を選択してみてください\n3. コーデック設定を変更してみてください`
+        );
+      }
     } finally {
       setConverting(false);
     }
@@ -128,7 +159,6 @@ const Index: React.FC = () => {
     const a = document.createElement('a');
     a.href = convertedUrl;
     a.download = convertedFilename;
-    a.target = '_blank';
     a.click();
   };
 
