@@ -89,7 +89,7 @@ export const IOSPickerModal: React.FC<PickerModalProps> = ({ open, onClose, onSe
                   <button
                     key={oi}
                     onClick={() => { onSelect(opt.value); onClose(); }}
-                    className={`w-full px-4 py-[13px] text-left text-[17px] flex items-center justify-between transition-colors ${opt.colorClass || ''}`}
+                    className={`w-full px-4 py-[13px] text-left text-[20px] flex items-center justify-between transition-colors ${opt.colorClass || ''}`}
                     style={{
                       borderBottom: isLast ? 'none' : '0.5px solid rgba(255,255,255,0.12)',
                       color: opt.colorClass ? undefined : '#fff',
@@ -135,11 +135,11 @@ export const IOSAlertDialog: React.FC<AlertProps> = ({ open, onClose, title, mes
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
       <div className="relative w-[270px] bg-popover/95 backdrop-blur-xl rounded-[14px] overflow-hidden ios-scale-in" onClick={e => e.stopPropagation()}>
         <div className="px-4 pt-5 pb-4 text-center">
-          <h3 className="text-foreground text-[17px] font-semibold mb-1">{title}</h3>
-          <p className="text-muted-foreground text-[13px] leading-[18px] whitespace-pre-line">{message}</p>
+          <h3 className="text-foreground text-[20px] font-semibold mb-1">{title}</h3>
+          <p className="text-muted-foreground text-[20px] leading-[24px] whitespace-pre-line">{message}</p>
         </div>
         <div className="border-t border-border/50">
-          <button onClick={onClose} className="w-full py-[11px] text-primary text-[17px] font-semibold active:bg-accent/60 transition-colors">
+          <button onClick={onClose} className="w-full py-[11px] text-primary text-[20px] font-semibold active:bg-accent/60 transition-colors">
             OK
           </button>
         </div>
@@ -166,14 +166,14 @@ export const IOSConfirmDialog: React.FC<ConfirmProps> = ({ open, onClose, onConf
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
       <div className="relative w-[270px] bg-popover/95 backdrop-blur-xl rounded-[14px] overflow-hidden ios-scale-in" onClick={e => e.stopPropagation()}>
         <div className="px-4 pt-5 pb-4 text-center">
-          <h3 className="text-foreground text-[17px] font-semibold mb-1">{title}</h3>
-          <p className="text-muted-foreground text-[13px] leading-[18px] whitespace-pre-line">{message}</p>
+          <h3 className="text-foreground text-[20px] font-semibold mb-1">{title}</h3>
+          <p className="text-muted-foreground text-[20px] leading-[24px] whitespace-pre-line">{message}</p>
         </div>
         <div className="border-t border-border/50 flex">
-          <button onClick={onClose} className="flex-1 py-[11px] text-primary text-[17px] font-normal border-r border-border/50 active:bg-accent/60 transition-colors">
+          <button onClick={onClose} className="flex-1 py-[11px] text-primary text-[20px] font-normal border-r border-border/50 active:bg-accent/60 transition-colors">
             {cancelLabel}
           </button>
-          <button onClick={() => { onConfirm(); onClose(); }} className={`flex-1 py-[11px] text-[17px] font-semibold active:bg-accent/60 transition-colors ${destructive ? 'text-destructive' : 'text-primary'}`}>
+          <button onClick={() => { onConfirm(); onClose(); }} className={`flex-1 py-[11px] text-[20px] font-semibold active:bg-accent/60 transition-colors ${destructive ? 'text-destructive' : 'text-primary'}`}>
             {confirmLabel}
           </button>
         </div>
@@ -196,7 +196,7 @@ export const ProgressCircle: React.FC<ProgressCircleProps> = ({ progress }) => {
         <circle cx="60" cy="60" r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
         <circle
           cx="60" cy="60" r={r} fill="none"
-          stroke="hsl(var(--primary))" strokeWidth="8"
+          stroke="#ffffff" strokeWidth="8"
           strokeDasharray={c} strokeDashoffset={offset}
           strokeLinecap="round"
           transform="rotate(-90 60 60)"
@@ -206,7 +206,6 @@ export const ProgressCircle: React.FC<ProgressCircleProps> = ({ progress }) => {
           {Math.round(progress)}%
         </text>
       </svg>
-      <p className="text-muted-foreground text-sm">変換中...</p>
     </div>
   );
 };

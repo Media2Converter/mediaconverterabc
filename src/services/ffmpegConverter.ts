@@ -1,7 +1,7 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
 import {
-  CODEC_MAP, FORMAT_EXT, FORMAT_MIME, isVideoFormat,
+  CODEC_MAP, AAC_HE_PROFILE, FORMAT_EXT, FORMAT_MIME, isVideoFormat,
   type ConvertSettings,
 } from '@/constants/converterOptions';
 
@@ -13,9 +13,6 @@ async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   if (onLog) {
     ffmpeg.on('log', ({ message }) => onLog(message));
   }
-  ffmpeg.on('progress', ({ progress }) => {
-    // progress is 0-1
-  });
   await ffmpeg.load();
   return ffmpeg;
 }
@@ -81,6 +78,11 @@ export function buildFFmpegArgs(
     const aCodec = CODEC_MAP[settings.audioCodec] || 'aac';
     args.push('-c:a', aCodec);
 
+    // AAC HE profile
+    if (AAC_HE_PROFILE[settings.audioCodec]) {
+      args.push('-profile:a', AAC_HE_PROFILE[settings.audioCodec]);
+    }
+
     // Audio bitrate
     const aBitrate = settings.audioBitrate.replace('KBPS', 'k');
     args.push('-b:a', aBitrate);
@@ -102,14 +104,12 @@ export function buildFFmpegArgs(
   if (settings.speed !== '1') {
     const speed = parseFloat(settings.speed);
     if (outputIsVideo && isVideo) {
-      // Video speed filter
       args.push('-filter:v', `setpts=${(1 / speed).toFixed(6)}*PTS`);
     }
     if (settings.audioEnabled && settings.audioCodec !== 'none' && settings.audioCodec !== 'copy') {
       const audioFilter = settings.pitchSync
         ? `atempo=${speed}`
         : `asetrate=${Math.round(44100 * speed)},aresample=44100,atempo=1`;
-      // Combine with volume filter if present
       const existingAfIdx = args.indexOf('-af');
       if (existingAfIdx !== -1) {
         args[existingAfIdx + 1] += `,${audioFilter}`;
@@ -147,13 +147,11 @@ export async function convertWithFFmpeg(
   const outputExt = FORMAT_EXT[format] || 'mp4';
   const outputName = `output.${outputExt}`;
 
-  // Write input file
   await ff.writeFile(inputName, await fetchFile(file));
   onProgress?.(25);
 
   const args = buildFFmpegArgs(inputName, outputName, settings, format, isVideo);
 
-  // Listen to progress
   ff.on('progress', ({ progress }) => {
     const pct = Math.min(25 + progress * 65, 90);
     onProgress?.(pct);
@@ -167,7 +165,6 @@ export async function convertWithFFmpeg(
 
   onProgress?.(92);
 
-  // Read output
   const data = await ff.readFile(outputName);
   onProgress?.(96);
 
@@ -176,7 +173,6 @@ export async function convertWithFFmpeg(
   const blob = new Blob([uint8.buffer as ArrayBuffer], { type: mime });
   const url = URL.createObjectURL(blob);
 
-  // Cleanup
   await ff.deleteFile(inputName);
   await ff.deleteFile(outputName);
 
@@ -184,7 +180,6 @@ export async function convertWithFFmpeg(
   return { url, filename: `converted.${outputExt}` };
 }
 
-/** Get all FFmpeg logs for error analysis */
 export function getFFmpegLogs(): string[] {
   return [];
 }

@@ -9,27 +9,25 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { errorMessage, logs, settings, format } = await req.json();
+    const { errorMessage, logs, settings, format, deviceInfo } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = `あなたはFFmpegのエラー分析AIです。ユーザーのFFmpeg変換で発生したエラーを分析し、以下の形式で日本語で回答してください：
+    const systemPrompt = `あなたはiPhoneの全体システムとFFmpegのエラー分析AIです。CPU・GPU・バッテリー・メモリ・FFmpegの状態を総合的に分析し、厳密で具体的な診断結果を提供してください。
 
-1. 現在の状態：何が起きたかを簡潔に説明
-2. 原因：なぜエラーが発生したか
-3. 解決方法：具体的な対処法を箇条書きで
+以下の情報を分析してください：
+- FFmpegのエラーメッセージとログ
+- デバイスのCPU（コア数、負荷状況の推定）
+- GPU（レンダラー、ベンダー情報からの能力推定）
+- バッテリー残量と充電状態
+- メモリ使用状況
 
-修復可能な場合は、修正されたFFmpegコマンド引数をJSON配列で提案してください。
-修復不可能な場合は、ユーザーが設定を変更すべき箇所を具体的に指示してください。
+エラーの原因を特定し、以下の観点から具体的に説明してください：
+1. FFmpegの処理のどの部分でエラーが発生したか
+2. デバイスのリソース状態がエラーに影響しているか
+3. 設定の問題（コーデック互換性、解像度、ビットレート等）
 
-回答はJSON形式で返してください：
-{
-  "status": "現在の状態",
-  "cause": "原因",
-  "solutions": ["解決方法1", "解決方法2"],
-  "canAutoFix": true/false,
-  "fixedArgs": ["修正されたFFmpeg引数"] // canAutoFixがtrueの場合のみ
-}`;
+回答はJSON形式で返してください。修復可能な場合は修正されたFFmpegコマンド引数も提案してください。`;
 
     const userPrompt = `FFmpeg変換エラーが発生しました。
 
@@ -42,6 +40,11 @@ serve(async (req) => {
 - 解像度: ${settings?.resolutionW}x${settings?.resolutionH}
 - ビデオビットレート: ${settings?.videoBitrate}
 - オーディオビットレート: ${settings?.audioBitrate}
+- 周波数: ${settings?.frequency}
+- チャンネル: ${settings?.channels}
+
+デバイス情報:
+${JSON.stringify(deviceInfo || {}, null, 2)}
 
 最新ログ（最大20行）:
 ${(logs || []).slice(-20).join('\n')}`;
@@ -53,7 +56,7 @@ ${(logs || []).slice(-20).join('\n')}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -62,17 +65,18 @@ ${(logs || []).slice(-20).join('\n')}`;
           type: "function",
           function: {
             name: "analyze_error",
-            description: "FFmpegエラーの分析結果を返す",
+            description: "FFmpegエラーとデバイス状態の総合分析結果を返す",
             parameters: {
               type: "object",
               properties: {
-                status: { type: "string", description: "現在の状態" },
-                cause: { type: "string", description: "原因" },
-                solutions: { type: "array", items: { type: "string" }, description: "解決方法" },
+                status: { type: "string", description: "現在の状態（何が起きたかを厳密に説明）" },
+                cause: { type: "string", description: "原因（CPU/GPU/メモリ/FFmpegのどれが問題かを具体的に）" },
+                deviceStatus: { type: "string", description: "デバイスの状態サマリー（CPU/GPU/バッテリー/メモリ）" },
+                solutions: { type: "array", items: { type: "string" }, description: "的確な解決方法" },
                 canAutoFix: { type: "boolean", description: "自動修復可能か" },
                 fixedArgs: { type: "array", items: { type: "string" }, description: "修正されたFFmpeg引数" },
               },
-              required: ["status", "cause", "solutions", "canAutoFix"],
+              required: ["status", "cause", "deviceStatus", "solutions", "canAutoFix"],
             },
           },
         }],
