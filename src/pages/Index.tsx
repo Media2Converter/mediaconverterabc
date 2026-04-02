@@ -1,5 +1,5 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { ProgressCircle } from '@/components/converter/IOSComponents';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { ProgressCircle, IOSAlertDialog } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
@@ -10,6 +10,47 @@ import {
 import { convertWithFFmpeg } from '@/services/ffmpegConverter';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+/** Gather device info for analysis AI */
+async function getDeviceInfo() {
+  const info: Record<string, any> = {};
+  try {
+    // Battery
+    if ('getBattery' in navigator) {
+      const battery = await (navigator as any).getBattery();
+      info.battery = {
+        level: Math.round(battery.level * 100),
+        charging: battery.charging,
+      };
+    }
+    // Memory (Chrome only)
+    if ((performance as any).memory) {
+      const mem = (performance as any).memory;
+      info.memory = {
+        usedJSHeapSize: Math.round(mem.usedJSHeapSize / 1024 / 1024),
+        totalJSHeapSize: Math.round(mem.totalJSHeapSize / 1024 / 1024),
+        jsHeapSizeLimit: Math.round(mem.jsHeapSizeLimit / 1024 / 1024),
+      };
+    }
+    // Hardware concurrency (CPU cores)
+    info.cpuCores = navigator.hardwareConcurrency || 'unknown';
+    // GPU info
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (gl) {
+        const debugInfo = (gl as WebGLRenderingContext).getExtension('WEBGL_debug_renderer_info');
+        if (debugInfo) {
+          info.gpu = {
+            renderer: (gl as WebGLRenderingContext).getParameter(debugInfo.UNMASKED_RENDERER_WEBGL),
+            vendor: (gl as WebGLRenderingContext).getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+          };
+        }
+      }
+    } catch {}
+  } catch {}
+  return info;
+}
 
 const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -23,14 +64,39 @@ const Index: React.FC = () => {
   const [convertedFilename, setConvertedFilename] = useState('');
   const [videoDuration, setVideoDuration] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
+  const [batteryWarning, setBatteryWarning] = useState(false);
+  const [alertDialog, setAlertDialog] = useState<{ open: boolean; title: string; message: string }>({ open: false, title: '', message: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Battery monitoring
+  useEffect(() => {
+    let battery: any = null;
+    const checkBattery = async () => {
+      if ('getBattery' in navigator) {
+        battery = await (navigator as any).getBattery();
+        const update = () => {
+          if (battery.level <= 0.2 && !battery.charging) {
+            setBatteryWarning(true);
+          }
+        };
+        battery.addEventListener('levelchange', update);
+        battery.addEventListener('chargingchange', update);
+        update();
+      }
+    };
+    checkBattery();
+    return () => {
+      if (battery) {
+        battery.removeEventListener('levelchange', () => {});
+        battery.removeEventListener('chargingchange', () => {});
+      }
+    };
+  }, []);
+
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newFiles = Array.from(e.target.files).filter(
-        f => f.type.startsWith('video/') || f.type.startsWith('audio/')
-      );
+      const newFiles = Array.from(e.target.files);
       if (newFiles.length === 0) return;
       setFiles(prev => [...prev, ...newFiles]);
       newFiles.forEach(f => {
@@ -40,7 +106,7 @@ const Index: React.FC = () => {
           const vid = document.createElement('video');
           vid.src = url;
           vid.onloadedmetadata = () => setVideoDuration(vid.duration);
-        } else if (f.type.startsWith('audio/')) {
+        } else {
           const aud = document.createElement('audio');
           aud.src = url;
           aud.onloadedmetadata = () => setVideoDuration(aud.duration);
@@ -63,7 +129,6 @@ const Index: React.FC = () => {
   const handleFormatSelect = (value: string) => {
     if (!value) return;
     setSelectedFormat(value);
-    // Auto-fix incompatible codecs
     const compatAudio = getCompatibleAudioCodecs(value);
     if (settings.audioCodec !== 'copy' && settings.audioCodec !== 'none' && !compatAudio.includes(settings.audioCodec)) {
       setSettings(prev => ({ ...prev, audioCodec: compatAudio[0] || 'AAC' }));
@@ -76,10 +141,11 @@ const Index: React.FC = () => {
     }
   };
 
-  /** Call AI error analysis edge function */
+  /** Call analysis AI edge function for error analysis */
   const analyzeError = async (errorMessage: string, logs: string[]) => {
     if (!SUPABASE_URL) return null;
     try {
+      const deviceInfo = await getDeviceInfo();
       const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-error-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,6 +154,7 @@ const Index: React.FC = () => {
           logs,
           settings,
           format: selectedFormat,
+          deviceInfo,
         }),
       });
       if (!res.ok) return null;
@@ -100,6 +167,15 @@ const Index: React.FC = () => {
 
   const handleConvert = async () => {
     if (!selectedFormat || files.length === 0) return;
+
+    // Battery check
+    if (batteryWarning) {
+      setAlertDialog({
+        open: true,
+        title: '🔋 充電警告',
+        message: 'バッテリーが20%以下です。\n変換処理は電力を大量に消費します。\n充電器に接続してから変換することをお勧めします。',
+      });
+    }
 
     setConverting(true);
     setProgress(0);
@@ -135,19 +211,23 @@ const Index: React.FC = () => {
       console.error('FFmpeg conversion error:', err);
       const errorMsg = err?.message || '不明なエラー';
 
-      // Try AI error analysis
       setStatusMessage('AIがエラーを分析中...');
       const analysis = await analyzeError(errorMsg, ffmpegLogs);
 
       if (analysis) {
         const solutions = (analysis.solutions || []).map((s: string, i: number) => `${i + 1}. ${s}`).join('\n');
-        window.alert(
-          `⚠️ 変換エラー\n\n現在の状態：${analysis.status}\n\n原因：${analysis.cause}\n\n解決方法：\n${solutions}`
-        );
+        const deviceStatus = analysis.deviceStatus ? `\n\nデバイス状態：${analysis.deviceStatus}` : '';
+        setAlertDialog({
+          open: true,
+          title: '⚠️ 変換エラー',
+          message: `現在の状態：${analysis.status}\n\n原因：${analysis.cause}${deviceStatus}\n\n解決方法：\n${solutions}`,
+        });
       } else {
-        window.alert(
-          `⚠️ 変換エラー\n\n現在の状態：${errorMsg}\n\n解決方法：\n1. ファイルが破損していないか確認してください\n2. 別の出力形式を選択してみてください\n3. コーデック設定を変更してみてください`
-        );
+        setAlertDialog({
+          open: true,
+          title: '⚠️ 変換エラー',
+          message: `現在の状態：${errorMsg}\n\n解決方法：\n1. ファイルが破損していないか確認してください\n2. 別の出力形式を選択してみてください\n3. コーデック設定を変更してみてください`,
+        });
       }
     } finally {
       setConverting(false);
@@ -178,11 +258,11 @@ const Index: React.FC = () => {
               {f.type.startsWith('video/') && fileUrls[i] ? (
                 <video src={fileUrls[i]} className="w-14 h-14 rounded-lg object-cover bg-secondary" muted />
               ) : (
-                <div className="w-14 h-14 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground text-xs">♪</div>
+                <div className="w-14 h-14 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground text-[20px]">♪</div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-foreground text-[15px] truncate">{f.name}</p>
-                <p className="text-muted-foreground text-[13px]">{(f.size / 1024 / 1024).toFixed(1)} MB</p>
+                <p className="text-foreground text-[20px] truncate">{f.name}</p>
+                <p className="text-muted-foreground text-[20px]">{(f.size / 1024 / 1024).toFixed(1)} MB</p>
               </div>
               <button onClick={() => confirmRemoveFile(i)} className="text-muted-foreground text-xl leading-none active:text-foreground">×</button>
             </div>
@@ -192,12 +272,19 @@ const Index: React.FC = () => {
 
       <button
         onClick={() => fileInputRef.current?.click()}
-        className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold active:scale-[0.97] transition-transform"
+        className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[20px] font-semibold active:scale-[0.97] transition-transform"
       >
         {files.length > 0 ? 'ファイルを追加' : 'ファイルを選択'}
       </button>
 
-      <input ref={fileInputRef} type="file" accept="video/*,audio/*" hidden onChange={handleFileSelected} multiple />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/*,audio/*,.mp4,.mov,.avi,.mkv,.wmv,.flv,.webm,.m4v,.3gp,.3g2,.mp3,.wav,.aac,.ogg,.flac,.m4a,.wma,.aiff,.opus,.amr"
+        hidden
+        onChange={handleFileSelected}
+        multiple
+      />
 
       {files.length > 0 && (
         <div className="w-full flex gap-3 mt-4">
@@ -205,7 +292,7 @@ const Index: React.FC = () => {
             <select
               value={selectedFormat}
               onChange={e => handleFormatSelect(e.target.value)}
-              className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold text-center appearance-none cursor-pointer"
+              className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[20px] font-semibold text-center appearance-none cursor-pointer"
             >
               <option value="" disabled>出力形式</option>
               {allFormats.map(g => (
@@ -220,7 +307,7 @@ const Index: React.FC = () => {
           {selectedFormat && (
             <button
               onClick={() => setShowDetailSettings(true)}
-              className="flex-1 py-3.5 bg-primary text-primary-foreground rounded-2xl text-[15px] font-semibold active:scale-[0.97] transition-transform"
+              className="flex-1 py-3.5 bg-primary text-primary-foreground rounded-2xl text-[20px] font-semibold active:scale-[0.97] transition-transform"
             >
               詳細設定
             </button>
@@ -230,7 +317,7 @@ const Index: React.FC = () => {
 
       {selectedFormat && !converting && !convertedUrl && (
         <button onClick={handleConvert}
-          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl text-[17px] font-semibold active:scale-[0.97] transition-transform">
+          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl text-[20px] font-semibold active:scale-[0.97] transition-transform">
           変換
         </button>
       )}
@@ -238,13 +325,13 @@ const Index: React.FC = () => {
       {converting && (
         <div className="mt-8 flex flex-col items-center gap-3">
           <ProgressCircle progress={progress} />
-          <p className="text-muted-foreground text-sm">{statusMessage}</p>
+          <p className="text-muted-foreground text-[20px]">{statusMessage}</p>
         </div>
       )}
 
       {convertedUrl && !converting && (
         <button onClick={handleDownload}
-          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl text-[17px] font-semibold active:scale-[0.97] transition-transform">
+          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl text-[20px] font-semibold active:scale-[0.97] transition-transform">
           ダウンロード
         </button>
       )}
@@ -258,6 +345,13 @@ const Index: React.FC = () => {
         videoPreviewUrl={isVideo ? fileUrls[0] : undefined}
         isVideo={isVideo}
         selectedFormat={selectedFormat || null}
+      />
+
+      <IOSAlertDialog
+        open={alertDialog.open}
+        onClose={() => setAlertDialog(prev => ({ ...prev, open: false }))}
+        title={alertDialog.title}
+        message={alertDialog.message}
       />
     </div>
   );

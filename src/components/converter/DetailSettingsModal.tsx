@@ -3,8 +3,9 @@ import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
   VOLUME_OPTIONS, AMR_NB_BITRATES, AMR_WB_BITRATES, AMR_NB_FREQUENCIES, AMR_WB_FREQUENCIES,
+  ADPCM_BITRATES,
   getCompatibleVideoCodecs, getCompatibleAudioCodecs,
-  isCodecCompatible,
+  isAdpcmCodec,
   type ConvertSettings, checkAspectResolutionMatch, isVideoFormat,
 } from '@/constants/converterOptions';
 
@@ -19,7 +20,7 @@ interface Props {
   selectedFormat: string | null;
 }
 
-/** A setting row that opens a native <select> picker with a header label */
+/** A setting row that opens a native <select> picker */
 const NativePickerRow: React.FC<{
   label: string;
   displayValue: string;
@@ -66,15 +67,15 @@ const NativePickerRow: React.FC<{
         onClick={handleClick}
         className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border active:bg-accent transition-colors"
       >
-        <span className="text-foreground text-[15px]">{label}</span>
-        <span className={`text-[15px] ${warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue} ›</span>
+        <span className="text-foreground text-[20px]">{label}</span>
+        <span className={`text-[20px] ${warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue} ›</span>
       </button>
       <select
         ref={selectRef}
         value={selected}
         onChange={e => onSelect(e.target.value)}
         className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-        style={{ fontSize: '16px' }}
+        style={{ fontSize: '20px' }}
       >
         {pickerHeader && <option disabled value="">{pickerHeader}</option>}
         {groups ? (
@@ -95,21 +96,6 @@ const NativePickerRow: React.FC<{
   );
 };
 
-/** Simple toggle row */
-const ToggleRow: React.FC<{
-  label: string;
-  value: boolean;
-  onToggle: (v: boolean) => void;
-}> = ({ label, value, onToggle }) => (
-  <button
-    onClick={() => onToggle(!value)}
-    className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border active:bg-accent transition-colors"
-  >
-    <span className="text-foreground text-[15px]">{label}</span>
-    <span className="text-muted-foreground text-[15px]">{value ? 'オン' : 'オフ'} ›</span>
-  </button>
-);
-
 export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, onChange, videoDuration, videoPreviewUrl, isVideo, selectedFormat }) => {
   const [showCustomRes, setShowCustomRes] = useState(false);
   const [customResW, setCustomResW] = useState('');
@@ -119,6 +105,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const [showCustomFramerate, setShowCustomFramerate] = useState(false);
   const [customFramerate, setCustomFramerate] = useState('');
   const [showThumbnailPicker, setShowThumbnailPicker] = useState(false);
+  const [showOtherVideoCodecs, setShowOtherVideoCodecs] = useState(false);
+  const [showOtherAudioCodecs, setShowOtherAudioCodecs] = useState(false);
 
   const isInterlace = settings.scanType === 'インターレース方式';
   const arParts = settings.aspectRatio.split(':').map(Number);
@@ -126,6 +114,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const outputIsAudioOnly = selectedFormat ? !isVideoFormat(selectedFormat) : false;
   const isAmr = settings.audioCodec === 'AMR_NB' || settings.audioCodec === 'AMR_WB';
+  const isAdpcm = isAdpcmCodec(settings.audioCodec);
+  const audioIsNone = settings.audioCodec === 'none';
 
   useEffect(() => {
     if (!open) { setShowCustomRes(false); setShowCustomBitrate(null); setShowCustomFramerate(false); setShowThumbnailPicker(false); }
@@ -136,24 +126,33 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return isInterlace ? tag.replace(/(\d+)p/g, '$1I') : tag;
   };
 
-  // Build codec options - only show compatible ones + copy/none
-  const videoCodecOptions = [
-    { label: 'コピー', value: 'copy' },
-    ...getCompatibleVideoCodecs(selectedFormat).map(c => ({ label: c, value: c })),
-  ];
+  // Build codec options - compatible ones only, copy/none in collapsible
+  const compatVideoCodecs = getCompatibleVideoCodecs(selectedFormat);
+  const videoCodecOptions = compatVideoCodecs.map(c => ({ label: c, value: c }));
 
   const audioCodecDisplayName = (c: string) => {
     if (c === 'LPCM') return 'PCM_L';
     return c;
   };
 
-  const audioCodecOptions = [
-    { label: 'コピー', value: 'copy' },
-    { label: '音声を消します', value: 'none' },
-    ...getCompatibleAudioCodecs(selectedFormat).map(c => ({
-      label: audioCodecDisplayName(c),
-      value: c,
-    })),
+  const compatAudioCodecs = getCompatibleAudioCodecs(selectedFormat);
+  const audioCodecOptions = compatAudioCodecs.map(c => ({
+    label: audioCodecDisplayName(c),
+    value: c,
+  }));
+
+  // Groups for video codec select with collapsible "その他のメニュー"
+  const videoCodecGroups = [
+    { label: 'コーデック', options: videoCodecOptions },
+    { label: 'その他のメニュー', options: [{ label: 'コピー', value: 'copy' }] },
+  ];
+
+  const audioCodecGroups = [
+    { label: 'コーデック', options: audioCodecOptions },
+    { label: 'その他のメニュー', options: [
+      { label: 'コピー', value: 'copy' },
+      { label: '音声を消します', value: 'none' },
+    ]},
   ];
 
   const aspectRatioOptions = ASPECT_RATIOS.map(a => ({ label: a, value: a }));
@@ -174,6 +173,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const getAudioBitrates = () => {
     if (settings.audioCodec === 'AMR_NB') return AMR_NB_BITRATES;
     if (settings.audioCodec === 'AMR_WB') return AMR_WB_BITRATES;
+    if (isAdpcm && ADPCM_BITRATES[settings.audioCodec]) return ADPCM_BITRATES[settings.audioCodec];
     return AUDIO_BITRATES;
   };
 
@@ -183,9 +183,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return FREQUENCIES;
   };
 
+  const canCustomBitrate = !isAmr && !isAdpcm;
   const audioBitrateOptions = [
     ...getAudioBitrates().map(b => ({ label: b, value: b })),
-    ...(!isAmr ? [{ label: '打ち込む（カスタム）', value: 'custom' }] : []),
+    ...(canCustomBitrate ? [{ label: '打ち込む（カスタム）', value: 'custom' }] : []),
   ];
 
   const getChannelOptions = () => {
@@ -216,9 +217,33 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const volumeDisplay = settings.volume === 'none' ? '変えない' : `${settings.volume}dB`;
 
+  // Auto-fix AMR settings when codec changes
   useEffect(() => {
-    if (isAmr && settings.channels !== 'モノラル') {
-      onChange({ ...settings, channels: 'モノラル' });
+    if (isAmr) {
+      const freq = settings.audioCodec === 'AMR_NB' ? '8000Hz' : '16000Hz';
+      const bitrates = settings.audioCodec === 'AMR_NB' ? AMR_NB_BITRATES : AMR_WB_BITRATES;
+      const updates: Partial<ConvertSettings> = {};
+      if (settings.channels !== 'モノラル') updates.channels = 'モノラル';
+      if (settings.frequency !== freq) updates.frequency = freq;
+      if (!bitrates.includes(settings.audioBitrate)) updates.audioBitrate = bitrates[0];
+      if (Object.keys(updates).length > 0) {
+        onChange({ ...settings, ...updates });
+      }
+    }
+    if (isAdpcm && ADPCM_BITRATES[settings.audioCodec]) {
+      const validBitrates = ADPCM_BITRATES[settings.audioCodec];
+      if (!validBitrates.includes(settings.audioBitrate)) {
+        onChange({ ...settings, audioBitrate: validBitrates[0] });
+      }
+    }
+  }, [settings.audioCodec]);
+
+  // When audioCodec is 'none', set audioEnabled to false
+  useEffect(() => {
+    if (audioIsNone && settings.audioEnabled) {
+      onChange({ ...settings, audioEnabled: false });
+    } else if (!audioIsNone && !settings.audioEnabled) {
+      onChange({ ...settings, audioEnabled: true });
     }
   }, [settings.audioCodec]);
 
@@ -228,7 +253,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         onChange({ ...settings, videoCodec: value });
         break;
       case 'audioCodec':
-        onChange({ ...settings, audioCodec: value });
+        onChange({ ...settings, audioCodec: value, audioEnabled: value !== 'none' });
         break;
       case 'aspectRatio':
         onChange({ ...settings, aspectRatio: value });
@@ -277,19 +302,27 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   return (
     <>
-      {/* iPad-style popup modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center ios-fade-in" onClick={onClose}>
+      {/* iOS-style popup sheet */}
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center ios-fade-in" onClick={onClose}>
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-        <div className="relative w-full max-w-md mx-4 bg-card rounded-2xl overflow-hidden ios-scale-in max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-          <div className="px-5 py-4 border-b border-border text-center">
-            <h2 className="text-foreground text-[17px] font-semibold">詳細設定</h2>
+        <div
+          className="relative w-full sm:max-w-md sm:mx-4 bg-card sm:rounded-2xl rounded-t-2xl overflow-hidden ios-slide-up sm:ios-scale-in flex flex-col"
+          style={{ maxHeight: '90vh' }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Handle bar for sheet */}
+          <div className="flex justify-center pt-2 pb-1 sm:hidden">
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/40" />
           </div>
-          <div className="overflow-y-auto overscroll-contain flex-1">
+          <div className="px-5 py-4 border-b border-border text-center">
+            <h2 className="text-foreground text-[20px] font-semibold">詳細設定</h2>
+          </div>
+          <div className="overflow-y-auto overscroll-contain flex-1 -webkit-overflow-scrolling-touch">
             {showVideoSection && (
               <>
                 <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">ビデオ</div>
                 <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
-                  options={videoCodecOptions} selected={settings.videoCodec}
+                  options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
                   onSelect={v => handleSelect('videoCodec', v)}
                   pickerHeader="ビデオコーデック" />
                 <NativePickerRow label="縦横比" displayValue={settings.aspectRatio}
@@ -318,8 +351,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
                   onClick={() => setShowThumbnailPicker(true)}
                   className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border active:bg-accent transition-colors"
                 >
-                  <span className="text-foreground text-[15px]">サムネイル</span>
-                  <span className="text-muted-foreground text-[15px]">{settings.thumbnailTime.toFixed(1)}s ›</span>
+                  <span className="text-foreground text-[20px]">サムネイル</span>
+                  <span className="text-muted-foreground text-[20px]">{settings.thumbnailTime.toFixed(1)}s ›</span>
                 </button>
 
                 <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
@@ -346,14 +379,13 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
             <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">オーディオ</div>
 
-            {/* Audio on/off toggle */}
-            <ToggleRow
-              label="音声"
-              value={settings.audioEnabled}
-              onToggle={v => onChange({ ...settings, audioEnabled: v })}
-            />
+            <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
+              options={[]} groups={audioCodecGroups} selected={settings.audioCodec}
+              onSelect={v => handleSelect('audioCodec', v)}
+              pickerHeader="オーディオコーデック" />
 
-            {settings.audioEnabled && (
+            {/* Hide audio settings when 音声を消します is selected */}
+            {!audioIsNone && settings.audioCodec !== 'copy' && (
               <>
                 {/* When audio-only output, show start/end/speed here */}
                 {outputIsAudioOnly && (
@@ -380,10 +412,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
                   </>
                 )}
 
-                <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
-                  options={audioCodecOptions} selected={settings.audioCodec}
-                  onSelect={v => handleSelect('audioCodec', v)}
-                  pickerHeader="オーディオコーデック" />
                 <NativePickerRow label="音声ビットレート" displayValue={settings.audioBitrate}
                   options={audioBitrateOptions} selected={settings.audioBitrate}
                   onSelect={v => handleSelect('audioBitrate', v)}
@@ -405,7 +433,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
             )}
           </div>
 
-          <button onClick={onClose} className="w-full py-4 bg-primary text-primary-foreground text-[17px] font-semibold active:opacity-80 transition-opacity">
+          <button onClick={onClose} className="w-full py-4 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity">
             OK
           </button>
         </div>
@@ -427,15 +455,15 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomRes(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
-            <h3 className="text-foreground text-[17px] font-semibold text-center mb-4">解像度を入力</h3>
+            <h3 className="text-foreground text-[20px] font-semibold text-center mb-4">解像度を入力</h3>
             <div className="flex items-center gap-2 justify-center">
               <input type="number" inputMode="numeric" placeholder={String(settings.resolutionW)}
                 value={customResW} onChange={e => setCustomResW(e.target.value)}
-                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[17px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-              <span className="text-foreground text-[17px]">×</span>
+                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[20px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[20px]">×</span>
               <input type="number" inputMode="numeric" placeholder={String(settings.resolutionH)}
                 value={customResH} onChange={e => setCustomResH(e.target.value)}
-                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[17px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[20px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
             </div>
             <button onClick={() => {
               const w = parseInt(customResW) || settings.resolutionW;
@@ -444,7 +472,9 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, w, h))
                 window.alert('⚠️ アスペクト比と解像度のずれ\n\n入力した解像度がアスペクト比と一致しません（5px以上のずれ）。\n\n解決方法：アスペクト比を変更するか、別の解像度を入力してください。');
               setShowCustomRes(false);
-            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[17px] font-semibold active:opacity-80">OK</button>
+              setCustomResW('');
+              setCustomResH('');
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[20px] font-semibold active:opacity-80">OK</button>
           </div>
         </div>
       )}
@@ -454,21 +484,22 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomBitrate(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
-            <h3 className="text-foreground text-[17px] font-semibold text-center mb-4">
+            <h3 className="text-foreground text-[20px] font-semibold text-center mb-4">
               {showCustomBitrate === 'video' ? '動画' : '音声'}ビットレートを入力
             </h3>
             <div className="flex items-center gap-2 justify-center">
               <input type="number" inputMode="numeric" placeholder={showCustomBitrate === 'video' ? '5120' : '128'}
                 value={customBitrate} onChange={e => setCustomBitrate(e.target.value)}
-                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[17px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-              <span className="text-foreground text-[15px]">KBPS</span>
+                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[20px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[20px]">KBPS</span>
             </div>
             <button onClick={() => {
               const key = showCustomBitrate === 'video' ? 'videoBitrate' : 'audioBitrate';
               const def = showCustomBitrate === 'video' ? '5120' : '128';
               onChange({ ...settings, [key]: `${customBitrate || def}KBPS` });
               setShowCustomBitrate(null);
-            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[17px] font-semibold active:opacity-80">OK</button>
+              setCustomBitrate('');
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[20px] font-semibold active:opacity-80">OK</button>
           </div>
         </div>
       )}
@@ -478,18 +509,19 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomFramerate(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
-            <h3 className="text-foreground text-[17px] font-semibold text-center mb-4">フレームレートを入力</h3>
+            <h3 className="text-foreground text-[20px] font-semibold text-center mb-4">フレームレートを入力</h3>
             <div className="flex items-center gap-2 justify-center">
               <input type="number" inputMode="decimal" placeholder="30"
                 value={customFramerate} onChange={e => setCustomFramerate(e.target.value)}
-                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[17px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-              <span className="text-foreground text-[15px]">FPS</span>
+                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[20px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[20px]">FPS</span>
             </div>
             <button onClick={() => {
               const val = parseFloat(customFramerate) || 30;
               onChange({ ...settings, framerate: `${val}FPS` });
               setShowCustomFramerate(false);
-            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[17px] font-semibold active:opacity-80">OK</button>
+              setCustomFramerate('');
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[20px] font-semibold active:opacity-80">OK</button>
           </div>
         </div>
       )}
@@ -519,10 +551,8 @@ const ThumbnailPicker: React.FC<{
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative w-full max-w-md mx-4 bg-card rounded-2xl overflow-hidden ios-scale-in" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-border text-center">
-          <h3 className="text-foreground text-[17px] font-semibold">サムネイル</h3>
+          <h3 className="text-foreground text-[20px] font-semibold">サムネイル</h3>
         </div>
-
-        {/* Video preview */}
         <div className="px-4 pt-4">
           <video
             ref={videoRef}
@@ -532,8 +562,6 @@ const ThumbnailPicker: React.FC<{
             playsInline
           />
         </div>
-
-        {/* Time slider */}
         <div className="px-5 py-4">
           <input
             type="range"
@@ -544,14 +572,13 @@ const ThumbnailPicker: React.FC<{
             onChange={e => setCurrentTime(parseFloat(e.target.value))}
             className="w-full h-2 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
           />
-          <p className="text-center text-muted-foreground text-[13px] mt-2">
+          <p className="text-center text-muted-foreground text-[20px] mt-2">
             {currentTime.toFixed(1)}s / {duration.toFixed(1)}s
           </p>
         </div>
-
         <button
           onClick={() => onSelect(currentTime)}
-          className="w-full py-4 bg-primary text-primary-foreground text-[17px] font-semibold active:opacity-80 transition-opacity"
+          className="w-full py-4 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
         >
           OK
         </button>

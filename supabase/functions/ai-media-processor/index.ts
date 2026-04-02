@@ -27,8 +27,12 @@ serve(async (req) => {
 - audioEnabled が false の場合は "-an" を使用
 - アスペクト比が "自由" の場合は -aspect を付けない
 - 速度変更時はビデオとオーディオの両方にフィルターを適用
+- AAC_HE_V1 は "-c:a aac -profile:a aac_he"
+- AAC_HE_V2 は "-c:a aac -profile:a aac_he_v2"
+- ADPCM系コーデックは適切なFFmpegエンコーダー名に変換
+- AMR_NB は周波数を8000Hz、AMR_WB は16000Hzに固定
 
-JSON配列形式でFFmpeg引数を返してください。`;
+JSON配列形式でFFmpeg引数を返してください。設定の内容は全て漏らさず反映してください。`;
 
       userPrompt = `以下の設定でFFmpegコマンド引数を生成してください：
 

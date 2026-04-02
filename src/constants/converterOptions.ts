@@ -1,8 +1,15 @@
 export const VIDEO_FORMATS = ['MP4', 'M4V', 'MOV', '3G2', '3GP', 'AVI'];
-export const AUDIO_FORMATS = ['OPUS', 'EAC3', 'AC3', 'AAC', 'MP3', 'WAV', 'OGG', 'AIFF', 'RAW', 'AMR_NB', 'AMR_WB'];
+export const AUDIO_FORMATS = ['OPUS', 'EAC3', 'AC3', 'AAC', 'MP3', 'WAV', 'OGG', 'AIFF', 'RAW', 'AMR_NB', 'AMR_WB', 'FLAC'];
 
 export const VIDEO_CODECS = ['AV1', 'H.265', 'H.264', 'H.263', 'H.261', 'H.320', 'MPEG-4', 'DIVX', 'MJPEG'];
-export const AUDIO_CODECS = ['OPUS', 'EAC3', 'AC3', 'AAC', 'MP3', 'WAV', 'OGG', 'AIFF', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM'];
+export const AUDIO_CODECS = [
+  'OPUS', 'EAC3', 'AC3', 'AAC', 'AAC_HE_V1', 'AAC_HE_V2',
+  'MP3', 'WAV', 'OGG', 'AIFF', 'RAW',
+  'AMR_NB', 'AMR_WB',
+  'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM',
+  'ALAC', 'FLAC',
+  'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS',
+];
 
 export const ASPECT_RATIOS = ['自由', '16:9', '22:9', '11:9', '11:8', '9:7', '4:3', '1:1', '3:4', '7:9', '8:11', '9:11', '9:22', '9:16'];
 
@@ -87,6 +94,18 @@ export const AMR_NB_FREQUENCIES = ['8000Hz'];
 // AMR WB: only 16000Hz
 export const AMR_WB_FREQUENCIES = ['16000Hz'];
 
+// ADPCM fixed bitrates per codec
+export const ADPCM_BITRATES: Record<string, string[]> = {
+  'ADPCM_G721': ['32KBPS'],
+  'ADPCM_G723': ['24KBPS', '40KBPS'],
+  'ADPCM_G726': ['16KBPS', '24KBPS', '32KBPS', '40KBPS'],
+  'ADPCM_G727': ['16KBPS', '24KBPS', '32KBPS', '40KBPS'],
+  'ADPCM_G728': ['9.6KBPS', '16KBPS'],
+  'ADPCM_OKI': ['32KBPS'],
+  'ADPCM_IMA': ['32KBPS'],
+  'ADPCM_MS': ['32KBPS'],
+};
+
 export const FRAMERATES = [
   '1FPS', '2FPS', '4FPS', '5FPS', '8FPS', '12.5FPS', '16FPS', '20FPS',
   '23.976FPS', '24FPS', '25FPS', '29.97FPS', '30FPS', '32FPS', '40FPS',
@@ -124,28 +143,29 @@ export const VOLUME_OPTIONS: { label: string; value: string; color?: 'orange' | 
 
 // iPhone incompatible items
 export const IPHONE_BAD_VIDEO_CODECS = ['AV1', 'H.263', 'H.261', 'H.320', 'DIVX', 'MJPEG'];
-export const IPHONE_BAD_AUDIO_CODECS = ['OPUS', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM'];
+export const IPHONE_BAD_AUDIO_CODECS = ['OPUS', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM', 'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS'];
 export const IPHONE_BAD_FORMATS = ['AVI', '3G2', '3GP', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'OPUS'];
 
-// Container/Codec compatibility map - which audio codecs work with which formats
+// Container/Codec compatibility map
 export const FORMAT_AUDIO_CODEC_COMPAT: Record<string, string[]> = {
-  'MP4': ['AAC', 'AC3', 'EAC3', 'MP3'],
-  'M4V': ['AAC', 'AC3', 'EAC3'],
-  'MOV': ['AAC', 'AC3', 'EAC3', 'MP3', 'PCM_S16LE', 'PCM_S32LE', 'LPCM'],
-  '3G2': ['AAC', 'AMR_NB', 'AMR_WB'],
-  '3GP': ['AAC', 'AMR_NB', 'AMR_WB'],
-  'AVI': ['MP3', 'PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'AC3', 'LPCM'],
+  'MP4': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AC3', 'EAC3', 'MP3', 'ALAC', 'FLAC'],
+  'M4V': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AC3', 'EAC3', 'ALAC'],
+  'MOV': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AC3', 'EAC3', 'MP3', 'PCM_S16LE', 'PCM_S32LE', 'LPCM', 'ALAC', 'FLAC'],
+  '3G2': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AMR_NB', 'AMR_WB'],
+  '3GP': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AMR_NB', 'AMR_WB'],
+  'AVI': ['MP3', 'PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'AC3', 'LPCM', 'ADPCM_IMA', 'ADPCM_MS'],
   'OPUS': ['OPUS'],
   'EAC3': ['EAC3'],
   'AC3': ['AC3'],
-  'AAC': ['AAC'],
+  'AAC': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2'],
   'MP3': ['MP3'],
-  'WAV': ['PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'LPCM'],
-  'OGG': ['OGG', 'OPUS'],
+  'WAV': ['PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'LPCM', 'ADPCM_IMA', 'ADPCM_MS', 'ADPCM_G726'],
+  'OGG': ['OGG', 'OPUS', 'FLAC'],
   'AIFF': ['PCM_S16LE', 'PCM_S32LE', 'LPCM'],
-  'RAW': ['PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'RAW', 'LPCM'],
+  'RAW': ['PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'RAW', 'LPCM', 'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI'],
   'AMR_NB': ['AMR_NB'],
   'AMR_WB': ['AMR_WB'],
+  'FLAC': ['FLAC'],
 };
 
 export const FORMAT_VIDEO_CODEC_COMPAT: Record<string, string[]> = {
@@ -165,7 +185,6 @@ export function isCodecCompatible(format: string, codec: string, type: 'video' |
   return compat.includes(codec);
 }
 
-/** Get compatible codecs for a format. Returns all codecs if format is unknown. */
 export function getCompatibleVideoCodecs(format: string | null): string[] {
   if (!format) return VIDEO_CODECS;
   return FORMAT_VIDEO_CODEC_COMPAT[format] || VIDEO_CODECS;
@@ -181,16 +200,28 @@ export const CODEC_MAP: Record<string, string> = {
   'AV1': 'libaom-av1', 'H.265': 'libx265', 'H.264': 'libx264', 'H.263': 'h263',
   'H.261': 'h261', 'H.320': 'h263', 'MPEG-4': 'mpeg4', 'DIVX': 'mpeg4', 'MJPEG': 'mjpeg',
   'OPUS': 'libopus', 'EAC3': 'eac3', 'AC3': 'ac3', 'AAC': 'aac',
+  'AAC_HE_V1': 'aac', 'AAC_HE_V2': 'aac',
   'MP3': 'libmp3lame', 'WAV': 'pcm_s16le', 'OGG': 'libvorbis', 'AIFF': 'pcm_s16be',
   'RAW': 'pcm_s16le', 'AMR_NB': 'libopencore_amrnb', 'AMR_WB': 'libopencore_amrwb',
   'PCM_U8': 'pcm_u8', 'PCM_S16LE': 'pcm_s16le', 'PCM_S32LE': 'pcm_s32le', 'PCM_G.711': 'pcm_alaw',
   'LPCM': 'pcm_s16le',
+  'ALAC': 'alac', 'FLAC': 'flac',
+  'ADPCM_G721': 'adpcm_g726', 'ADPCM_G723': 'adpcm_g723_1', 'ADPCM_G726': 'adpcm_g726',
+  'ADPCM_G727': 'adpcm_g726le', 'ADPCM_G728': 'adpcm_g726', 'ADPCM_OKI': 'adpcm_ima_wav',
+  'ADPCM_IMA': 'adpcm_ima_wav', 'ADPCM_MS': 'adpcm_ms',
+};
+
+// AAC HE profiles need extra FFmpeg flags
+export const AAC_HE_PROFILE: Record<string, string> = {
+  'AAC_HE_V1': 'aac_he',
+  'AAC_HE_V2': 'aac_he_v2',
 };
 
 export const FORMAT_EXT: Record<string, string> = {
   'MP4': 'mp4', 'M4V': 'm4v', 'MOV': 'mov', '3G2': '3g2', '3GP': '3gp', 'AVI': 'avi',
   'OPUS': 'opus', 'EAC3': 'eac3', 'AC3': 'ac3', 'AAC': 'aac', 'MP3': 'mp3',
   'WAV': 'wav', 'OGG': 'ogg', 'AIFF': 'aiff', 'RAW': 'raw', 'AMR_NB': 'amr', 'AMR_WB': 'amr',
+  'FLAC': 'flac',
 };
 
 export const FORMAT_MIME: Record<string, string> = {
@@ -200,6 +231,7 @@ export const FORMAT_MIME: Record<string, string> = {
   'MP3': 'audio/mpeg', 'WAV': 'audio/wav', 'OGG': 'audio/ogg',
   'AIFF': 'audio/aiff', 'RAW': 'application/octet-stream',
   'AMR_NB': 'audio/amr', 'AMR_WB': 'audio/amr-wb',
+  'FLAC': 'audio/flac',
 };
 
 export interface ConvertSettings {
@@ -246,6 +278,10 @@ export const defaultSettings: ConvertSettings = {
 
 export function isVideoFormat(fmt: string): boolean {
   return VIDEO_FORMATS.includes(fmt);
+}
+
+export function isAdpcmCodec(codec: string): boolean {
+  return codec.startsWith('ADPCM_');
 }
 
 export function getResolutionForAspect(ratio: string, w: number, h: number): { w: number; h: number } {
