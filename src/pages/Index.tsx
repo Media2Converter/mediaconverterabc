@@ -9,7 +9,7 @@ import {
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort } from '@/services/ffmpegConverter';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
 
 /** Gather device info for analysis AI */
 async function getDeviceInfo() {
