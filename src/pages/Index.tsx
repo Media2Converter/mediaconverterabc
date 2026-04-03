@@ -130,19 +130,28 @@ const Index: React.FC = () => {
     }
   };
 
-  /** Call analysis AI edge function for error analysis */
+  /** Analyze error locally with device info */
   const analyzeError = async (errorMessage: string, logs: string[]) => {
-    if (!SUPABASE_URL) return null;
     try {
       const deviceInfo = await getDeviceInfo();
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-error-analysis`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ errorMessage, logs, settings, format: selectedFormat, deviceInfo }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.analysis;
+      const lastLogs = logs.slice(-5).join('\n');
+      const batteryInfo = deviceInfo.battery ? `バッテリー: ${deviceInfo.battery.level}%${deviceInfo.battery.charging ? ' (充電中)' : ''}` : '';
+      const memInfo = deviceInfo.memory ? `メモリ: ${deviceInfo.memory.usedJSHeapSize}MB / ${deviceInfo.memory.jsHeapSizeLimit}MB` : '';
+      const cpuInfo = `CPU コア数: ${deviceInfo.cpuCores}`;
+      const gpuInfo = deviceInfo.gpu ? `GPU: ${deviceInfo.gpu.renderer}` : '';
+
+      return {
+        status: 'エラー発生',
+        cause: errorMessage,
+        deviceStatus: [batteryInfo, memInfo, cpuInfo, gpuInfo].filter(Boolean).join('\n'),
+        solutions: [
+          'ファイルが破損していないか確認してください',
+          '別の出力形式を選択してください',
+          'コーデック設定を変更してください',
+          'ブラウザを再読み込みしてください',
+        ],
+        ffmpegLogs: lastLogs,
+      };
     } catch {
       return null;
     }
