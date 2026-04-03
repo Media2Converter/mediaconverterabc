@@ -6,6 +6,11 @@ import {
 } from '@/constants/converterOptions';
 
 let ffmpeg: FFmpeg | null = null;
+let abortRequested = false;
+
+export function requestAbort() {
+  abortRequested = true;
+}
 
 async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   if (ffmpeg && ffmpeg.loaded) return ffmpeg;
@@ -15,6 +20,11 @@ async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   }
   await ffmpeg.load();
   return ffmpeg;
+}
+
+/** Make a number even (round down) */
+function makeEven(n: number): number {
+  return Math.floor(n / 2) * 2;
 }
 
 /** Build FFmpeg arguments from settings */
@@ -44,8 +54,10 @@ export function buildFFmpegArgs(
       const vCodec = CODEC_MAP[settings.videoCodec] || 'libx264';
       args.push('-c:v', vCodec);
 
-      // Resolution
-      args.push('-s', `${settings.resolutionW}x${settings.resolutionH}`);
+      // Resolution - force even numbers using scale filter with trunc
+      const w = makeEven(settings.resolutionW);
+      const h = makeEven(settings.resolutionH);
+      args.push('-vf', `scale='trunc(${w}/2)*2:trunc(${h}/2)*2'`);
 
       // Video bitrate
       const vBitrate = settings.videoBitrate.replace('KBPS', 'k');
@@ -55,7 +67,7 @@ export function buildFFmpegArgs(
       const fps = settings.framerate.replace('FPS', '');
       args.push('-r', fps);
 
-      // Aspect ratio (if not 自由)
+      // Aspect ratio
       if (settings.aspectRatio !== '自由') {
         args.push('-aspect', settings.aspectRatio);
       }
@@ -83,28 +95,63 @@ export function buildFFmpegArgs(
       args.push('-profile:a', AAC_HE_PROFILE[settings.audioCodec]);
     }
 
-    // Audio bitrate
-    const aBitrate = settings.audioBitrate.replace('KBPS', 'k');
-    args.push('-b:a', aBitrate);
+    // AMR strict mode: force sample rate, mono, and audio filter
+    if (settings.audioCodec === 'AMR_NB') {
+      args.push('-ar', '8000', '-ac', '1');
+      // Force resample and downmix for AMR compliance
+      const amrFilter = 'aresample=8000,pan=mono|c0=c0+c1';
+      const existingAfIdx = args.indexOf('-af');
+      if (existingAfIdx !== -1) {
+        args[existingAfIdx + 1] += `,${amrFilter}`;
+      } else {
+        args.push('-af', amrFilter);
+      }
+    } else if (settings.audioCodec === 'AMR_WB') {
+      args.push('-ar', '16000', '-ac', '1');
+      const amrFilter = 'aresample=16000,pan=mono|c0=c0+c1';
+      const existingAfIdx = args.indexOf('-af');
+      if (existingAfIdx !== -1) {
+        args[existingAfIdx + 1] += `,${amrFilter}`;
+      } else {
+        args.push('-af', amrFilter);
+      }
+    } else {
+      // Audio bitrate
+      const aBitrate = settings.audioBitrate.replace('KBPS', 'k');
+      args.push('-b:a', aBitrate);
 
-    // Channels
-    args.push('-ac', settings.channels === 'モノラル' ? '1' : '2');
+      // Channels
+      args.push('-ac', settings.channels === 'モノラル' ? '1' : '2');
 
-    // Frequency
-    const freq = settings.frequency.replace('Hz', '');
-    args.push('-ar', freq);
+      // Frequency
+      const freq = settings.frequency.replace('Hz', '');
+      args.push('-ar', freq);
+    }
 
     // Volume
     if (settings.volume !== 'none') {
-      args.push('-af', `volume=${settings.volume}dB`);
+      const existingAfIdx = args.indexOf('-af');
+      const volFilter = `volume=${settings.volume}dB`;
+      if (existingAfIdx !== -1) {
+        args[existingAfIdx + 1] += `,${volFilter}`;
+      } else {
+        args.push('-af', volFilter);
+      }
     }
   }
 
   // Speed
   if (settings.speed !== '1') {
     const speed = parseFloat(settings.speed);
-    if (outputIsVideo && isVideo) {
-      args.push('-filter:v', `setpts=${(1 / speed).toFixed(6)}*PTS`);
+    if (outputIsVideo && isVideo && settings.videoCodec !== 'copy') {
+      // Merge with existing -vf if present
+      const vfIdx = args.indexOf('-vf');
+      const speedFilter = `setpts=${(1 / speed).toFixed(6)}*PTS`;
+      if (vfIdx !== -1) {
+        args[vfIdx + 1] += `,${speedFilter}`;
+      } else {
+        args.push('-vf', speedFilter);
+      }
     }
     if (settings.audioEnabled && settings.audioCodec !== 'none' && settings.audioCodec !== 'copy') {
       const audioFilter = settings.pitchSync
@@ -119,6 +166,12 @@ export function buildFFmpegArgs(
     }
   }
 
+  // movflags for 3GP/3G2/MOV/MP4
+  const lowerFormat = format.toLowerCase();
+  if (['3gp', '3g2', 'mov', 'mp4'].includes(lowerFormat)) {
+    args.push('-movflags', '+faststart');
+  }
+
   args.push('-y', outputName);
   return args;
 }
@@ -131,17 +184,21 @@ export async function convertWithFFmpeg(
   isVideo: boolean,
   onProgress?: (pct: number) => void,
   onLog?: (msg: string) => void,
+  onStatus?: (status: string) => void,
 ): Promise<{ url: string; filename: string }> {
+  abortRequested = false;
   const logs: string[] = [];
   const logCollector = (msg: string) => {
     logs.push(msg);
     onLog?.(msg);
   };
 
+  onStatus?.('FFmpeg WASM エンジンを初期化中...');
   onProgress?.(5);
   const ff = await getFFmpeg(logCollector);
   onProgress?.(15);
 
+  onStatus?.('入力ファイルをメモリに書き込み中...');
   const inputExt = file.name.split('.').pop() || 'mp4';
   const inputName = `input.${inputExt}`;
   const outputExt = FORMAT_EXT[format] || 'mp4';
@@ -150,19 +207,30 @@ export async function convertWithFFmpeg(
   await ff.writeFile(inputName, await fetchFile(file));
   onProgress?.(25);
 
+  if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
+
+  onStatus?.('生成AI → JSON指示書を作成中...');
   const args = buildFFmpegArgs(inputName, outputName, settings, format, isVideo);
+  onStatus?.(`FFmpeg → コマンドを実行中: ${args.join(' ').substring(0, 80)}...`);
 
   ff.on('progress', ({ progress }) => {
+    if (abortRequested) return;
     const pct = Math.min(25 + progress * 65, 90);
     onProgress?.(pct);
+    onStatus?.(`FFmpeg → 変換処理中... ${Math.round(pct)}%`);
   });
 
   try {
     await ff.exec(args);
   } catch (err: any) {
-    throw new Error(`FFmpegエラー: ${err?.message || '変換に失敗しました'}\n\nログ:\n${logs.slice(-10).join('\n')}`);
+    // Extract last 3 lines of stderr for debugging
+    const lastLogs = logs.slice(-3).join('\n');
+    throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
   }
 
+  if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
+
+  onStatus?.('出力ファイルを読み取り中...');
   onProgress?.(92);
 
   const data = await ff.readFile(outputName);
@@ -176,6 +244,7 @@ export async function convertWithFFmpeg(
   await ff.deleteFile(inputName);
   await ff.deleteFile(outputName);
 
+  onStatus?.('変換完了！');
   onProgress?.(100);
   return { url, filename: `converted.${outputExt}` };
 }
