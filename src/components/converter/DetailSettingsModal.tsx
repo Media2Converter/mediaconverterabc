@@ -20,7 +20,7 @@ interface Props {
   selectedFormat: string | null;
 }
 
-/** A setting row that opens a native <select> picker */
+/** A setting row that opens a native <select> picker — with chevron ▽ on right */
 const NativePickerRow: React.FC<{
   label: string;
   displayValue: string;
@@ -68,7 +68,10 @@ const NativePickerRow: React.FC<{
         className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border active:bg-accent transition-colors"
       >
         <span className="text-foreground text-[20px]">{label}</span>
-        <span className={`text-[20px] ${warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue} ›</span>
+        <span className="flex items-center gap-1.5">
+          <span className={`text-[20px] ${warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue}</span>
+          <span className="text-muted-foreground text-[16px]">▽</span>
+        </span>
       </button>
       <select
         ref={selectRef}
@@ -104,9 +107,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const [customBitrate, setCustomBitrate] = useState('');
   const [showCustomFramerate, setShowCustomFramerate] = useState(false);
   const [customFramerate, setCustomFramerate] = useState('');
-  const [showThumbnailPicker, setShowThumbnailPicker] = useState(false);
-  const [showOtherVideoCodecs, setShowOtherVideoCodecs] = useState(false);
-  const [showOtherAudioCodecs, setShowOtherAudioCodecs] = useState(false);
+  const [savedSettings, setSavedSettings] = useState<ConvertSettings>(settings);
 
   const isInterlace = settings.scanType === 'インターレース方式';
   const arParts = settings.aspectRatio.split(':').map(Number);
@@ -118,15 +119,24 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const audioIsNone = settings.audioCodec === 'none';
 
   useEffect(() => {
-    if (!open) { setShowCustomRes(false); setShowCustomBitrate(null); setShowCustomFramerate(false); setShowThumbnailPicker(false); }
+    if (open) {
+      setSavedSettings(settings);
+      setShowCustomRes(false);
+      setShowCustomBitrate(null);
+      setShowCustomFramerate(false);
+    }
   }, [open]);
+
+  const handleCancel = () => {
+    onChange(savedSettings);
+    onClose();
+  };
 
   const resolutionLabel = (tag?: string) => {
     if (!tag) return '';
     return isInterlace ? tag.replace(/(\d+)p/g, '$1I') : tag;
   };
 
-  // Build codec options - compatible ones only, copy/none in collapsible
   const compatVideoCodecs = getCompatibleVideoCodecs(selectedFormat);
   const videoCodecOptions = compatVideoCodecs.map(c => ({ label: c, value: c }));
 
@@ -141,7 +151,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     value: c,
   }));
 
-  // Groups for video codec select with collapsible "その他のメニュー"
   const videoCodecGroups = [
     { label: 'コーデック', options: videoCodecOptions },
     { label: 'その他のメニュー', options: [{ label: 'コピー', value: 'copy' }] },
@@ -303,7 +312,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   return (
     <>
       {/* iOS-style popup sheet */}
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center ios-fade-in" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center ios-fade-in" onClick={handleCancel}>
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
         <div
           className="relative w-full sm:max-w-md sm:mx-4 bg-card sm:rounded-2xl rounded-t-2xl overflow-hidden ios-slide-up sm:ios-scale-in flex flex-col"
@@ -314,8 +323,15 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           <div className="flex justify-center pt-2 pb-1 sm:hidden">
             <div className="w-10 h-1 rounded-full bg-muted-foreground/40" />
           </div>
-          <div className="px-5 py-4 border-b border-border text-center">
+          {/* Header with キャンセル and 完了 */}
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+            <button onClick={handleCancel} className="text-primary text-[20px] font-normal active:opacity-60">
+              キャンセル
+            </button>
             <h2 className="text-foreground text-[20px] font-semibold">詳細設定</h2>
+            <button onClick={onClose} className="text-primary text-[20px] font-semibold active:opacity-60">
+              完了
+            </button>
           </div>
           <div className="overflow-y-auto overscroll-contain flex-1 -webkit-overflow-scrolling-touch">
             {showVideoSection && (
@@ -345,15 +361,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
                   options={framerateOptions} selected={settings.framerate}
                   onSelect={v => handleSelect('framerate', v)}
                   pickerHeader="フレームレート" />
-
-                {/* Thumbnail picker */}
-                <button
-                  onClick={() => setShowThumbnailPicker(true)}
-                  className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border active:bg-accent transition-colors"
-                >
-                  <span className="text-foreground text-[20px]">サムネイル</span>
-                  <span className="text-muted-foreground text-[20px]">{settings.thumbnailTime.toFixed(1)}s ›</span>
-                </button>
 
                 <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
                   options={startTimeOptions} selected={String(settings.startTime)}
@@ -387,7 +394,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
             {/* Hide audio settings when 音声を消します is selected */}
             {!audioIsNone && settings.audioCodec !== 'copy' && (
               <>
-                {/* When audio-only output, show start/end/speed here */}
                 {outputIsAudioOnly && (
                   <>
                     <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
@@ -432,23 +438,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               </>
             )}
           </div>
-
-          <button onClick={onClose} className="w-full py-4 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity">
-            OK
-          </button>
         </div>
       </div>
-
-      {/* Thumbnail picker modal */}
-      {showThumbnailPicker && videoPreviewUrl && (
-        <ThumbnailPicker
-          videoUrl={videoPreviewUrl}
-          duration={videoDuration}
-          value={settings.thumbnailTime}
-          onSelect={t => { onChange({ ...settings, thumbnailTime: t }); setShowThumbnailPicker(false); }}
-          onClose={() => setShowThumbnailPicker(false)}
-        />
-      )}
 
       {/* Custom resolution input */}
       {showCustomRes && (
@@ -526,63 +517,5 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         </div>
       )}
     </>
-  );
-};
-
-/** Thumbnail picker with video preview and slider */
-const ThumbnailPicker: React.FC<{
-  videoUrl: string;
-  duration: number;
-  value: number;
-  onSelect: (time: number) => void;
-  onClose: () => void;
-}> = ({ videoUrl, duration, value, onSelect, onClose }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [currentTime, setCurrentTime] = useState(value);
-
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = currentTime;
-    }
-  }, [currentTime]);
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative w-full max-w-md mx-4 bg-card rounded-2xl overflow-hidden ios-scale-in" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3 border-b border-border text-center">
-          <h3 className="text-foreground text-[20px] font-semibold">サムネイル</h3>
-        </div>
-        <div className="px-4 pt-4">
-          <video
-            ref={videoRef}
-            src={videoUrl}
-            className="w-full rounded-lg bg-secondary"
-            muted
-            playsInline
-          />
-        </div>
-        <div className="px-5 py-4">
-          <input
-            type="range"
-            min={0}
-            max={duration || 1}
-            step={0.1}
-            value={currentTime}
-            onChange={e => setCurrentTime(parseFloat(e.target.value))}
-            className="w-full h-2 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
-          />
-          <p className="text-center text-muted-foreground text-[20px] mt-2">
-            {currentTime.toFixed(1)}s / {duration.toFixed(1)}s
-          </p>
-        </div>
-        <button
-          onClick={() => onSelect(currentTime)}
-          className="w-full py-4 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
-        >
-          OK
-        </button>
-      </div>
-    </div>
   );
 };

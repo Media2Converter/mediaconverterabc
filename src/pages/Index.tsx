@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { ProgressCircle, IOSAlertDialog } from '@/components/converter/IOSComponents';
+import { ProgressCircle } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
@@ -7,7 +7,7 @@ import {
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { convertWithFFmpeg } from '@/services/ffmpegConverter';
+import { convertWithFFmpeg, requestAbort } from '@/services/ffmpegConverter';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -15,15 +15,10 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 async function getDeviceInfo() {
   const info: Record<string, any> = {};
   try {
-    // Battery
     if ('getBattery' in navigator) {
       const battery = await (navigator as any).getBattery();
-      info.battery = {
-        level: Math.round(battery.level * 100),
-        charging: battery.charging,
-      };
+      info.battery = { level: Math.round(battery.level * 100), charging: battery.charging };
     }
-    // Memory (Chrome only)
     if ((performance as any).memory) {
       const mem = (performance as any).memory;
       info.memory = {
@@ -32,9 +27,7 @@ async function getDeviceInfo() {
         jsHeapSizeLimit: Math.round(mem.jsHeapSizeLimit / 1024 / 1024),
       };
     }
-    // Hardware concurrency (CPU cores)
     info.cpuCores = navigator.hardwareConcurrency || 'unknown';
-    // GPU info
     try {
       const canvas = document.createElement('canvas');
       const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
@@ -65,7 +58,6 @@ const Index: React.FC = () => {
   const [videoDuration, setVideoDuration] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
   const [batteryWarning, setBatteryWarning] = useState(false);
-  const [alertDialog, setAlertDialog] = useState<{ open: boolean; title: string; message: string }>({ open: false, title: '', message: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -78,6 +70,8 @@ const Index: React.FC = () => {
         const update = () => {
           if (battery.level <= 0.2 && !battery.charging) {
             setBatteryWarning(true);
+          } else {
+            setBatteryWarning(false);
           }
         };
         battery.addEventListener('levelchange', update);
@@ -86,12 +80,7 @@ const Index: React.FC = () => {
       }
     };
     checkBattery();
-    return () => {
-      if (battery) {
-        battery.removeEventListener('levelchange', () => {});
-        battery.removeEventListener('chargingchange', () => {});
-      }
-    };
+    return () => {};
   }, []);
 
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,13 +138,7 @@ const Index: React.FC = () => {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-error-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          errorMessage,
-          logs,
-          settings,
-          format: selectedFormat,
-          deviceInfo,
-        }),
+        body: JSON.stringify({ errorMessage, logs, settings, format: selectedFormat, deviceInfo }),
       });
       if (!res.ok) return null;
       const data = await res.json();
@@ -165,22 +148,25 @@ const Index: React.FC = () => {
     }
   };
 
+  const handleCancel = () => {
+    requestAbort();
+    setConverting(false);
+    setProgress(0);
+    setStatusMessage('キャンセルしました');
+  };
+
   const handleConvert = async () => {
     if (!selectedFormat || files.length === 0) return;
 
-    // Battery check
+    // Battery check - iOS native alert
     if (batteryWarning) {
-      setAlertDialog({
-        open: true,
-        title: '🔋 充電警告',
-        message: 'バッテリーが20%以下です。\n変換処理は電力を大量に消費します。\n充電器に接続してから変換することをお勧めします。',
-      });
+      window.alert('🔋 充電警告\n\nバッテリーが20%以下です。\n変換処理は電力を大量に消費します。\n充電器に接続してから変換することをお勧めします。');
     }
 
     setConverting(true);
     setProgress(0);
     setConvertedUrl(null);
-    setStatusMessage('FFmpegを読み込み中...');
+    setStatusMessage('FFmpeg WASM エンジンを初期化中...');
 
     const ffmpegLogs: string[] = [];
 
@@ -192,15 +178,9 @@ const Index: React.FC = () => {
         selectedFormat,
         settings,
         isVideo,
-        (pct) => {
-          setProgress(pct);
-          if (pct < 15) setStatusMessage('FFmpegを読み込み中...');
-          else if (pct < 25) setStatusMessage('ファイルを読み込み中...');
-          else if (pct < 90) setStatusMessage('変換中...');
-          else if (pct < 100) setStatusMessage('ファイルを保存中...');
-          else setStatusMessage('完了！');
-        },
+        (pct) => setProgress(pct),
         (msg) => ffmpegLogs.push(msg),
+        (status) => setStatusMessage(status),
       );
 
       setConvertedUrl(result.url);
@@ -211,23 +191,23 @@ const Index: React.FC = () => {
       console.error('FFmpeg conversion error:', err);
       const errorMsg = err?.message || '不明なエラー';
 
-      setStatusMessage('AIがエラーを分析中...');
+      if (errorMsg.includes('キャンセル')) {
+        setStatusMessage('キャンセルしました');
+        setConverting(false);
+        return;
+      }
+
+      setStatusMessage('分析AI → エラーを解析中...');
       const analysis = await analyzeError(errorMsg, ffmpegLogs);
 
       if (analysis) {
         const solutions = (analysis.solutions || []).map((s: string, i: number) => `${i + 1}. ${s}`).join('\n');
         const deviceStatus = analysis.deviceStatus ? `\n\nデバイス状態：${analysis.deviceStatus}` : '';
-        setAlertDialog({
-          open: true,
-          title: '⚠️ 変換エラー',
-          message: `現在の状態：${analysis.status}\n\n原因：${analysis.cause}${deviceStatus}\n\n解決方法：\n${solutions}`,
-        });
+        window.alert(`⚠️ 変換エラー\n\n現在の状態：${analysis.status}\n\n原因：${analysis.cause}${deviceStatus}\n\n解決方法：\n${solutions}`);
       } else {
-        setAlertDialog({
-          open: true,
-          title: '⚠️ 変換エラー',
-          message: `現在の状態：${errorMsg}\n\n解決方法：\n1. ファイルが破損していないか確認してください\n2. 別の出力形式を選択してみてください\n3. コーデック設定を変更してみてください`,
-        });
+        // Show last 3 lines of FFmpeg stderr
+        const lastLogs = ffmpegLogs.slice(-3).join('\n');
+        window.alert(`⚠️ 変換エラー\n\n${errorMsg}${lastLogs ? `\n\nFFmpegログ:\n${lastLogs}` : ''}\n\n解決方法：\n1. ファイルが破損していないか確認\n2. 別の出力形式を選択\n3. コーデック設定を変更`);
       }
     } finally {
       setConverting(false);
@@ -270,12 +250,54 @@ const Index: React.FC = () => {
         </div>
       )}
 
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[20px] font-semibold active:scale-[0.97] transition-transform"
-      >
-        {files.length > 0 ? 'ファイルを追加' : 'ファイルを選択'}
-      </button>
+      {/* Buttons: no rounded corners, touching each other */}
+      <div className="w-full flex flex-col">
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+          style={{ borderRadius: 0 }}
+        >
+          {files.length > 0 ? 'ファイルを追加' : 'ファイルを選択'}
+        </button>
+
+        {files.length > 0 && (
+          <>
+            <div className="relative">
+              <select
+                value={selectedFormat}
+                onChange={e => handleFormatSelect(e.target.value)}
+                className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold text-center appearance-none cursor-pointer border-b border-primary-foreground/20"
+                style={{ borderRadius: 0 }}
+              >
+                <option value="" disabled>出力形式</option>
+                {allFormats.map(g => (
+                  <optgroup key={g.group} label={g.group}>
+                    {g.formats.map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            {selectedFormat && (
+              <button
+                onClick={() => setShowDetailSettings(true)}
+                className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+                style={{ borderRadius: 0 }}
+              >
+                詳細設定
+              </button>
+            )}
+            {selectedFormat && !converting && !convertedUrl && (
+              <button onClick={handleConvert}
+                className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
+                style={{ borderRadius: 0 }}>
+                変換
+              </button>
+            )}
+          </>
+        )}
+      </div>
 
       <input
         ref={fileInputRef}
@@ -286,52 +308,24 @@ const Index: React.FC = () => {
         multiple
       />
 
-      {files.length > 0 && (
-        <div className="w-full flex gap-3 mt-4">
-          <div className="flex-1 relative">
-            <select
-              value={selectedFormat}
-              onChange={e => handleFormatSelect(e.target.value)}
-              className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl text-[20px] font-semibold text-center appearance-none cursor-pointer"
-            >
-              <option value="" disabled>出力形式</option>
-              {allFormats.map(g => (
-                <optgroup key={g.group} label={g.group}>
-                  {g.formats.map(f => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-          {selectedFormat && (
-            <button
-              onClick={() => setShowDetailSettings(true)}
-              className="flex-1 py-3.5 bg-primary text-primary-foreground rounded-2xl text-[20px] font-semibold active:scale-[0.97] transition-transform"
-            >
-              詳細設定
-            </button>
-          )}
-        </div>
-      )}
-
-      {selectedFormat && !converting && !convertedUrl && (
-        <button onClick={handleConvert}
-          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl text-[20px] font-semibold active:scale-[0.97] transition-transform">
-          変換
-        </button>
-      )}
-
       {converting && (
-        <div className="mt-8 flex flex-col items-center gap-3">
+        <div className="mt-8 flex flex-col items-center gap-3 w-full">
           <ProgressCircle progress={progress} />
-          <p className="text-muted-foreground text-[20px]">{statusMessage}</p>
+          <p className="text-muted-foreground text-[20px] text-center whitespace-pre-line">{statusMessage}</p>
+          <button
+            onClick={handleCancel}
+            className="mt-2 px-8 py-2.5 bg-destructive text-destructive-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
+            style={{ borderRadius: 0 }}
+          >
+            キャンセル
+          </button>
         </div>
       )}
 
       {convertedUrl && !converting && (
         <button onClick={handleDownload}
-          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl text-[20px] font-semibold active:scale-[0.97] transition-transform">
+          className="w-full mt-4 py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
+          style={{ borderRadius: 0 }}>
           ダウンロード
         </button>
       )}
@@ -345,13 +339,6 @@ const Index: React.FC = () => {
         videoPreviewUrl={isVideo ? fileUrls[0] : undefined}
         isVideo={isVideo}
         selectedFormat={selectedFormat || null}
-      />
-
-      <IOSAlertDialog
-        open={alertDialog.open}
-        onClose={() => setAlertDialog(prev => ({ ...prev, open: false }))}
-        title={alertDialog.title}
-        message={alertDialog.message}
       />
     </div>
   );
