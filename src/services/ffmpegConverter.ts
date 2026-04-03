@@ -209,9 +209,9 @@ export async function convertWithFFmpeg(
 
   if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
 
-  onStatus?.('生成AI → JSON指示書を作成中...');
+  onStatus?.('FFmpegコマンドを生成中...');
   const args = buildFFmpegArgs(inputName, outputName, settings, format, isVideo);
-  onStatus?.(`FFmpeg → コマンドを実行中: ${args.join(' ').substring(0, 80)}...`);
+  onStatus?.(`FFmpeg → 変換開始: ffmpeg ${args.join(' ').substring(0, 60)}...`);
 
   ff.on('progress', ({ progress }) => {
     if (abortRequested) return;

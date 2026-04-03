@@ -325,11 +325,15 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           </div>
           {/* Header with キャンセル and 完了 */}
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-            <button onClick={handleCancel} className="text-primary text-[20px] font-normal active:opacity-60">
+            <button onClick={() => {
+              if (window.confirm('この設定は保存されません。')) {
+                handleCancel();
+              }
+            }} className="text-white text-[20px] font-normal active:opacity-60">
               キャンセル
             </button>
             <h2 className="text-foreground text-[20px] font-semibold">詳細設定</h2>
-            <button onClick={onClose} className="text-primary text-[20px] font-semibold active:opacity-60">
+            <button onClick={onClose} className="text-white text-[20px] font-semibold active:opacity-60">
               完了
             </button>
           </div>

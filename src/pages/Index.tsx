@@ -9,7 +9,7 @@ import {
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort } from '@/services/ffmpegConverter';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
 
 /** Gather device info for analysis AI */
 async function getDeviceInfo() {
@@ -130,19 +130,28 @@ const Index: React.FC = () => {
     }
   };
 
-  /** Call analysis AI edge function for error analysis */
+  /** Analyze error locally with device info */
   const analyzeError = async (errorMessage: string, logs: string[]) => {
-    if (!SUPABASE_URL) return null;
     try {
       const deviceInfo = await getDeviceInfo();
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-error-analysis`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ errorMessage, logs, settings, format: selectedFormat, deviceInfo }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.analysis;
+      const lastLogs = logs.slice(-5).join('\n');
+      const batteryInfo = deviceInfo.battery ? `バッテリー: ${deviceInfo.battery.level}%${deviceInfo.battery.charging ? ' (充電中)' : ''}` : '';
+      const memInfo = deviceInfo.memory ? `メモリ: ${deviceInfo.memory.usedJSHeapSize}MB / ${deviceInfo.memory.jsHeapSizeLimit}MB` : '';
+      const cpuInfo = `CPU コア数: ${deviceInfo.cpuCores}`;
+      const gpuInfo = deviceInfo.gpu ? `GPU: ${deviceInfo.gpu.renderer}` : '';
+
+      return {
+        status: 'エラー発生',
+        cause: errorMessage,
+        deviceStatus: [batteryInfo, memInfo, cpuInfo, gpuInfo].filter(Boolean).join('\n'),
+        solutions: [
+          'ファイルが破損していないか確認してください',
+          '別の出力形式を選択してください',
+          'コーデック設定を変更してください',
+          'ブラウザを再読み込みしてください',
+        ],
+        ffmpegLogs: lastLogs,
+      };
     } catch {
       return null;
     }
@@ -197,15 +206,15 @@ const Index: React.FC = () => {
         return;
       }
 
-      setStatusMessage('分析AI → エラーを解析中...');
+      setStatusMessage('エラーを解析中...');
       const analysis = await analyzeError(errorMsg, ffmpegLogs);
 
       if (analysis) {
         const solutions = (analysis.solutions || []).map((s: string, i: number) => `${i + 1}. ${s}`).join('\n');
-        const deviceStatus = analysis.deviceStatus ? `\n\nデバイス状態：${analysis.deviceStatus}` : '';
-        window.alert(`⚠️ 変換エラー\n\n現在の状態：${analysis.status}\n\n原因：${analysis.cause}${deviceStatus}\n\n解決方法：\n${solutions}`);
+        const deviceStatus = analysis.deviceStatus ? `\n\nデバイス状態：\n${analysis.deviceStatus}` : '';
+        const ffLogs = analysis.ffmpegLogs ? `\n\nFFmpegログ:\n${analysis.ffmpegLogs}` : '';
+        window.alert(`⚠️ 変換エラー\n\n現在の状態：${analysis.status}\n\n原因：${analysis.cause}${deviceStatus}${ffLogs}\n\n解決方法：\n${solutions}`);
       } else {
-        // Show last 3 lines of FFmpeg stderr
         const lastLogs = ffmpegLogs.slice(-3).join('\n');
         window.alert(`⚠️ 変換エラー\n\n${errorMsg}${lastLogs ? `\n\nFFmpegログ:\n${lastLogs}` : ''}\n\n解決方法：\n1. ファイルが破損していないか確認\n2. 別の出力形式を選択\n3. コーデック設定を変更`);
       }
