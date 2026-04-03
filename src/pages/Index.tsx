@@ -206,15 +206,15 @@ const Index: React.FC = () => {
         return;
       }
 
-      setStatusMessage('分析AI → エラーを解析中...');
+      setStatusMessage('エラーを解析中...');
       const analysis = await analyzeError(errorMsg, ffmpegLogs);
 
       if (analysis) {
         const solutions = (analysis.solutions || []).map((s: string, i: number) => `${i + 1}. ${s}`).join('\n');
-        const deviceStatus = analysis.deviceStatus ? `\n\nデバイス状態：${analysis.deviceStatus}` : '';
-        window.alert(`⚠️ 変換エラー\n\n現在の状態：${analysis.status}\n\n原因：${analysis.cause}${deviceStatus}\n\n解決方法：\n${solutions}`);
+        const deviceStatus = analysis.deviceStatus ? `\n\nデバイス状態：\n${analysis.deviceStatus}` : '';
+        const ffLogs = analysis.ffmpegLogs ? `\n\nFFmpegログ:\n${analysis.ffmpegLogs}` : '';
+        window.alert(`⚠️ 変換エラー\n\n現在の状態：${analysis.status}\n\n原因：${analysis.cause}${deviceStatus}${ffLogs}\n\n解決方法：\n${solutions}`);
       } else {
-        // Show last 3 lines of FFmpeg stderr
         const lastLogs = ffmpegLogs.slice(-3).join('\n');
         window.alert(`⚠️ 変換エラー\n\n${errorMsg}${lastLogs ? `\n\nFFmpegログ:\n${lastLogs}` : ''}\n\n解決方法：\n1. ファイルが破損していないか確認\n2. 別の出力形式を選択\n3. コーデック設定を変更`);
       }
