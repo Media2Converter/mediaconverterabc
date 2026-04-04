@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { ProgressCircle } from '@/components/converter/IOSComponents';
+import { ProgressCircle, IOSActionSheet } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
@@ -8,8 +8,6 @@ import {
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort } from '@/services/ffmpegConverter';
-
-
 
 /** Gather device info for analysis AI */
 async function getDeviceInfo() {
@@ -58,15 +56,15 @@ const Index: React.FC = () => {
   const [videoDuration, setVideoDuration] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
   const [batteryWarning, setBatteryWarning] = useState(false);
+  const [showPostOptions, setShowPostOptions] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Battery monitoring
   useEffect(() => {
-    let battery: any = null;
     const checkBattery = async () => {
       if ('getBattery' in navigator) {
-        battery = await (navigator as any).getBattery();
+        const battery = await (navigator as any).getBattery();
         const update = () => {
           if (battery.level <= 0.2 && !battery.charging) {
             setBatteryWarning(true);
@@ -80,7 +78,6 @@ const Index: React.FC = () => {
       }
     };
     checkBattery();
-    return () => {};
   }, []);
 
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,7 +127,6 @@ const Index: React.FC = () => {
     }
   };
 
-  /** Analyze error locally with device info */
   const analyzeError = async (errorMessage: string, logs: string[]) => {
     try {
       const deviceInfo = await getDeviceInfo();
@@ -167,7 +163,6 @@ const Index: React.FC = () => {
   const handleConvert = async () => {
     if (!selectedFormat || files.length === 0) return;
 
-    // Battery check - iOS native alert
     if (batteryWarning) {
       window.alert('🔋 充電警告\n\nバッテリーが20%以下です。\n変換処理は電力を大量に消費します。\n充電器に接続してから変換することをお勧めします。');
     }
@@ -231,6 +226,33 @@ const Index: React.FC = () => {
     a.click();
   };
 
+  // Post-conversion options
+  const postConversionOptions = [
+    {
+      label: '再読み込み',
+      action: () => { window.location.reload(); },
+    },
+    {
+      label: '再試行',
+      action: () => {
+        setConvertedUrl(null);
+        setConvertedFilename('');
+        setProgress(0);
+        setStatusMessage('');
+        handleConvert();
+      },
+    },
+    {
+      label: '設定を変更',
+      action: () => {
+        setConvertedUrl(null);
+        setConvertedFilename('');
+        setProgress(0);
+        setStatusMessage('');
+      },
+    },
+  ];
+
   const allFormats = [
     { group: '動画形式', formats: VIDEO_FORMATS },
     { group: '音声形式', formats: AUDIO_FORMATS },
@@ -275,8 +297,8 @@ const Index: React.FC = () => {
               <select
                 value={selectedFormat}
                 onChange={e => handleFormatSelect(e.target.value)}
-                className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold text-center appearance-none cursor-pointer border-b border-primary-foreground/20"
-                style={{ borderRadius: 0 }}
+                className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold appearance-none cursor-pointer border-b border-primary-foreground/20"
+                style={{ borderRadius: 0, textAlign: 'center', textAlignLast: 'center' }}
               >
                 <option value="" disabled>出力形式</option>
                 {allFormats.map(g => (
@@ -332,12 +354,26 @@ const Index: React.FC = () => {
       )}
 
       {convertedUrl && !converting && (
-        <button onClick={handleDownload}
-          className="w-full mt-4 py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
-          style={{ borderRadius: 0 }}>
-          ダウンロード
-        </button>
+        <div className="w-full mt-4 flex flex-col">
+          <button onClick={handleDownload}
+            className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+            style={{ borderRadius: 0 }}>
+            ダウンロード
+          </button>
+          <button onClick={() => setShowPostOptions(true)}
+            className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
+            style={{ borderRadius: 0 }}>
+            その他のオプション
+          </button>
+        </div>
       )}
+
+      {/* Post-conversion action sheet */}
+      <IOSActionSheet
+        open={showPostOptions}
+        onClose={() => setShowPostOptions(false)}
+        options={postConversionOptions}
+      />
 
       <DetailSettingsModal
         open={showDetailSettings}
