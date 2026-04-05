@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { ProgressCircle, IOSActionSheet } from '@/components/converter/IOSComponents';
+import { ProgressCircle, IOSPickerModal } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
@@ -8,6 +8,7 @@ import {
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort } from '@/services/ffmpegConverter';
+import { AppSettingsModal } from '@/components/converter/AppSettingsModal';
 
 /** Gather device info for analysis AI */
 async function getDeviceInfo() {
@@ -57,6 +58,8 @@ const Index: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [batteryWarning, setBatteryWarning] = useState(false);
   const [showPostOptions, setShowPostOptions] = useState(false);
+  const [showAppSettings, setShowAppSettings] = useState(false);
+  const postOptionsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -226,32 +229,51 @@ const Index: React.FC = () => {
     a.click();
   };
 
-  // Post-conversion options
-  const postConversionOptions = [
+  // Post-conversion picker sections (iOS picker modal)
+  const postConversionSections = [
     {
-      label: '再読み込み',
-      action: () => { window.location.reload(); },
+      options: [
+        { label: '再読み込み', value: 'reload' },
+        { label: '再試行', value: 'retry' },
+        { label: '設定を変更', value: 'edit' },
+      ],
     },
-    {
-      label: '再試行',
-      action: () => {
+  ];
+
+  const handlePostOptionSelect = (value: string) => {
+    switch (value) {
+      case 'reload':
+        window.location.reload();
+        break;
+      case 'retry':
         setConvertedUrl(null);
         setConvertedFilename('');
         setProgress(0);
         setStatusMessage('');
         handleConvert();
-      },
-    },
-    {
-      label: '設定を変更',
-      action: () => {
+        break;
+      case 'edit':
         setConvertedUrl(null);
         setConvertedFilename('');
         setProgress(0);
         setStatusMessage('');
-      },
-    },
-  ];
+        break;
+    }
+  };
+
+  const handlePostOptionsClick = () => {
+    // 1 second delay before showing iOS picker
+    if (postOptionsTimer.current) clearTimeout(postOptionsTimer.current);
+    postOptionsTimer.current = setTimeout(() => {
+      setShowPostOptions(true);
+    }, 1000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (postOptionsTimer.current) clearTimeout(postOptionsTimer.current);
+    };
+  }, []);
 
   const allFormats = [
     { group: '動画形式', formats: VIDEO_FORMATS },
@@ -260,7 +282,22 @@ const Index: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold mb-8 tracking-tight">メディアコンバータ</h1>
+      {/* Header with settings */}
+      <div className="w-full flex items-center justify-between mb-8">
+        <div />
+        <h1 className="text-2xl font-bold tracking-tight">メディアコンバータ</h1>
+        <button
+          onClick={() => setShowAppSettings(true)}
+          className="text-foreground p-2 active:opacity-60"
+          aria-label="設定"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+      </div>
 
       {files.length > 0 && (
         <div className="w-full mb-4 space-y-2">
@@ -360,7 +397,7 @@ const Index: React.FC = () => {
             style={{ borderRadius: 0 }}>
             ダウンロード
           </button>
-          <button onClick={() => setShowPostOptions(true)}
+          <button onClick={handlePostOptionsClick}
             className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
             style={{ borderRadius: 0 }}>
             その他のオプション
@@ -368,11 +405,13 @@ const Index: React.FC = () => {
         </div>
       )}
 
-      {/* Post-conversion action sheet */}
-      <IOSActionSheet
+      {/* Post-conversion iOS picker modal */}
+      <IOSPickerModal
         open={showPostOptions}
         onClose={() => setShowPostOptions(false)}
-        options={postConversionOptions}
+        onSelect={handlePostOptionSelect}
+        sections={postConversionSections}
+        header={<span className="text-foreground text-[20px] font-semibold">その他のオプション</span>}
       />
 
       <DetailSettingsModal
@@ -384,6 +423,11 @@ const Index: React.FC = () => {
         videoPreviewUrl={isVideo ? fileUrls[0] : undefined}
         isVideo={isVideo}
         selectedFormat={selectedFormat || null}
+      />
+
+      <AppSettingsModal
+        open={showAppSettings}
+        onClose={() => setShowAppSettings(false)}
       />
     </div>
   );
