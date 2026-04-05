@@ -79,22 +79,17 @@ export const AUDIO_BITRATES = [
   '128KBPS', '192KBPS', '256KBPS', '288KBPS', '304KBPS', '320KBPS',
 ];
 
-// AMR NB: fixed bitrates (kbps)
 export const AMR_NB_BITRATES = [
   '4.75KBPS', '5.15KBPS', '5.90KBPS', '6.70KBPS',
   '7.40KBPS', '7.95KBPS', '10.2KBPS', '12.2KBPS',
 ];
-// AMR WB: fixed bitrates (kbps)
 export const AMR_WB_BITRATES = [
   '6.60KBPS', '8.85KBPS', '12.65KBPS', '14.25KBPS', '15.85KBPS',
   '18.25KBPS', '19.85KBPS', '23.05KBPS', '23.85KBPS',
 ];
-// AMR NB: only 8000Hz
 export const AMR_NB_FREQUENCIES = ['8000Hz'];
-// AMR WB: only 16000Hz
 export const AMR_WB_FREQUENCIES = ['16000Hz'];
 
-// ADPCM fixed bitrates per codec
 export const ADPCM_BITRATES: Record<string, string[]> = {
   'ADPCM_G721': ['32KBPS'],
   'ADPCM_G723': ['24KBPS', '40KBPS'],
@@ -107,7 +102,7 @@ export const ADPCM_BITRATES: Record<string, string[]> = {
 };
 
 export const FRAMERATES = [
-  '1FPS', '2FPS', '4FPS', '5FPS', '8FPS', '12.5FPS', '16FPS', '20FPS',
+  '1FPS', '2FPS', '4FPS', '5FPS', '8FPS', '10FPS', '12FPS', '12.5FPS', '16FPS', '20FPS',
   '23.976FPS', '24FPS', '25FPS', '29.97FPS', '30FPS', '32FPS', '40FPS',
   '47.952FPS', '50FPS', '59.94FPS', '60FPS', '120FPS', '300FPS',
 ];
@@ -128,25 +123,28 @@ export const FREQUENCIES = [
   '66150Hz', '88200Hz', '96000Hz', '106496Hz', '116736Hz', '176400Hz', '192000Hz',
 ];
 
-// Volume options (dB)
-export const VOLUME_OPTIONS: { label: string; value: string; color?: 'orange' | 'red' }[] = [
-  { label: '変えない', value: 'none' },
-  ...Array.from({ length: 130 }, (_, i) => {
-    const db = i + 10;
-    return {
+// Volume options with warning separator between 95dB and 96dB
+export const VOLUME_OPTIONS: { label: string; value: string; color?: 'orange' | 'red'; separator?: boolean }[] = (() => {
+  const opts: { label: string; value: string; color?: 'orange' | 'red'; separator?: boolean }[] = [
+    { label: '変えない', value: 'none' },
+  ];
+  for (let db = 10; db <= 139; db++) {
+    if (db === 96) {
+      opts.push({ label: '⚠️音量注意', value: '__separator_96__', separator: true });
+    }
+    opts.push({
       label: `${db}dB`,
       value: `${db}`,
       color: db >= 126 ? 'red' as const : db >= 100 ? 'orange' as const : undefined,
-    };
-  }),
-];
+    });
+  }
+  return opts;
+})();
 
-// iPhone incompatible items
 export const IPHONE_BAD_VIDEO_CODECS = ['AV1', 'H.263', 'H.261', 'H.320', 'DIVX', 'MJPEG'];
 export const IPHONE_BAD_AUDIO_CODECS = ['OPUS', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM', 'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS'];
 export const IPHONE_BAD_FORMATS = ['AVI', '3G2', '3GP', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'OPUS'];
 
-// Container/Codec compatibility map
 export const FORMAT_AUDIO_CODEC_COMPAT: Record<string, string[]> = {
   'MP4': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AC3', 'EAC3', 'MP3', 'ALAC', 'FLAC'],
   'M4V': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AC3', 'EAC3', 'ALAC'],
@@ -195,7 +193,6 @@ export function getCompatibleAudioCodecs(format: string | null): string[] {
   return FORMAT_AUDIO_CODEC_COMPAT[format] || AUDIO_CODECS;
 }
 
-// FFmpeg codec mapping
 export const CODEC_MAP: Record<string, string> = {
   'AV1': 'libaom-av1', 'H.265': 'libx265', 'H.264': 'libx264', 'H.263': 'h263',
   'H.261': 'h261', 'H.320': 'h263', 'MPEG-4': 'mpeg4', 'DIVX': 'mpeg4', 'MJPEG': 'mjpeg',
@@ -211,7 +208,6 @@ export const CODEC_MAP: Record<string, string> = {
   'ADPCM_IMA': 'adpcm_ima_wav', 'ADPCM_MS': 'adpcm_ms',
 };
 
-// AAC HE profiles need extra FFmpeg flags
 export const AAC_HE_PROFILE: Record<string, string> = {
   'AAC_HE_V1': 'aac_he',
   'AAC_HE_V2': 'aac_he_v2',

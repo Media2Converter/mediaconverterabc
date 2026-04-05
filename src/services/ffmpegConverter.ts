@@ -22,11 +22,6 @@ async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   return ffmpeg;
 }
 
-/** Make a number even (round down) */
-function makeEven(n: number): number {
-  return Math.floor(n / 2) * 2;
-}
-
 /** Build FFmpeg arguments from settings — "safety-first" logic */
 export function buildFFmpegArgs(
   inputName: string,
@@ -59,16 +54,16 @@ export function buildFFmpegArgs(
       const vCodec = CODEC_MAP[settings.videoCodec] || 'libx264';
       args.push('-c:v', vCodec);
 
-      // Resolution - force even numbers using scale filter with trunc
-      const w = makeEven(settings.resolutionW);
-      const h = makeEven(settings.resolutionH);
+      // Resolution - always force even numbers via scale filter with trunc
+      const w = settings.resolutionW;
+      const h = settings.resolutionH;
       vFilters.push(`scale='trunc(${w}/2)*2:trunc(${h}/2)*2'`);
 
       // Video bitrate
       const vBitrate = settings.videoBitrate.replace('KBPS', 'k');
       args.push('-b:v', vBitrate);
 
-      // Framerate
+      // Framerate — force CFR to fix VFR issues from iPhone
       const fps = settings.framerate.replace('FPS', '');
       args.push('-r', fps);
 
@@ -77,13 +72,14 @@ export function buildFFmpegArgs(
         args.push('-aspect', settings.aspectRatio);
       }
 
-      // Interlace — safe processing
+      // Interlace — stabilized with scale + tinterlace + setfield
       if (settings.scanType === 'インターレース方式') {
-        vFilters.push('tinterlace=interleave_top', 'setfield=tff');
+        // tinterlace physically generates scan lines; setfield marks field order
+        vFilters.push('tinterlace=mode=interleave_top', 'setfield=tff');
         args.push('-flags', '+ilme+ildct');
       }
 
-      // vsync for A/V sync safety
+      // Force CFR to prevent VFR corruption
       args.push('-vsync', 'cfr');
     }
   } else if (!outputIsVideo) {
@@ -126,7 +122,7 @@ export function buildFFmpegArgs(
       args.push('-ar', freq);
     }
 
-    // Async resampling for A/V sync safety
+    // Async resampling for A/V sync safety — always applied
     aFilters.push('aresample=async=1');
 
     // Volume
@@ -158,8 +154,8 @@ export function buildFFmpegArgs(
     args.push('-af', aFilters.join(','));
   }
 
-  // Buffer safety
-  args.push('-max_muxing_queue_size', '1024');
+  // Buffer safety — large buffer to prevent muxing queue overflow
+  args.push('-max_muxing_queue_size', '9999');
 
   // movflags for container repair & compatibility
   if (['3gp', '3g2'].includes(lowerFormat)) {

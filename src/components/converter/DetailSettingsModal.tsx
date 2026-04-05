@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Drawer, DrawerContent, DrawerOverlay, DrawerPortal } from '@/components/ui/drawer';
+import { Dialog, DialogContent, DialogOverlay, DialogPortal } from '@/components/ui/dialog';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
@@ -20,7 +23,6 @@ interface Props {
   selectedFormat: string | null;
 }
 
-/** Up/down chevron icon for context menu indicator */
 const ContextMenuChevron: React.FC = () => (
   <span className="flex flex-col items-center justify-center leading-none text-muted-foreground" style={{ fontSize: '10px', lineHeight: '8px', gap: '1px' }}>
     <span>▲</span>
@@ -28,11 +30,10 @@ const ContextMenuChevron: React.FC = () => (
   </span>
 );
 
-/** A setting row that opens a native <select> picker with 1s delay */
 const NativePickerRow: React.FC<{
   label: string;
   displayValue: string;
-  options: { label: string; value: string; disabled?: boolean }[];
+  options: { label: string; value: string; disabled?: boolean; separator?: boolean }[];
   groups?: { label: string; options: { label: string; value: string; disabled?: boolean }[] }[];
   selected: string;
   onSelect: (v: string) => void;
@@ -45,7 +46,6 @@ const NativePickerRow: React.FC<{
   const delayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const openPicker = () => {
-    // 1 second delay before opening the iOS context menu
     delayRef.current = setTimeout(() => {
       selectRef.current?.focus();
       selectRef.current?.click();
@@ -80,6 +80,14 @@ const NativePickerRow: React.FC<{
     };
   }, []);
 
+  // Filter out separators for value handling but render them as disabled options
+  const renderOptions = options.map(o => {
+    if ((o as any).separator) {
+      return <option key={o.value} value={o.value} disabled style={{ fontSize: '13px' }}>{o.label}</option>;
+    }
+    return <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>;
+  });
+
   return (
     <div className="relative w-full">
       <button
@@ -97,7 +105,11 @@ const NativePickerRow: React.FC<{
       <select
         ref={selectRef}
         value={selected}
-        onChange={e => onSelect(e.target.value)}
+        onChange={e => {
+          const val = e.target.value;
+          if (val.startsWith('__separator_')) return;
+          onSelect(val);
+        }}
         className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
         style={{ fontSize: '20px' }}
       >
@@ -110,17 +122,14 @@ const NativePickerRow: React.FC<{
               ))}
             </optgroup>
           ))
-        ) : (
-          options.map(o => (
-            <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
-          ))
-        )}
+        ) : renderOptions}
       </select>
     </div>
   );
 };
 
 export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, onChange, videoDuration, videoPreviewUrl, isVideo, selectedFormat }) => {
+  const isMobile = useIsMobile();
   const [showCustomRes, setShowCustomRes] = useState(false);
   const [customResW, setCustomResW] = useState('');
   const [customResH, setCustomResH] = useState('');
@@ -129,6 +138,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const [showCustomFramerate, setShowCustomFramerate] = useState(false);
   const [customFramerate, setCustomFramerate] = useState('');
   const [savedSettings, setSavedSettings] = useState<ConvertSettings>(settings);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const isInterlace = settings.scanType === 'インターレース方式';
   const arParts = settings.aspectRatio.split(':').map(Number);
@@ -145,12 +155,16 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       setShowCustomRes(false);
       setShowCustomBitrate(null);
       setShowCustomFramerate(false);
+      // Focus close button for VoiceOver
+      setTimeout(() => closeButtonRef.current?.focus(), 100);
     }
   }, [open]);
 
   const handleCancel = () => {
-    onChange(savedSettings);
-    onClose();
+    if (window.confirm('この設定は保存されません。')) {
+      onChange(savedSettings);
+      onClose();
+    }
   };
 
   const resolutionLabel = (tag?: string) => {
@@ -229,7 +243,11 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const framerateOptions = [...FRAMERATES.map(f => ({ label: f, value: f })), { label: '打ち込む（カスタム）', value: 'custom' }];
   const speedOptions = SPEEDS.map(s => ({ label: `${s}×`, value: s }));
   const frequencyOptions = getFrequencies().map(f => ({ label: f, value: f }));
-  const volumeOptions = VOLUME_OPTIONS.map(v => ({ label: v.label, value: v.value }));
+  const volumeOptions = VOLUME_OPTIONS.map(v => ({
+    label: v.label,
+    value: v.value,
+    separator: (v as any).separator,
+  }));
 
   const timeOptions = (max: number) => {
     const opts: { label: string; value: string }[] = [];
@@ -315,8 +333,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     }
   };
 
-  if (!open) return null;
-
   const showVideoSection = isVideo && !outputIsAudioOnly;
   const audioCodecDisplay = settings.audioCodec === 'none' ? '音声を消します'
     : settings.audioCodec === 'copy' ? 'コピー'
@@ -324,113 +340,146 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const formatTitle = selectedFormat ? `${selectedFormat} の詳細設定` : '詳細設定';
 
-  return (
+  // VoiceOver aria-live announcement
+  const [voAnnouncement, setVoAnnouncement] = useState('');
+  useEffect(() => {
+    if (open) {
+      setVoAnnouncement('');
+      setTimeout(() => setVoAnnouncement('詳細設定'), 50);
+    } else {
+      setVoAnnouncement('');
+    }
+  }, [open]);
+
+  // Handle Escape / 2-finger scrub (iOS Z gesture triggers Escape)
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+
+  const settingsContent = (
     <>
-      {/* Full-screen iOS sheet */}
-      <div className="fixed inset-0 z-50 bg-background flex flex-col" style={{ height: '100vh', width: '100vw' }}>
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0" style={{ minHeight: '52px' }}>
-          <button onClick={() => {
-            if (window.confirm('この設定は保存されません。')) {
-              handleCancel();
-            }
-          }} className="text-white text-[20px] font-normal active:opacity-60">
-            キャンセル
-          </button>
-          <h2 className="text-foreground text-[20px] font-semibold">{formatTitle}</h2>
-          <button onClick={onClose} className="text-white text-[20px] font-semibold active:opacity-60">
-            完了
-          </button>
-        </div>
+      {/* VoiceOver announcement */}
+      <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
 
-        <div className="overflow-y-auto overscroll-contain flex-1 -webkit-overflow-scrolling-touch">
-          {showVideoSection && (
-            <>
-              <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">ビデオ</div>
-              <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
-                options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
-                onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
-              <NativePickerRow label="縦横比" displayValue={settings.aspectRatio}
-                options={aspectRatioOptions} selected={settings.aspectRatio}
-                onSelect={v => handleSelect('aspectRatio', v)} pickerHeader="縦横比" />
-              <NativePickerRow label="フレーム書き出し方式" displayValue={settings.scanType}
-                options={scanTypeOptions} selected={settings.scanType}
-                onSelect={v => handleSelect('scanType', v)} pickerHeader="フレーム書き出し方式" />
-              <NativePickerRow label="解像度" displayValue={`${settings.resolutionW}×${settings.resolutionH}`}
-                options={resolutionOptions} selected={`${settings.resolutionW}x${settings.resolutionH}`}
-                onSelect={v => handleSelect('resolution', v)} pickerHeader="解像度" />
-              <NativePickerRow label="動画ビットレート" displayValue={settings.videoBitrate}
-                options={videoBitrateOptions} selected={settings.videoBitrate}
-                onSelect={v => handleSelect('videoBitrate', v)} pickerHeader="動画ビットレート" />
-              <NativePickerRow label="フレームレート" displayValue={settings.framerate}
-                options={framerateOptions} selected={settings.framerate}
-                onSelect={v => handleSelect('framerate', v)} pickerHeader="フレームレート" />
-              <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
-                options={startTimeOptions} selected={String(settings.startTime)}
-                onSelect={v => handleSelect('startTime', v)} pickerHeader="開始時間" />
-              <NativePickerRow label="終了時間" displayValue={settings.endTime > 0 ? `${settings.endTime}s` : '最後まで'}
-                options={endTimeOptions} selected={String(settings.endTime)}
-                onSelect={v => handleSelect('endTime', v)} pickerHeader="終了時間" />
-              <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
-                options={speedOptions} selected={settings.speed}
-                onSelect={v => handleSelect('speed', v)} pickerHeader="再生速度" />
-              {settings.speed !== '1' && (
-                <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
-                  options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
-                  selected={settings.pitchSync ? 'on' : 'off'}
-                  onSelect={v => handleSelect('pitchSync', v)} pickerHeader="ピッチを再生速度に合わせる" />
-              )}
-            </>
-          )}
-
-          <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">オーディオ</div>
-
-          <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
-            options={[]} groups={audioCodecGroups} selected={settings.audioCodec}
-            onSelect={v => handleSelect('audioCodec', v)} pickerHeader="オーディオコーデック" />
-
-          {!audioIsNone && settings.audioCodec !== 'copy' && (
-            <>
-              {outputIsAudioOnly && (
-                <>
-                  <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
-                    options={startTimeOptions} selected={String(settings.startTime)}
-                    onSelect={v => handleSelect('startTime', v)} pickerHeader="開始時間" />
-                  <NativePickerRow label="終了時間" displayValue={settings.endTime > 0 ? `${settings.endTime}s` : '最後まで'}
-                    options={endTimeOptions} selected={String(settings.endTime)}
-                    onSelect={v => handleSelect('endTime', v)} pickerHeader="終了時間" />
-                  <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
-                    options={speedOptions} selected={settings.speed}
-                    onSelect={v => handleSelect('speed', v)} pickerHeader="再生速度" />
-                  {settings.speed !== '1' && (
-                    <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
-                      options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
-                      selected={settings.pitchSync ? 'on' : 'off'}
-                      onSelect={v => handleSelect('pitchSync', v)} pickerHeader="ピッチを再生速度に合わせる" />
-                  )}
-                </>
-              )}
-
-              <NativePickerRow label="音声ビットレート" displayValue={settings.audioBitrate}
-                options={audioBitrateOptions} selected={settings.audioBitrate}
-                onSelect={v => handleSelect('audioBitrate', v)} pickerHeader="音声ビットレート" />
-              <NativePickerRow label="チャンネル数" displayValue={settings.channels}
-                options={getChannelOptions()} selected={settings.channels}
-                onSelect={v => handleSelect('channels', v)} pickerHeader="チャンネル数" />
-              <NativePickerRow label="周波数" displayValue={settings.frequency}
-                options={frequencyOptions} selected={settings.frequency}
-                onSelect={v => handleSelect('frequency', v)} pickerHeader="周波数" />
-              <NativePickerRow label="音量" displayValue={volumeDisplay}
-                options={volumeOptions} selected={settings.volume}
-                onSelect={v => handleSelect('volume', v)}
-                onLongPress={() => window.alert('⚠️ 音声トラックの削除\n\n音量を変更すると、元の音声トラックが上書きされます。この操作は元に戻せません。')}
-                pickerHeader="音量" />
-            </>
-          )}
-        </div>
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0" style={{ minHeight: '52px' }}>
+        <button
+          onClick={handleCancel}
+          className="text-white text-[20px] font-normal active:opacity-60"
+          aria-label="キャンセル・詳細設定を閉じて元の画面に戻る"
+        >
+          キャンセル
+        </button>
+        <h2 className="text-foreground text-[20px] font-semibold">{formatTitle}</h2>
+        <button
+          ref={closeButtonRef}
+          onClick={onClose}
+          className="text-white text-[20px] font-semibold active:opacity-60"
+          aria-label="完了・詳細設定を閉じて元の画面に戻る"
+        >
+          完了
+        </button>
       </div>
 
-      {/* Custom resolution input */}
+      <div className="overflow-y-auto overscroll-contain flex-1 -webkit-overflow-scrolling-touch">
+        {showVideoSection && (
+          <>
+            <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">ビデオ</div>
+            <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
+              options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
+              onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
+            <NativePickerRow label="縦横比" displayValue={settings.aspectRatio}
+              options={aspectRatioOptions} selected={settings.aspectRatio}
+              onSelect={v => handleSelect('aspectRatio', v)} pickerHeader="縦横比" />
+            <NativePickerRow label="フレーム書き出し方式" displayValue={settings.scanType}
+              options={scanTypeOptions} selected={settings.scanType}
+              onSelect={v => handleSelect('scanType', v)} pickerHeader="フレーム書き出し方式" />
+            <NativePickerRow label="解像度" displayValue={`${settings.resolutionW}×${settings.resolutionH}`}
+              options={resolutionOptions} selected={`${settings.resolutionW}x${settings.resolutionH}`}
+              onSelect={v => handleSelect('resolution', v)} pickerHeader="解像度" />
+            <NativePickerRow label="動画ビットレート" displayValue={settings.videoBitrate}
+              options={videoBitrateOptions} selected={settings.videoBitrate}
+              onSelect={v => handleSelect('videoBitrate', v)} pickerHeader="動画ビットレート" />
+            <NativePickerRow label="フレームレート" displayValue={settings.framerate}
+              options={framerateOptions} selected={settings.framerate}
+              onSelect={v => handleSelect('framerate', v)} pickerHeader="フレームレート" />
+            <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
+              options={startTimeOptions} selected={String(settings.startTime)}
+              onSelect={v => handleSelect('startTime', v)} pickerHeader="開始時間" />
+            <NativePickerRow label="終了時間" displayValue={settings.endTime > 0 ? `${settings.endTime}s` : '最後まで'}
+              options={endTimeOptions} selected={String(settings.endTime)}
+              onSelect={v => handleSelect('endTime', v)} pickerHeader="終了時間" />
+            <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
+              options={speedOptions} selected={settings.speed}
+              onSelect={v => handleSelect('speed', v)} pickerHeader="再生速度" />
+            {settings.speed !== '1' && (
+              <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
+                options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
+                selected={settings.pitchSync ? 'on' : 'off'}
+                onSelect={v => handleSelect('pitchSync', v)} pickerHeader="ピッチを再生速度に合わせる" />
+            )}
+          </>
+        )}
+
+        <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">オーディオ</div>
+
+        <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
+          options={[]} groups={audioCodecGroups} selected={settings.audioCodec}
+          onSelect={v => handleSelect('audioCodec', v)} pickerHeader="オーディオコーデック" />
+
+        {!audioIsNone && settings.audioCodec !== 'copy' && (
+          <>
+            {outputIsAudioOnly && (
+              <>
+                <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
+                  options={startTimeOptions} selected={String(settings.startTime)}
+                  onSelect={v => handleSelect('startTime', v)} pickerHeader="開始時間" />
+                <NativePickerRow label="終了時間" displayValue={settings.endTime > 0 ? `${settings.endTime}s` : '最後まで'}
+                  options={endTimeOptions} selected={String(settings.endTime)}
+                  onSelect={v => handleSelect('endTime', v)} pickerHeader="終了時間" />
+                <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
+                  options={speedOptions} selected={settings.speed}
+                  onSelect={v => handleSelect('speed', v)} pickerHeader="再生速度" />
+                {settings.speed !== '1' && (
+                  <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
+                    options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
+                    selected={settings.pitchSync ? 'on' : 'off'}
+                    onSelect={v => handleSelect('pitchSync', v)} pickerHeader="ピッチを再生速度に合わせる" />
+                )}
+              </>
+            )}
+
+            <NativePickerRow label="音声ビットレート" displayValue={settings.audioBitrate}
+              options={audioBitrateOptions} selected={settings.audioBitrate}
+              onSelect={v => handleSelect('audioBitrate', v)} pickerHeader="音声ビットレート" />
+            <NativePickerRow label="チャンネル数" displayValue={settings.channels}
+              options={getChannelOptions()} selected={settings.channels}
+              onSelect={v => handleSelect('channels', v)} pickerHeader="チャンネル数" />
+            <NativePickerRow label="周波数" displayValue={settings.frequency}
+              options={frequencyOptions} selected={settings.frequency}
+              onSelect={v => handleSelect('frequency', v)} pickerHeader="周波数" />
+            <NativePickerRow label="音量" displayValue={volumeDisplay}
+              options={volumeOptions} selected={settings.volume}
+              onSelect={v => handleSelect('volume', v)}
+              onLongPress={() => window.alert('⚠️ 音声トラックの削除\n\n音量を変更すると、元の音声トラックが上書きされます。この操作は元に戻せません。')}
+              pickerHeader="音量" />
+          </>
+        )}
+      </div>
+    </>
+  );
+
+  // Custom input dialogs (shared between mobile/desktop)
+  const customDialogs = (
+    <>
       {showCustomRes && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomRes(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -459,7 +508,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         </div>
       )}
 
-      {/* Custom bitrate input */}
       {showCustomBitrate && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomBitrate(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -484,7 +532,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         </div>
       )}
 
-      {/* Custom framerate input */}
       {showCustomFramerate && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomFramerate(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -505,6 +552,77 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           </div>
         </div>
       )}
+    </>
+  );
+
+  if (!open) return null;
+
+  // Mobile: Drawer (bottom sheet) with glassmorphism
+  if (isMobile) {
+    return (
+      <>
+        <div className="fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="詳細設定">
+          {/* Overlay as button for VoiceOver */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            role="button"
+            aria-label="詳細設定を閉じる"
+            tabIndex={0}
+            onClick={onClose}
+            onKeyDown={e => e.key === 'Enter' && onClose()}
+          />
+          {/* Bottom sheet */}
+          <div
+            className="relative mt-auto flex flex-col ios-slide-up"
+            style={{
+              height: '100vh',
+              background: 'rgba(28, 28, 30, 0.92)',
+              backdropFilter: 'blur(40px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+              borderTopLeftRadius: '12px',
+              borderTopRightRadius: '12px',
+            }}
+          >
+            {/* Drag indicator */}
+            <div className="flex justify-center pt-2 pb-0">
+              <div className="w-9 h-1 rounded-full bg-muted-foreground/40" />
+            </div>
+            {settingsContent}
+          </div>
+        </div>
+        {customDialogs}
+      </>
+    );
+  }
+
+  // Desktop: centered dialog with glassmorphism
+  return (
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="詳細設定">
+        <div
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          role="button"
+          aria-label="詳細設定を閉じる"
+          tabIndex={0}
+          onClick={onClose}
+          onKeyDown={e => e.key === 'Enter' && onClose()}
+        />
+        <div
+          className="relative flex flex-col ios-scale-in"
+          style={{
+            width: 'min(520px, 92vw)',
+            maxHeight: '85vh',
+            background: 'rgba(28, 28, 30, 0.92)',
+            backdropFilter: 'blur(40px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+            borderRadius: '14px',
+            overflow: 'hidden',
+          }}
+        >
+          {settingsContent}
+        </div>
+      </div>
+      {customDialogs}
     </>
   );
 };

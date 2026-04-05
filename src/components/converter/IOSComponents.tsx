@@ -35,7 +35,7 @@ export const IOSActionSheet: React.FC<ActionSheetProps> = ({ open, onClose, opti
 
 export interface PickerSection {
   title?: string;
-  options: { label: string; value: string; warning?: boolean; dangerLabel?: string; colorClass?: string }[];
+  options: { label: string; value: string; warning?: boolean; dangerLabel?: string; colorClass?: string; disabled?: boolean }[];
 }
 
 interface PickerModalProps {
@@ -84,6 +84,13 @@ export const IOSPickerModal: React.FC<PickerModalProps> = ({ open, onClose, onSe
                 </div>
               )}
               {sec.options.map((opt, oi) => {
+                if (opt.disabled) {
+                  return (
+                    <div key={oi} className="px-4 py-[6px] text-[13px] font-medium" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                      {opt.label}
+                    </div>
+                  );
+                }
                 const isLast = oi === sec.options.length - 1 && si === sections.length - 1;
                 return (
                   <button
