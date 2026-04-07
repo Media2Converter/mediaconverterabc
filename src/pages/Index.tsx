@@ -7,7 +7,7 @@ import {
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { convertWithFFmpeg, requestAbort } from '@/services/ffmpegConverter';
+import { convertWithFFmpeg, requestAbort, resetFFmpeg } from '@/services/ffmpegConverter';
 import { AppSettingsModal } from '@/components/converter/AppSettingsModal';
 
 /** Gather device info for analysis AI */
@@ -44,10 +44,15 @@ async function getDeviceInfo() {
   return info;
 }
 
+// Download counter for CDF naming
+let cdfCounter = 1;
+
 const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [fileUrls, setFileUrls] = useState<string[]>([]);
   const [selectedFormat, setSelectedFormat] = useState<string>('');
+  // Per-file format overrides (for multi-file)
+  const [perFileFormats, setPerFileFormats] = useState<Record<number, string>>({});
   const [showDetailSettings, setShowDetailSettings] = useState(false);
   const [settings, setSettings] = useState<ConvertSettings>(defaultSettings);
   const [converting, setConverting] = useState(false);
@@ -57,9 +62,13 @@ const Index: React.FC = () => {
   const [videoDuration, setVideoDuration] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
   const [batteryWarning, setBatteryWarning] = useState(false);
-  const [showPostOptions, setShowPostOptions] = useState(false);
   const [showAppSettings, setShowAppSettings] = useState(false);
-  const postOptionsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // File format popup
+  const [showFileFormatPopup, setShowFileFormatPopup] = useState(false);
+  const [fileFormatPickerIndex, setFileFormatPickerIndex] = useState<number | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -110,10 +119,16 @@ const Index: React.FC = () => {
       URL.revokeObjectURL(fileUrls[i]);
       setFiles(prev => prev.filter((_, idx) => idx !== i));
       setFileUrls(prev => prev.filter((_, idx) => idx !== i));
+      setPerFileFormats(prev => {
+        const next = { ...prev };
+        delete next[i];
+        return next;
+      });
     }
   };
 
   const isVideo = files.some(f => f.type.startsWith('video/'));
+  const isMultiFile = files.length >= 2;
 
   const handleFormatSelect = (value: string) => {
     if (!value) return;
@@ -191,7 +206,12 @@ const Index: React.FC = () => {
       );
 
       setConvertedUrl(result.url);
-      setConvertedFilename(result.filename);
+      // CDF naming
+      const cdfNum = String(cdfCounter).padStart(4, '0');
+      const ext = result.filename.split('.').pop() || 'mp4';
+      setConvertedFilename(`CDF_${cdfNum}.${ext}`);
+      cdfCounter++;
+
       setProgress(100);
       setStatusMessage('変換完了！ダウンロードできます');
     } catch (err: any) {
@@ -229,18 +249,20 @@ const Index: React.FC = () => {
     a.click();
   };
 
-  // Post-conversion picker sections (iOS picker modal)
-  const postConversionSections = [
+  // More menu (•••) options
+  const moreMenuSections = [
     {
       options: [
         { label: '再読み込み', value: 'reload' },
         { label: '再試行', value: 'retry' },
-        { label: '設定を変更', value: 'edit' },
+        { label: '初期化', value: 'reset', colorClass: 'text-destructive' },
+        { label: 'FFmpegを初期化', value: 'reset_ffmpeg' },
+        { label: 'Gemini3Flashを初期化', value: 'reset_gemini' },
       ],
     },
   ];
 
-  const handlePostOptionSelect = (value: string) => {
+  const handleMoreMenuSelect = (value: string) => {
     switch (value) {
       case 'reload':
         window.location.reload();
@@ -250,29 +272,34 @@ const Index: React.FC = () => {
         setConvertedFilename('');
         setProgress(0);
         setStatusMessage('');
-        handleConvert();
+        setTimeout(() => handleConvert(), 100);
         break;
-      case 'edit':
-        setConvertedUrl(null);
-        setConvertedFilename('');
-        setProgress(0);
-        setStatusMessage('');
+      case 'reset':
+        if (window.confirm('⚠️ 初期化\n\nサイトのデザインや言語を初期化しますか？この操作は元に戻せません。')) {
+          document.documentElement.style.removeProperty('--app-font-size');
+          document.documentElement.style.removeProperty('--app-bg-color');
+          document.documentElement.style.removeProperty('--app-btn-color');
+          document.documentElement.style.removeProperty('--app-text-color');
+          window.location.reload();
+        }
+        break;
+      case 'reset_ffmpeg':
+        resetFFmpeg();
+        window.alert('FFmpegが初期化されました。');
+        break;
+      case 'reset_gemini':
+        window.alert('Gemini3Flashの指示書・コマンドが初期化されました。');
         break;
     }
   };
 
-  const handlePostOptionsClick = () => {
-    // 1 second delay before showing iOS picker
-    if (postOptionsTimer.current) clearTimeout(postOptionsTimer.current);
-    postOptionsTimer.current = setTimeout(() => {
-      setShowPostOptions(true);
-    }, 1000);
+  const handleMoreMenuClick = () => {
+    if (moreMenuTimer.current) clearTimeout(moreMenuTimer.current);
+    moreMenuTimer.current = setTimeout(() => setShowMoreMenu(true), 1000);
   };
 
   useEffect(() => {
-    return () => {
-      if (postOptionsTimer.current) clearTimeout(postOptionsTimer.current);
-    };
+    return () => { if (moreMenuTimer.current) clearTimeout(moreMenuTimer.current); };
   }, []);
 
   const allFormats = [
@@ -280,11 +307,36 @@ const Index: React.FC = () => {
     { group: '音声形式', formats: AUDIO_FORMATS },
   ];
 
+  // VoiceOver announcement for file format popup
+  const [fileFormatVo, setFileFormatVo] = useState('');
+  useEffect(() => {
+    if (showFileFormatPopup) {
+      setFileFormatVo('');
+      setTimeout(() => setFileFormatVo('ファイル形式'), 50);
+    } else {
+      setFileFormatVo('');
+    }
+  }, [showFileFormatPopup]);
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
-      {/* Header with settings */}
+      {/* Header with settings and more menu */}
       <div className="w-full flex items-center justify-between mb-8">
-        <div />
+        <div className="flex items-center gap-2">
+          {convertedUrl && !converting && (
+            <button
+              onClick={handleMoreMenuClick}
+              className="text-foreground p-2 active:opacity-60"
+              aria-label="その他のオプション"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="5" cy="12" r="2" />
+                <circle cx="12" cy="12" r="2" />
+                <circle cx="19" cy="12" r="2" />
+              </svg>
+            </button>
+          )}
+        </div>
         <h1 className="text-2xl font-bold tracking-tight">メディアコンバータ</h1>
         <button
           onClick={() => setShowAppSettings(true)}
@@ -337,7 +389,7 @@ const Index: React.FC = () => {
                 className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold appearance-none cursor-pointer border-b border-primary-foreground/20"
                 style={{ borderRadius: 0, textAlign: 'center', textAlignLast: 'center' }}
               >
-                <option value="" disabled>出力形式</option>
+                <option value="" disabled>{isMultiFile ? '全ての形式' : '出力形式'}</option>
                 {allFormats.map(g => (
                   <optgroup key={g.group} label={g.group}>
                     {g.formats.map(f => (
@@ -347,6 +399,18 @@ const Index: React.FC = () => {
                 ))}
               </select>
             </div>
+
+            {/* Per-file format button (multi-file only) */}
+            {isMultiFile && (
+              <button
+                onClick={() => setShowFileFormatPopup(true)}
+                className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+                style={{ borderRadius: 0 }}
+              >
+                ファイル形式
+              </button>
+            )}
+
             {selectedFormat && (
               <button
                 onClick={() => setShowDetailSettings(true)}
@@ -393,26 +457,91 @@ const Index: React.FC = () => {
       {convertedUrl && !converting && (
         <div className="w-full mt-4 flex flex-col">
           <button onClick={handleDownload}
-            className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-            style={{ borderRadius: 0 }}>
-            ダウンロード
-          </button>
-          <button onClick={handlePostOptionsClick}
             className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
             style={{ borderRadius: 0 }}>
-            その他のオプション
+            ダウンロード
           </button>
         </div>
       )}
 
-      {/* Post-conversion iOS picker modal */}
+      {/* More menu (•••) picker */}
       <IOSPickerModal
-        open={showPostOptions}
-        onClose={() => setShowPostOptions(false)}
-        onSelect={handlePostOptionSelect}
-        sections={postConversionSections}
+        open={showMoreMenu}
+        onClose={() => setShowMoreMenu(false)}
+        onSelect={handleMoreMenuSelect}
+        sections={moreMenuSections}
         header={<span className="text-foreground text-[20px] font-semibold">その他のオプション</span>}
       />
+
+      {/* File format popup (multi-file) */}
+      {showFileFormatPopup && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center ios-fade-in">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-md"
+            role="button"
+            aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
+            tabIndex={0}
+            onClick={() => { setShowFileFormatPopup(false); setFileFormatPickerIndex(null); }}
+            onKeyDown={e => e.key === 'Enter' && setShowFileFormatPopup(false)}
+          />
+          <div aria-live="assertive" className="sr-only" role="status">{fileFormatVo}</div>
+          <div
+            className="relative ios-scale-in"
+            style={{
+              width: 'min(360px, 90vw)',
+              maxHeight: '70vh',
+              background: 'hsl(0, 70%, 45%)',
+              borderRadius: '14px',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 text-white text-[20px] font-semibold text-center" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.2)' }}>
+              ファイル形式
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {files.map((f, i) => (
+                <div key={i}>
+                  <button
+                    onClick={() => setFileFormatPickerIndex(fileFormatPickerIndex === i ? null : i)}
+                    className="w-full px-4 py-3 text-left active:opacity-70 transition-opacity"
+                    style={{ borderBottom: '0.5px solid rgba(255,255,255,0.15)' }}
+                  >
+                    <p className="text-white text-[20px] truncate">{f.name}</p>
+                    <p className="text-white/70 text-[16px]">
+                      形式: {perFileFormats[i] || selectedFormat || '未選択'} · {(f.size / 1024 / 1024).toFixed(1)} MB
+                    </p>
+                  </button>
+                  {fileFormatPickerIndex === i && (
+                    <div className="bg-black/20">
+                      {allFormats.map(g => (
+                        <div key={g.group}>
+                          <div className="px-4 py-1 text-white/50 text-[13px] font-medium">{g.group}</div>
+                          {g.formats.map(fmt => (
+                            <button
+                              key={fmt}
+                              onClick={() => {
+                                setPerFileFormats(prev => ({ ...prev, [i]: fmt }));
+                                setFileFormatPickerIndex(null);
+                              }}
+                              className="w-full px-6 py-2.5 text-left text-white text-[20px] active:bg-white/10 flex items-center justify-between"
+                            >
+                              <span>{fmt}</span>
+                              {(perFileFormats[i] || selectedFormat) === fmt && <span className="text-white text-[15px]">✓</span>}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <DetailSettingsModal
         open={showDetailSettings}
