@@ -72,13 +72,13 @@ const SettingsRow: React.FC<{
     <div className="relative w-full">
       <button
         onClick={openPicker}
-        className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border active:bg-accent transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3 border-b border-border active:bg-accent transition-colors"
       >
-        <span className="text-foreground text-[20px]">{label}</span>
-        <span className="flex items-center gap-2">
-          <span className="text-muted-foreground text-[20px]">{displayValue}</span>
-          <ContextMenuChevron />
-        </span>
+        <div className="flex flex-col items-start">
+          <span className="text-foreground text-[20px]">{label}</span>
+          <span className="text-muted-foreground text-[14px]">{displayValue}</span>
+        </div>
+        <ContextMenuChevron />
       </button>
       <select
         ref={selectRef}
@@ -95,7 +95,6 @@ const SettingsRow: React.FC<{
   );
 };
 
-// Color name to CSS
 function colorToCss(color: string): string {
   const map: Record<string, string> = {
     black: '#000000', white: '#ffffff', red: 'hsl(0, 80%, 50%)',
@@ -119,7 +118,6 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   const [btnColor, setBtnColor] = useState('red');
   const [textColor, setTextColor] = useState('auto');
 
-  // Pending state (apply only on 完了)
   const [pending, setPending] = useState({ language: 'ja', fontSize: '20', bgColor: 'black', btnColor: 'red', textColor: 'auto' });
 
   useEffect(() => {
@@ -129,14 +127,12 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   }, [open]);
 
   const handleComplete = () => {
-    // Apply settings
     setLanguage(pending.language);
     setFontSize(pending.fontSize);
     setBgColor(pending.bgColor);
     setBtnColor(pending.btnColor);
     setTextColor(pending.textColor);
 
-    // Apply to DOM
     const root = document.documentElement;
     const bgCss = colorToCss(pending.bgColor);
     const btnCss = colorToCss(pending.btnColor);
@@ -165,17 +161,27 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
     }
   }, [open]);
 
+  // Escape key
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const content = (
     <>
       <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
       <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0" style={{ minHeight: '52px' }}>
-        <button onClick={onClose} className="text-white text-[20px] font-normal active:opacity-60" aria-label="設定を閉じる">
+        <button onClick={onClose} className="text-white text-[20px] font-normal active:opacity-60" aria-label="キャンセル">
           キャンセル
         </button>
         <h2 className="text-foreground text-[20px] font-semibold">設定</h2>
-        <button onClick={handleComplete} className="text-white text-[20px] font-semibold active:opacity-60" aria-label="設定を適用して閉じる">
+        <button onClick={handleComplete} className="text-white text-[20px] font-semibold active:opacity-60" aria-label="完了">
           完了
         </button>
       </div>
@@ -193,9 +199,16 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   if (isMobile) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="設定">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" role="button" aria-label="設定を閉じる" tabIndex={0} onClick={onClose} onKeyDown={e => e.key === 'Enter' && onClose()} />
+        <div
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          role="button"
+          aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
+          tabIndex={0}
+          onClick={onClose}
+          onKeyDown={e => e.key === 'Enter' && onClose()}
+        />
         <div className="relative mt-auto flex flex-col ios-slide-up" style={{
-          height: '100vh',
+          height: '75vh',
           background: 'rgba(28, 28, 30, 0.92)',
           backdropFilter: 'blur(40px) saturate(180%)',
           WebkitBackdropFilter: 'blur(40px) saturate(180%)',
@@ -213,10 +226,17 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="設定">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="button" aria-label="設定を閉じる" tabIndex={0} onClick={onClose} onKeyDown={e => e.key === 'Enter' && onClose()} />
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        role="button"
+        aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
+        tabIndex={0}
+        onClick={onClose}
+        onKeyDown={e => e.key === 'Enter' && onClose()}
+      />
       <div className="relative flex flex-col ios-scale-in" style={{
         width: 'min(520px, 92vw)',
-        maxHeight: '85vh',
+        maxHeight: '75vh',
         background: 'rgba(28, 28, 30, 0.92)',
         backdropFilter: 'blur(40px) saturate(180%)',
         WebkitBackdropFilter: 'blur(40px) saturate(180%)',

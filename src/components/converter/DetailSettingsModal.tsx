@@ -1,6 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Drawer, DrawerContent, DrawerOverlay, DrawerPortal } from '@/components/ui/drawer';
-import { Dialog, DialogContent, DialogOverlay, DialogPortal } from '@/components/ui/dialog';
+import React, { useState, useEffect, useRef } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
@@ -30,6 +28,7 @@ const ContextMenuChevron: React.FC = () => (
   </span>
 );
 
+/** A settings row showing label + sub-text of current value, with native picker */
 const NativePickerRow: React.FC<{
   label: string;
   displayValue: string;
@@ -38,9 +37,10 @@ const NativePickerRow: React.FC<{
   selected: string;
   onSelect: (v: string) => void;
   warning?: boolean;
+  destructiveValue?: boolean;
   onLongPress?: () => void;
   pickerHeader?: string;
-}> = ({ label, displayValue, options, groups, selected, onSelect, warning, onLongPress, pickerHeader }) => {
+}> = ({ label, displayValue, options, groups, selected, onSelect, warning, destructiveValue, onLongPress, pickerHeader }) => {
   const selectRef = useRef<HTMLSelectElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const delayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,7 +80,6 @@ const NativePickerRow: React.FC<{
     };
   }, []);
 
-  // Filter out separators for value handling but render them as disabled options
   const renderOptions = options.map(o => {
     if ((o as any).separator) {
       return <option key={o.value} value={o.value} disabled style={{ fontSize: '13px' }}>{o.label}</option>;
@@ -94,13 +93,13 @@ const NativePickerRow: React.FC<{
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onClick={handleClick}
-        className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border active:bg-accent transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3 border-b border-border active:bg-accent transition-colors"
       >
-        <span className="text-foreground text-[20px]">{label}</span>
-        <span className="flex items-center gap-2">
-          <span className={`text-[20px] ${warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue}</span>
-          <ContextMenuChevron />
-        </span>
+        <div className="flex flex-col items-start">
+          <span className="text-foreground text-[20px]">{label}</span>
+          <span className={`text-[14px] ${destructiveValue ? 'text-destructive' : warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue}</span>
+        </div>
+        <ContextMenuChevron />
       </button>
       <select
         ref={selectRef}
@@ -124,6 +123,23 @@ const NativePickerRow: React.FC<{
           ))
         ) : renderOptions}
       </select>
+    </div>
+  );
+};
+
+/** Accordion section for "Other Actions" like copy/mute */
+const AccordionSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="border-b border-border">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-5 py-3 active:bg-accent transition-colors"
+      >
+        <span className="text-foreground text-[20px]">{title}</span>
+        <span className="text-muted-foreground text-[14px]">{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && <div>{children}</div>}
     </div>
   );
 };
@@ -155,7 +171,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       setShowCustomRes(false);
       setShowCustomBitrate(null);
       setShowCustomFramerate(false);
-      // Focus close button for VoiceOver
       setTimeout(() => closeButtonRef.current?.focus(), 100);
     }
   }, [open]);
@@ -185,19 +200,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     label: audioCodecDisplayName(c),
     value: c,
   }));
-
-  const videoCodecGroups = [
-    { label: 'コーデック', options: videoCodecOptions },
-    { label: 'その他のアクション', options: [{ label: 'コピー', value: 'copy' }] },
-  ];
-
-  const audioCodecGroups = [
-    { label: 'コーデック', options: audioCodecOptions },
-    { label: 'その他のアクション', options: [
-      { label: 'コピー', value: 'copy' },
-      { label: '音声を消します', value: 'none' },
-    ]},
-  ];
 
   const aspectRatioOptions = ASPECT_RATIOS.map(a => ({ label: a, value: a }));
 
@@ -264,6 +266,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const endTimeOptions = [{ label: '最後まで', value: '0' }, ...timeOptions(videoDuration).slice(1)];
 
   const volumeDisplay = settings.volume === 'none' ? '変えない' : `${settings.volume}dB`;
+  const volumeIsDestructive = settings.volume !== 'none' && parseInt(settings.volume) >= 120;
 
   // Auto-fix AMR settings
   useEffect(() => {
@@ -351,7 +354,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     }
   }, [open]);
 
-  // Handle Escape / 2-finger scrub (iOS Z gesture triggers Escape)
+  // Handle Escape / 2-finger scrub
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -374,7 +377,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <button
           onClick={handleCancel}
           className="text-white text-[20px] font-normal active:opacity-60"
-          aria-label="キャンセル・詳細設定を閉じて元の画面に戻る"
+          aria-label="キャンセル"
         >
           キャンセル
         </button>
@@ -383,7 +386,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           ref={closeButtonRef}
           onClick={onClose}
           className="text-white text-[20px] font-semibold active:opacity-60"
-          aria-label="完了・詳細設定を閉じて元の画面に戻る"
+          aria-label="完了"
         >
           完了
         </button>
@@ -392,10 +395,22 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       <div className="overflow-y-auto overscroll-contain flex-1 -webkit-overflow-scrolling-touch">
         {showVideoSection && (
           <>
-            <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">ビデオ</div>
+            {/* Section heading (not a disabled button) */}
+            <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide" role="heading" aria-level={3}>ビデオ</div>
             <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
-              options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
+              options={videoCodecOptions} selected={settings.videoCodec}
               onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
+
+            {/* Other Actions accordion for video */}
+            <AccordionSection title="その他のアクション">
+              <button
+                onClick={() => handleSelect('videoCodec', 'copy')}
+                className={`w-full px-5 py-3 text-left text-[20px] border-b border-border active:bg-accent transition-colors ${settings.videoCodec === 'copy' ? 'text-primary' : 'text-foreground'}`}
+              >
+                コピー {settings.videoCodec === 'copy' && '✓'}
+              </button>
+            </AccordionSection>
+
             <NativePickerRow label="縦横比" displayValue={settings.aspectRatio}
               options={aspectRatioOptions} selected={settings.aspectRatio}
               onSelect={v => handleSelect('aspectRatio', v)} pickerHeader="縦横比" />
@@ -429,11 +444,27 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           </>
         )}
 
-        <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide">オーディオ</div>
+        <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide" role="heading" aria-level={3}>オーディオ</div>
 
         <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
-          options={[]} groups={audioCodecGroups} selected={settings.audioCodec}
+          options={audioCodecOptions} selected={settings.audioCodec}
           onSelect={v => handleSelect('audioCodec', v)} pickerHeader="オーディオコーデック" />
+
+        {/* Other Actions accordion for audio */}
+        <AccordionSection title="その他のアクション">
+          <button
+            onClick={() => handleSelect('audioCodec', 'copy')}
+            className={`w-full px-5 py-3 text-left text-[20px] border-b border-border active:bg-accent transition-colors ${settings.audioCodec === 'copy' ? 'text-primary' : 'text-foreground'}`}
+          >
+            コピー {settings.audioCodec === 'copy' && '✓'}
+          </button>
+          <button
+            onClick={() => handleSelect('audioCodec', 'none')}
+            className={`w-full px-5 py-3 text-left text-[20px] border-b border-border active:bg-accent transition-colors ${settings.audioCodec === 'none' ? 'text-destructive' : 'text-foreground'}`}
+          >
+            音声を消します {settings.audioCodec === 'none' && '✓'}
+          </button>
+        </AccordionSection>
 
         {!audioIsNone && settings.audioCodec !== 'copy' && (
           <>
@@ -469,6 +500,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
             <NativePickerRow label="音量" displayValue={volumeDisplay}
               options={volumeOptions} selected={settings.volume}
               onSelect={v => handleSelect('volume', v)}
+              destructiveValue={volumeIsDestructive}
               onLongPress={() => window.alert('⚠️ 音声トラックの削除\n\n音量を変更すると、元の音声トラックが上書きされます。この操作は元に戻せません。')}
               pickerHeader="音量" />
           </>
@@ -477,7 +509,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     </>
   );
 
-  // Custom input dialogs (shared between mobile/desktop)
+  // Custom input dialogs
   const customDialogs = (
     <>
       {showCustomRes && (
@@ -557,25 +589,23 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!open) return null;
 
-  // Mobile: Drawer (bottom sheet) with glassmorphism
+  // Mobile: Bottom sheet at 3/4 height
   if (isMobile) {
     return (
       <>
         <div className="fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="詳細設定">
-          {/* Overlay as button for VoiceOver */}
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             role="button"
-            aria-label="詳細設定を閉じる"
+            aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
             tabIndex={0}
             onClick={onClose}
             onKeyDown={e => e.key === 'Enter' && onClose()}
           />
-          {/* Bottom sheet */}
           <div
             className="relative mt-auto flex flex-col ios-slide-up"
             style={{
-              height: '100vh',
+              height: '75vh',
               background: 'rgba(28, 28, 30, 0.92)',
               backdropFilter: 'blur(40px) saturate(180%)',
               WebkitBackdropFilter: 'blur(40px) saturate(180%)',
@@ -583,7 +613,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               borderTopRightRadius: '12px',
             }}
           >
-            {/* Drag indicator */}
             <div className="flex justify-center pt-2 pb-0">
               <div className="w-9 h-1 rounded-full bg-muted-foreground/40" />
             </div>
@@ -595,14 +624,14 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     );
   }
 
-  // Desktop: centered dialog with glassmorphism
+  // Desktop: centered dialog at 3/4 height
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="詳細設定">
         <div
           className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           role="button"
-          aria-label="詳細設定を閉じる"
+          aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
           tabIndex={0}
           onClick={onClose}
           onKeyDown={e => e.key === 'Enter' && onClose()}
@@ -611,7 +640,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           className="relative flex flex-col ios-scale-in"
           style={{
             width: 'min(520px, 92vw)',
-            maxHeight: '85vh',
+            maxHeight: '75vh',
             background: 'rgba(28, 28, 30, 0.92)',
             backdropFilter: 'blur(40px) saturate(180%)',
             WebkitBackdropFilter: 'blur(40px) saturate(180%)',
