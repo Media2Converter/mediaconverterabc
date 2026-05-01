@@ -414,7 +414,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         {showVideoSection && (
           <>
             {/* Section heading (not a disabled button) */}
-            <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide" role="heading" aria-level={3}>ビデオ</div>
+            <SectionHeading>ビデオ</SectionHeading>
             <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
               options={videoCodecOptions} selected={settings.videoCodec}
               onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
@@ -462,7 +462,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           </>
         )}
 
-        <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide" role="heading" aria-level={3}>オーディオ</div>
+        <SectionHeading>オーディオ</SectionHeading>
 
         <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
           options={audioCodecOptions} selected={settings.audioCodec}
