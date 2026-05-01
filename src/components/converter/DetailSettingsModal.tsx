@@ -127,6 +127,22 @@ const NativePickerRow: React.FC<{
   );
 };
 
+/** Boxed (non-clickable) section heading — matches iOS rounded outline label */
+const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="px-5 pt-5 pb-2" role="heading" aria-level={3}>
+    <div
+      className="inline-block px-3 py-1 text-foreground text-[15px] font-semibold"
+      style={{
+        border: '1.5px solid rgba(255,255,255,0.35)',
+        borderRadius: 8,
+        background: 'rgba(255,255,255,0.04)',
+      }}
+    >
+      {children}
+    </div>
+  </div>
+);
+
 /** Accordion section for "Other Actions" like copy/mute */
 const AccordionSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
   const [expanded, setExpanded] = useState(false);
