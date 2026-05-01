@@ -338,19 +338,17 @@ const Index: React.FC = () => {
       {/* Header with settings and more menu */}
       <div className="w-full flex items-center justify-between mb-8">
         <div className="flex items-center gap-2">
-          {convertedUrl && !converting && (
-            <button
-              onClick={handleMoreMenuClick}
-              className="text-foreground p-2 active:opacity-60"
-              aria-label="その他のオプション"
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="5" cy="12" r="2" />
-                <circle cx="12" cy="12" r="2" />
-                <circle cx="19" cy="12" r="2" />
-              </svg>
-            </button>
-          )}
+          <button
+            onClick={handleMoreMenuClick}
+            className="text-foreground p-2 active:opacity-60"
+            aria-label="その他のオプション"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
         </div>
         <h1 className="text-2xl font-bold tracking-tight">メディアコンバータ</h1>
         <button
