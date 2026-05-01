@@ -61,6 +61,7 @@ const Index: React.FC = () => {
   const [convertedFilename, setConvertedFilename] = useState('');
   const [videoDuration, setVideoDuration] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
+  const [ffmpegCommand, setFfmpegCommand] = useState('');
   const [batteryWarning, setBatteryWarning] = useState(false);
   const [showAppSettings, setShowAppSettings] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -203,6 +204,7 @@ const Index: React.FC = () => {
         (pct) => setProgress(pct),
         (msg) => ffmpegLogs.push(msg),
         (status) => setStatusMessage(status),
+        (cmd) => setFfmpegCommand(cmd),
       );
 
       setConvertedUrl(result.url);
