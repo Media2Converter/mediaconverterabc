@@ -254,38 +254,10 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
     </>
   );
 
-  if (isMobile) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="設定">
-        <div
-          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-          role="button"
-          aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
-          tabIndex={0}
-          onClick={onClose}
-          onKeyDown={e => e.key === 'Enter' && onClose()}
-        />
-        <div className="relative mt-auto flex flex-col ios-slide-up" style={{
-          height: '75vh',
-          background: 'rgba(28, 28, 30, 0.92)',
-          backdropFilter: 'blur(40px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-        }}>
-          <div className="flex justify-center pt-2 pb-0">
-            <div className="w-9 h-1 rounded-full bg-muted-foreground/40" />
-          </div>
-          {content}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="設定">
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-3" role="dialog" aria-modal="true" aria-label="設定">
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
         role="button"
         aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
         tabIndex={0}
@@ -293,13 +265,15 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
         onKeyDown={e => e.key === 'Enter' && onClose()}
       />
       <div className="relative flex flex-col ios-scale-in" style={{
-        width: 'min(520px, 92vw)',
-        maxHeight: '75vh',
-        background: 'rgba(28, 28, 30, 0.92)',
+        width: isMobile ? '100%' : 'min(520px, 92vw)',
+        maxWidth: isMobile ? '100%' : '520px',
+        maxHeight: '85vh',
+        background: 'rgba(38, 38, 40, 0.96)',
         backdropFilter: 'blur(40px) saturate(180%)',
         WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-        borderRadius: '14px',
+        borderRadius: '20px',
         overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
       }}>
         {content}
       </div>
