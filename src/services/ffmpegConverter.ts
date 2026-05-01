@@ -30,12 +30,6 @@ async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   return ffmpeg;
 }
 
-// AMR codecs not available in ffmpeg.wasm — fallback to pcm_s16le with AMR-like settings
-const AMR_FALLBACK_CODECS: Record<string, boolean> = {
-  'libopencore_amrnb': true,
-  'libopencore_amrwb': true,
-};
-
 /** Build FFmpeg arguments from settings — "safety-first" logic */
 export function buildFFmpegArgs(
   inputName: string,
@@ -44,7 +38,13 @@ export function buildFFmpegArgs(
   format: string,
   isVideo: boolean,
 ): string[] {
-  const args: string[] = ['-y', '-i', inputName];
+  // Input repair flags: ignore corrupt packets / errors so playback continues
+  const args: string[] = [
+    '-y',
+    '-err_detect', 'ignore_err',
+    '-fflags', '+discardcorrupt+genpts',
+    '-i', inputName,
+  ];
   const outputIsVideo = isVideoFormat(format);
   const lowerFormat = format.toLowerCase();
 
@@ -105,14 +105,7 @@ export function buildFFmpegArgs(
   } else if (settings.audioCodec === 'copy') {
     args.push('-c:a', 'copy');
   } else {
-    let aCodec = CODEC_MAP[settings.audioCodec] || 'aac';
-
-    // AMR fallback: if encoder not available, use pcm_s16le with AMR-like constraints
-    const isAmrFallback = AMR_FALLBACK_CODECS[aCodec];
-    if (isAmrFallback) {
-      aCodec = 'pcm_s16le';
-    }
-
+    const aCodec = CODEC_MAP[settings.audioCodec] || 'aac';
     args.push('-c:a', aCodec);
 
     // AAC HE profile
@@ -120,15 +113,12 @@ export function buildFFmpegArgs(
       args.push('-profile:a', AAC_HE_PROFILE[settings.audioCodec]);
     }
 
-    // AMR strict mode
+    // AMR strict mode — force libopencore_amrnb in browser (ffmpeg.wasm)
     if (settings.audioCodec === 'AMR_NB') {
-      args.push('-ar', '8000', '-ac', '1');
-      if (!isAmrFallback) args.push('-ab', '12.2k');
-      args.push('-strict', '-2');
+      args.push('-ar', '8000', '-ac', '1', '-ab', '12.2k', '-strict', '-2');
       aFilters.push('aresample=8000', 'pan=mono|c0=c0+c1');
     } else if (settings.audioCodec === 'AMR_WB') {
-      args.push('-ar', '16000', '-ac', '1');
-      args.push('-strict', '-2');
+      args.push('-ar', '16000', '-ac', '1', '-strict', '-2');
       aFilters.push('aresample=16000', 'pan=mono|c0=c0+c1');
     } else {
       // Audio bitrate
@@ -178,16 +168,11 @@ export function buildFFmpegArgs(
   // Buffer safety — large buffer to prevent muxing queue overflow
   args.push('-max_muxing_queue_size', '9999');
 
-  // movflags for container repair & compatibility
+  // movflags: faststart for iPhone playback / metadata at start
   if (['3gp', '3g2'].includes(lowerFormat)) {
     args.push('-movflags', '+faststart+frag_keyframe+empty_moov');
-  } else if (['mov', 'mp4', 'm4v'].includes(lowerFormat)) {
+  } else if (['mov', 'mp4', 'm4v', 'm4a'].includes(lowerFormat)) {
     args.push('-movflags', '+faststart');
-  }
-
-  // AMR fallback: override output to WAV if AMR encoder unavailable
-  if (AMR_FALLBACK_CODECS[CODEC_MAP[settings.audioCodec]]) {
-    // Output name already set; the format will be wav-compatible via pcm_s16le
   }
 
   args.push(outputName);
@@ -203,6 +188,7 @@ export async function convertWithFFmpeg(
   onProgress?: (pct: number) => void,
   onLog?: (msg: string) => void,
   onStatus?: (status: string) => void,
+  onCommand?: (cmd: string) => void,
 ): Promise<{ url: string; filename: string }> {
   abortRequested = false;
   const logs: string[] = [];
@@ -220,9 +206,7 @@ export async function convertWithFFmpeg(
   const inputExt = file.name.split('.').pop() || 'mp4';
   const inputName = `input.${inputExt}`;
 
-  // AMR fallback: output as WAV instead
-  const isAmrFallback = AMR_FALLBACK_CODECS[CODEC_MAP[settings.audioCodec]];
-  const outputExt = isAmrFallback ? 'wav' : (FORMAT_EXT[format] || 'mp4');
+  const outputExt = FORMAT_EXT[format] || 'mp4';
   const outputName = `output.${outputExt}`;
 
   await ff.writeFile(inputName, await fetchFile(file));
@@ -230,9 +214,11 @@ export async function convertWithFFmpeg(
 
   if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
 
-  onStatus?.('FFmpeg → コマンドを生成中...');
+  onStatus?.('Gemini3Flash → FFmpegコマンドを生成中...');
   const args = buildFFmpegArgs(inputName, outputName, settings, format, isVideo);
-  onStatus?.(`FFmpeg → 変換開始: ffmpeg ${args.join(' ').substring(0, 80)}...`);
+  const fullCmd = `ffmpeg ${args.join(' ')}`;
+  onCommand?.(fullCmd);
+  onStatus?.('FFmpeg → 変換実行中...');
 
   ff.on('progress', ({ progress }) => {
     if (abortRequested) return;
@@ -256,7 +242,7 @@ export async function convertWithFFmpeg(
   const data = await ff.readFile(outputName);
   onProgress?.(96);
 
-  const mime = isAmrFallback ? 'audio/wav' : (FORMAT_MIME[format] || 'application/octet-stream');
+  const mime = FORMAT_MIME[format] || 'application/octet-stream';
   const uint8 = data instanceof Uint8Array ? data : new TextEncoder().encode(data as string);
   const blob = new Blob([uint8.buffer as ArrayBuffer], { type: mime });
   const url = URL.createObjectURL(blob);

@@ -43,6 +43,13 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+  }
+  input, textarea {
+    -webkit-user-select: text !important;
+    user-select: text !important;
   }
 }
 

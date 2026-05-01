@@ -61,6 +61,7 @@ const Index: React.FC = () => {
   const [convertedFilename, setConvertedFilename] = useState('');
   const [videoDuration, setVideoDuration] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
+  const [ffmpegCommand, setFfmpegCommand] = useState('');
   const [batteryWarning, setBatteryWarning] = useState(false);
   const [showAppSettings, setShowAppSettings] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -203,6 +204,7 @@ const Index: React.FC = () => {
         (pct) => setProgress(pct),
         (msg) => ffmpegLogs.push(msg),
         (status) => setStatusMessage(status),
+        (cmd) => setFfmpegCommand(cmd),
       );
 
       setConvertedUrl(result.url);
@@ -241,8 +243,21 @@ const Index: React.FC = () => {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!convertedUrl) return;
+    // Try Web Share API for native share sheet
+    try {
+      const res = await fetch(convertedUrl);
+      const blob = await res.blob();
+      const file = new File([blob], convertedFilename, { type: blob.type });
+      const navAny = navigator as any;
+      if (navAny.canShare && navAny.canShare({ files: [file] })) {
+        await navAny.share({ files: [file], title: convertedFilename });
+        return;
+      }
+    } catch (err) {
+      // fall through to download
+    }
     const a = document.createElement('a');
     a.href = convertedUrl;
     a.download = convertedFilename;
@@ -323,19 +338,17 @@ const Index: React.FC = () => {
       {/* Header with settings and more menu */}
       <div className="w-full flex items-center justify-between mb-8">
         <div className="flex items-center gap-2">
-          {convertedUrl && !converting && (
-            <button
-              onClick={handleMoreMenuClick}
-              className="text-foreground p-2 active:opacity-60"
-              aria-label="その他のオプション"
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="5" cy="12" r="2" />
-                <circle cx="12" cy="12" r="2" />
-                <circle cx="19" cy="12" r="2" />
-              </svg>
-            </button>
-          )}
+          <button
+            onClick={handleMoreMenuClick}
+            className="text-foreground p-2 active:opacity-60"
+            aria-label="その他のオプション"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
         </div>
         <h1 className="text-2xl font-bold tracking-tight">メディアコンバータ</h1>
         <button
@@ -441,12 +454,35 @@ const Index: React.FC = () => {
       />
 
       {converting && (
-        <div className="mt-8 flex flex-col items-center gap-3 w-full">
-          <ProgressCircle progress={progress} />
-          <p className="text-muted-foreground text-[20px] text-center whitespace-pre-line">{statusMessage}</p>
+        <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-background/95 backdrop-blur-md px-6 py-8" role="dialog" aria-modal="true" aria-label="変換中">
+          {/* Command preview above the percentage */}
+          <div className="w-full max-w-md mb-4 max-h-[20vh] overflow-y-auto bg-card/80 rounded-lg p-3 border border-border">
+            <p className="text-muted-foreground text-[13px] font-mono whitespace-pre-wrap break-all leading-snug">
+              {ffmpegCommand || 'コマンドを準備中...'}
+            </p>
+          </div>
+          {/* Big fullscreen percentage */}
+          <div className="flex flex-col items-center justify-center flex-1 w-full">
+            <svg width="min(70vw, 280px)" height="min(70vw, 280px)" viewBox="0 0 120 120" style={{ maxWidth: '70vw', maxHeight: '40vh' }}>
+              <circle cx="60" cy="60" r="50" fill="none" stroke="hsl(var(--border))" strokeWidth="6" />
+              <circle
+                cx="60" cy="60" r="50" fill="none"
+                stroke="#ffffff" strokeWidth="6"
+                strokeDasharray={2 * Math.PI * 50}
+                strokeDashoffset={2 * Math.PI * 50 - (progress / 100) * 2 * Math.PI * 50}
+                strokeLinecap="round"
+                transform="rotate(-90 60 60)"
+                className="transition-all duration-300"
+              />
+              <text x="60" y="60" textAnchor="middle" dominantBaseline="central" fill="white" fontSize="20" fontWeight="700">
+                {Math.round(progress)}%
+              </text>
+            </svg>
+            <p className="text-foreground text-[20px] text-center whitespace-pre-line mt-6 max-w-md">{statusMessage}</p>
+          </div>
           <button
             onClick={handleCancel}
-            className="mt-2 px-8 py-2.5 bg-destructive text-destructive-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
+            className="px-10 py-3 bg-destructive text-destructive-foreground text-[20px] font-semibold active:opacity-80 transition-opacity"
             style={{ borderRadius: 0 }}
           >
             キャンセル

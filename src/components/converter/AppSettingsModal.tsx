@@ -110,15 +110,69 @@ function getAutoTextColor(bgColor: string): string {
   return '#ffffff';
 }
 
+const STORAGE_KEY = 'app-settings-v1';
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { language: 'ja', fontSize: '20', bgColor: 'black', btnColor: 'red', textColor: 'auto' };
+}
+
+function applySettings(s: { language: string; fontSize: string; bgColor: string; btnColor: string; textColor: string }) {
+  const root = document.documentElement;
+  const bgCss = colorToCss(s.bgColor);
+  const btnCss = colorToCss(s.btnColor);
+  const txtColor = s.textColor === 'auto' ? getAutoTextColor(s.bgColor) : colorToCss(s.textColor);
+  root.style.setProperty('--app-font-size', `${s.fontSize}px`);
+  root.style.setProperty('--app-bg-color', bgCss);
+  root.style.setProperty('--app-btn-color', btnCss);
+  root.style.setProperty('--app-text-color', txtColor);
+  root.lang = s.language;
+  // Map global tokens so existing classes pick them up
+  // Background
+  if (s.bgColor === 'white') {
+    root.style.setProperty('--background', '0 0% 100%');
+    root.style.setProperty('--foreground', '0 0% 0%');
+    root.style.setProperty('--card', '0 0% 96%');
+    root.style.setProperty('--border', '0 0% 80%');
+    root.style.setProperty('--muted-foreground', '0 0% 35%');
+  } else {
+    root.style.removeProperty('--background');
+    root.style.removeProperty('--foreground');
+    root.style.removeProperty('--card');
+    root.style.removeProperty('--border');
+    root.style.removeProperty('--muted-foreground');
+  }
+  // Primary (button) color hue
+  const btnHsl: Record<string, string> = {
+    black: '0 0% 12%', red: '0 80% 50%', orange: '30 90% 50%',
+    pink: '330 80% 60%', yellow: '50 90% 50%', green: '130 60% 45%',
+    blue: '210 80% 55%', white: '0 0% 100%',
+  };
+  if (btnHsl[s.btnColor]) {
+    root.style.setProperty('--primary', btnHsl[s.btnColor]);
+    root.style.setProperty('--primary-foreground', (s.btnColor === 'white' || s.btnColor === 'yellow') ? '0 0% 0%' : '0 0% 100%');
+  }
+  document.body.style.fontSize = `${s.fontSize}px`;
+}
+
+// Apply on module load (page reload)
+if (typeof window !== 'undefined') {
+  try { applySettings(loadSettings()); } catch {}
+}
+
 export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   const isMobile = useIsMobile();
-  const [language, setLanguage] = useState('ja');
-  const [fontSize, setFontSize] = useState('20');
-  const [bgColor, setBgColor] = useState('black');
-  const [btnColor, setBtnColor] = useState('red');
-  const [textColor, setTextColor] = useState('auto');
+  const initial = loadSettings();
+  const [language, setLanguage] = useState(initial.language);
+  const [fontSize, setFontSize] = useState(initial.fontSize);
+  const [bgColor, setBgColor] = useState(initial.bgColor);
+  const [btnColor, setBtnColor] = useState(initial.btnColor);
+  const [textColor, setTextColor] = useState(initial.textColor);
 
-  const [pending, setPending] = useState({ language: 'ja', fontSize: '20', bgColor: 'black', btnColor: 'red', textColor: 'auto' });
+  const [pending, setPending] = useState({ language, fontSize, bgColor, btnColor, textColor });
 
   useEffect(() => {
     if (open) {
@@ -127,23 +181,17 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   }, [open]);
 
   const handleComplete = () => {
-    setLanguage(pending.language);
-    setFontSize(pending.fontSize);
-    setBgColor(pending.bgColor);
-    setBtnColor(pending.btnColor);
-    setTextColor(pending.textColor);
-
-    const root = document.documentElement;
-    const bgCss = colorToCss(pending.bgColor);
-    const btnCss = colorToCss(pending.btnColor);
-    const txtColor = pending.textColor === 'auto' ? getAutoTextColor(pending.bgColor) : colorToCss(pending.textColor);
-
-    root.style.setProperty('--app-font-size', `${pending.fontSize}px`);
-    root.style.setProperty('--app-bg-color', bgCss);
-    root.style.setProperty('--app-btn-color', btnCss);
-    root.style.setProperty('--app-text-color', txtColor);
-
+    const next = { ...pending };
+    setLanguage(next.language);
+    setFontSize(next.fontSize);
+    setBgColor(next.bgColor);
+    setBtnColor(next.btnColor);
+    setTextColor(next.textColor);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+    applySettings(next);
     onClose();
+    // Reload to ensure all components pick up new settings cleanly
+    setTimeout(() => window.location.reload(), 100);
   };
 
   const langDisplay = LANGUAGES.find(l => l.value === pending.language)?.label || '日本語(標準)';
