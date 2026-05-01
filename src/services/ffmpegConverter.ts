@@ -188,6 +188,7 @@ export async function convertWithFFmpeg(
   onProgress?: (pct: number) => void,
   onLog?: (msg: string) => void,
   onStatus?: (status: string) => void,
+  onCommand?: (cmd: string) => void,
 ): Promise<{ url: string; filename: string }> {
   abortRequested = false;
   const logs: string[] = [];
@@ -213,9 +214,11 @@ export async function convertWithFFmpeg(
 
   if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
 
-  onStatus?.('FFmpeg → コマンドを生成中...');
+  onStatus?.('Gemini3Flash → FFmpegコマンドを生成中...');
   const args = buildFFmpegArgs(inputName, outputName, settings, format, isVideo);
-  onStatus?.(`FFmpeg → 変換開始: ffmpeg ${args.join(' ').substring(0, 80)}...`);
+  const fullCmd = `ffmpeg ${args.join(' ')}`;
+  onCommand?.(fullCmd);
+  onStatus?.('FFmpeg → 変換実行中...');
 
   ff.on('progress', ({ progress }) => {
     if (abortRequested) return;
