@@ -9,6 +9,7 @@ import {
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort, resetFFmpeg } from '@/services/ffmpegConverter';
 import { AppSettingsModal } from '@/components/converter/AppSettingsModal';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 /** Gather device info for analysis AI */
 async function getDeviceInfo() {
