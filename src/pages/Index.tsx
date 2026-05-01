@@ -537,15 +537,6 @@ const Index: React.FC = () => {
         </div>
       )}
 
-      {/* More menu (•••) picker */}
-      <IOSPickerModal
-        open={showMoreMenu}
-        onClose={() => setShowMoreMenu(false)}
-        onSelect={handleMoreMenuSelect}
-        sections={moreMenuSections}
-        header={<span className="text-foreground text-[20px] font-semibold">その他のオプション</span>}
-      />
-
       {/* File format popup (multi-file) */}
       {showFileFormatPopup && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center ios-fade-in">
