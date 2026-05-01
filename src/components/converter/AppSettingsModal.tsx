@@ -224,13 +224,23 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   const content = (
     <>
       <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0" style={{ minHeight: '52px' }}>
-        <button onClick={onClose} className="text-white text-[20px] font-normal active:opacity-60" aria-label="キャンセル">
-          キャンセル
+      <div className="px-4 py-3 flex items-center justify-between flex-shrink-0 relative" style={{ minHeight: '60px' }}>
+        <button
+          onClick={onClose}
+          aria-label="キャンセル"
+          className="flex items-center justify-center rounded-full active:opacity-60 transition-opacity"
+          style={{ width: 36, height: 36, background: 'rgba(80,80,84,0.9)', color: '#fff', fontSize: 18, fontWeight: 600 }}
+        >
+          ✕
         </button>
-        <h2 className="text-foreground text-[20px] font-semibold">設定</h2>
-        <button onClick={handleComplete} className="text-white text-[20px] font-semibold active:opacity-60" aria-label="完了">
-          完了
+        <h2 className="absolute left-1/2 -translate-x-1/2 text-foreground text-[20px] font-semibold pointer-events-none">設定</h2>
+        <button
+          onClick={handleComplete}
+          aria-label="完了"
+          className="flex items-center justify-center rounded-full active:opacity-60 transition-opacity"
+          style={{ width: 36, height: 36, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', fontSize: 18, fontWeight: 700 }}
+        >
+          ✓
         </button>
       </div>
 
