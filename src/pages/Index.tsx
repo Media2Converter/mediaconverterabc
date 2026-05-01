@@ -241,8 +241,21 @@ const Index: React.FC = () => {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!convertedUrl) return;
+    // Try Web Share API for native share sheet
+    try {
+      const res = await fetch(convertedUrl);
+      const blob = await res.blob();
+      const file = new File([blob], convertedFilename, { type: blob.type });
+      const navAny = navigator as any;
+      if (navAny.canShare && navAny.canShare({ files: [file] })) {
+        await navAny.share({ files: [file], title: convertedFilename });
+        return;
+      }
+    } catch (err) {
+      // fall through to download
+    }
     const a = document.createElement('a');
     a.href = convertedUrl;
     a.download = convertedFilename;
