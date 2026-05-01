@@ -127,6 +127,22 @@ const NativePickerRow: React.FC<{
   );
 };
 
+/** Boxed (non-clickable) section heading — matches iOS rounded outline label */
+const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="px-5 pt-5 pb-2" role="heading" aria-level={3}>
+    <div
+      className="inline-block px-3 py-1 text-foreground text-[15px] font-semibold"
+      style={{
+        border: '1.5px solid rgba(255,255,255,0.35)',
+        borderRadius: 8,
+        background: 'rgba(255,255,255,0.04)',
+      }}
+    >
+      {children}
+    </div>
+  </div>
+);
+
 /** Accordion section for "Other Actions" like copy/mute */
 const AccordionSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
   const [expanded, setExpanded] = useState(false);
@@ -372,23 +388,25 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       {/* VoiceOver announcement */}
       <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
 
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0" style={{ minHeight: '52px' }}>
+      {/* iOS popup header: circle X (left) + circle ✓ (right) */}
+      <div className="px-4 py-3 flex items-center justify-between flex-shrink-0 relative" style={{ minHeight: '60px' }}>
         <button
           onClick={handleCancel}
-          className="text-white text-[20px] font-normal active:opacity-60"
           aria-label="キャンセル"
+          className="flex items-center justify-center rounded-full active:opacity-60 transition-opacity"
+          style={{ width: 36, height: 36, background: 'rgba(80,80,84,0.9)', color: '#fff', fontSize: 18, fontWeight: 600 }}
         >
-          キャンセル
+          ✕
         </button>
-        <h2 className="text-foreground text-[20px] font-semibold">{formatTitle}</h2>
+        <h2 className="absolute left-1/2 -translate-x-1/2 text-foreground text-[20px] font-semibold pointer-events-none truncate max-w-[55%] text-center">{formatTitle}</h2>
         <button
           ref={closeButtonRef}
           onClick={onClose}
-          className="text-white text-[20px] font-semibold active:opacity-60"
           aria-label="完了"
+          className="flex items-center justify-center rounded-full active:opacity-60 transition-opacity"
+          style={{ width: 36, height: 36, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', fontSize: 18, fontWeight: 700 }}
         >
-          完了
+          ✓
         </button>
       </div>
 
@@ -396,7 +414,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         {showVideoSection && (
           <>
             {/* Section heading (not a disabled button) */}
-            <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide" role="heading" aria-level={3}>ビデオ</div>
+            <SectionHeading>ビデオ</SectionHeading>
             <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
               options={videoCodecOptions} selected={settings.videoCodec}
               onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
@@ -444,7 +462,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           </>
         )}
 
-        <div className="px-5 pt-4 pb-2 text-muted-foreground text-[13px] font-semibold uppercase tracking-wide" role="heading" aria-level={3}>オーディオ</div>
+        <SectionHeading>オーディオ</SectionHeading>
 
         <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
           options={audioCodecOptions} selected={settings.audioCodec}
@@ -589,47 +607,12 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!open) return null;
 
-  // Mobile: Bottom sheet at 3/4 height
-  if (isMobile) {
-    return (
-      <>
-        <div className="fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="詳細設定">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            role="button"
-            aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
-            tabIndex={0}
-            onClick={onClose}
-            onKeyDown={e => e.key === 'Enter' && onClose()}
-          />
-          <div
-            className="relative mt-auto flex flex-col ios-slide-up"
-            style={{
-              height: '75vh',
-              background: 'rgba(28, 28, 30, 0.92)',
-              backdropFilter: 'blur(40px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-              borderTopLeftRadius: '12px',
-              borderTopRightRadius: '12px',
-            }}
-          >
-            <div className="flex justify-center pt-2 pb-0">
-              <div className="w-9 h-1 rounded-full bg-muted-foreground/40" />
-            </div>
-            {settingsContent}
-          </div>
-        </div>
-        {customDialogs}
-      </>
-    );
-  }
-
-  // Desktop: centered dialog at 3/4 height
+  // Unified iOS popup window (centered) for both mobile + desktop
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="詳細設定">
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-3" role="dialog" aria-modal="true" aria-label="詳細設定">
         <div
-          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/55 backdrop-blur-sm"
           role="button"
           aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
           tabIndex={0}
@@ -639,13 +622,15 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <div
           className="relative flex flex-col ios-scale-in"
           style={{
-            width: 'min(520px, 92vw)',
-            maxHeight: '75vh',
-            background: 'rgba(28, 28, 30, 0.92)',
+            width: isMobile ? '100%' : 'min(520px, 92vw)',
+            maxWidth: isMobile ? '100%' : '520px',
+            maxHeight: '85vh',
+            background: 'rgba(38, 38, 40, 0.96)',
             backdropFilter: 'blur(40px) saturate(180%)',
             WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-            borderRadius: '14px',
+            borderRadius: '20px',
             overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
           }}
         >
           {settingsContent}

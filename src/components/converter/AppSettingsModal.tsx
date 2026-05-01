@@ -224,13 +224,23 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   const content = (
     <>
       <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0" style={{ minHeight: '52px' }}>
-        <button onClick={onClose} className="text-white text-[20px] font-normal active:opacity-60" aria-label="キャンセル">
-          キャンセル
+      <div className="px-4 py-3 flex items-center justify-between flex-shrink-0 relative" style={{ minHeight: '60px' }}>
+        <button
+          onClick={onClose}
+          aria-label="キャンセル"
+          className="flex items-center justify-center rounded-full active:opacity-60 transition-opacity"
+          style={{ width: 36, height: 36, background: 'rgba(80,80,84,0.9)', color: '#fff', fontSize: 18, fontWeight: 600 }}
+        >
+          ✕
         </button>
-        <h2 className="text-foreground text-[20px] font-semibold">設定</h2>
-        <button onClick={handleComplete} className="text-white text-[20px] font-semibold active:opacity-60" aria-label="完了">
-          完了
+        <h2 className="absolute left-1/2 -translate-x-1/2 text-foreground text-[20px] font-semibold pointer-events-none">設定</h2>
+        <button
+          onClick={handleComplete}
+          aria-label="完了"
+          className="flex items-center justify-center rounded-full active:opacity-60 transition-opacity"
+          style={{ width: 36, height: 36, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', fontSize: 18, fontWeight: 700 }}
+        >
+          ✓
         </button>
       </div>
 
@@ -244,38 +254,10 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
     </>
   );
 
-  if (isMobile) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="設定">
-        <div
-          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-          role="button"
-          aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
-          tabIndex={0}
-          onClick={onClose}
-          onKeyDown={e => e.key === 'Enter' && onClose()}
-        />
-        <div className="relative mt-auto flex flex-col ios-slide-up" style={{
-          height: '75vh',
-          background: 'rgba(28, 28, 30, 0.92)',
-          backdropFilter: 'blur(40px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-        }}>
-          <div className="flex justify-center pt-2 pb-0">
-            <div className="w-9 h-1 rounded-full bg-muted-foreground/40" />
-          </div>
-          {content}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="設定">
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-3" role="dialog" aria-modal="true" aria-label="設定">
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
         role="button"
         aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
         tabIndex={0}
@@ -283,13 +265,15 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
         onKeyDown={e => e.key === 'Enter' && onClose()}
       />
       <div className="relative flex flex-col ios-scale-in" style={{
-        width: 'min(520px, 92vw)',
-        maxHeight: '75vh',
-        background: 'rgba(28, 28, 30, 0.92)',
+        width: isMobile ? '100%' : 'min(520px, 92vw)',
+        maxWidth: isMobile ? '100%' : '520px',
+        maxHeight: '85vh',
+        background: 'rgba(38, 38, 40, 0.96)',
         backdropFilter: 'blur(40px) saturate(180%)',
         WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-        borderRadius: '14px',
+        borderRadius: '20px',
         overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
       }}>
         {content}
       </div>
