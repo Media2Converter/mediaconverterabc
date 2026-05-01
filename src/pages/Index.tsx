@@ -339,17 +339,53 @@ const Index: React.FC = () => {
       {/* Header with settings and more menu */}
       <div className="w-full flex items-center justify-between mb-8">
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleMoreMenuClick}
-            className="text-foreground p-2 active:opacity-60"
-            aria-label="その他のオプション"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="5" cy="12" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="19" cy="12" r="2" />
-            </svg>
-          </button>
+          <Popover open={showMoreMenu} onOpenChange={setShowMoreMenu}>
+            <PopoverTrigger asChild>
+              <button
+                onPointerDown={handleMoreMenuClick}
+                onPointerUp={() => { if (moreMenuTimer.current) { clearTimeout(moreMenuTimer.current); moreMenuTimer.current = null; } }}
+                onPointerLeave={() => { if (moreMenuTimer.current) { clearTimeout(moreMenuTimer.current); moreMenuTimer.current = null; } }}
+                className="text-foreground p-2 active:opacity-60"
+                aria-label="その他のオプション"
+                aria-haspopup="menu"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="5" cy="12" r="2" />
+                  <circle cx="12" cy="12" r="2" />
+                  <circle cx="19" cy="12" r="2" />
+                </svg>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              sideOffset={6}
+              className="p-0 w-[260px] border-0 overflow-hidden"
+              style={{
+                background: 'rgba(50, 50, 52, 0.92)',
+                backdropFilter: 'blur(50px) saturate(180%)',
+                WebkitBackdropFilter: 'blur(50px) saturate(180%)',
+                borderRadius: 14,
+                boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+              }}
+              role="menu"
+              aria-label="その他のオプション"
+            >
+              {moreMenuSections[0].options.map((opt, i, arr) => (
+                <button
+                  key={opt.value}
+                  role="menuitem"
+                  onClick={() => { handleMoreMenuSelect(opt.value); setShowMoreMenu(false); }}
+                  className="w-full px-4 py-[13px] text-left text-[17px] flex items-center justify-between active:bg-white/10 transition-colors"
+                  style={{
+                    color: opt.colorClass === 'text-destructive' ? 'hsl(var(--destructive))' : '#fff',
+                    borderBottom: i === arr.length - 1 ? 'none' : '0.5px solid rgba(255,255,255,0.12)',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
         </div>
         <h1 className="text-2xl font-bold tracking-tight">メディアコンバータ</h1>
         <button
