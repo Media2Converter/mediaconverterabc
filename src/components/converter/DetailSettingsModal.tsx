@@ -640,35 +640,3 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     </>
   );
 };
-
-  // Desktop: centered dialog at 3/4 height
-  return (
-    <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="詳細設定">
-        <div
-          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-          role="button"
-          aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
-          tabIndex={0}
-          onClick={onClose}
-          onKeyDown={e => e.key === 'Enter' && onClose()}
-        />
-        <div
-          className="relative flex flex-col ios-scale-in"
-          style={{
-            width: 'min(520px, 92vw)',
-            maxHeight: '75vh',
-            background: 'rgba(28, 28, 30, 0.92)',
-            backdropFilter: 'blur(40px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-            borderRadius: '14px',
-            overflow: 'hidden',
-          }}
-        >
-          {settingsContent}
-        </div>
-      </div>
-      {customDialogs}
-    </>
-  );
-};
