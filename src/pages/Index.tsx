@@ -392,20 +392,24 @@ const Index: React.FC = () => {
       {/* Header with settings and more menu */}
       <div className="w-full flex items-center justify-between mb-8">
         <div className="flex items-center gap-2">
-          <button
-            onPointerDown={handleMoreMenuClick}
-            onPointerUp={() => { if (moreMenuTimer.current) { clearTimeout(moreMenuTimer.current); moreMenuTimer.current = null; } }}
-            onPointerLeave={() => { if (moreMenuTimer.current) { clearTimeout(moreMenuTimer.current); moreMenuTimer.current = null; } }}
+          <NativeSelectButton
+            ariaLabel="その他のオプション"
             className="text-foreground p-2 active:opacity-60"
-            aria-label="その他のオプション"
-            aria-haspopup="menu"
+            style={{ width: 40, height: 40 }}
+            delay={1000}
+            onSelect={handleMoreMenuSelect}
+            pickerHeader="メディアコンバータ"
+            groups={[{
+              label: 'メディアコンバータ',
+              options: moreMenuSections[0].options.map(o => ({ label: o.label, value: o.value })),
+            }]}
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="5" cy="12" r="2" />
               <circle cx="12" cy="12" r="2" />
               <circle cx="19" cy="12" r="2" />
             </svg>
-          </button>
+          </NativeSelectButton>
         </div>
         <h1 className="text-2xl font-bold tracking-tight">メディアコンバータ</h1>
         <button
