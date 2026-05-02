@@ -494,6 +494,18 @@ const Index: React.FC = () => {
         </div>
       )}
 
+      {/* Main format picker — same iOS picker UI */}
+      <IOSPickerModal
+        open={showMainFormatPicker}
+        onClose={() => setShowMainFormatPicker(false)}
+        onSelect={(v) => handleFormatSelect(v)}
+        selected={selectedFormat}
+        sections={allFormats.map(g => ({
+          title: g.group,
+          options: g.formats.map(f => ({ label: f, value: f })),
+        }))}
+      />
+
       {/* More menu (•••) — uses IOSPickerModal (same as format picker) */}
       <IOSPickerModal
         open={showMoreMenu}
