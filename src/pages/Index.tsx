@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { ProgressCircle } from '@/components/converter/IOSComponents';
+import { ProgressCircle, IOSPickerModal, type PickerSection } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
@@ -9,7 +9,6 @@ import {
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort, resetFFmpeg } from '@/services/ffmpegConverter';
 import { AppSettingsModal } from '@/components/converter/AppSettingsModal';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 /** Gather device info for analysis AI */
 async function getDeviceInfo() {
