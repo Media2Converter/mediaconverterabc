@@ -503,75 +503,54 @@ const Index: React.FC = () => {
         </div>
       )}
 
-      {/* File format popup (multi-file) */}
-      {showFileFormatPopup && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center ios-fade-in">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-md"
-            role="button"
-            aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
-            tabIndex={0}
-            onClick={() => { setShowFileFormatPopup(false); setFileFormatPickerIndex(null); }}
-            onKeyDown={e => e.key === 'Enter' && setShowFileFormatPopup(false)}
-          />
-          <div aria-live="assertive" className="sr-only" role="status">{fileFormatVo}</div>
-          <div
-            className="relative ios-scale-in"
-            style={{
-              width: 'min(360px, 90vw)',
-              maxHeight: '70vh',
-              background: 'hsl(0, 70%, 45%)',
-              borderRadius: '14px',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="px-4 py-3 text-white text-[20px] font-semibold text-center" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.2)' }}>
-              ファイル形式
-            </div>
-            <div className="overflow-y-auto flex-1">
-              {files.map((f, i) => (
-                <div key={i}>
-                  <button
-                    onClick={() => setFileFormatPickerIndex(fileFormatPickerIndex === i ? null : i)}
-                    className="w-full px-4 py-3 text-left active:opacity-70 transition-opacity"
-                    style={{ borderBottom: '0.5px solid rgba(255,255,255,0.15)' }}
-                  >
-                    <p className="text-white text-[20px] truncate">{f.name}</p>
-                    <p className="text-white/70 text-[16px]">
-                      形式: {perFileFormats[i] || selectedFormat || '未選択'} · {(f.size / 1024 / 1024).toFixed(1)} MB
-                    </p>
-                  </button>
-                  {fileFormatPickerIndex === i && (
-                    <div className="bg-black/20">
-                      {allFormats.map(g => (
-                        <div key={g.group}>
-                          <div className="px-4 py-1 text-white/50 text-[13px] font-medium">{g.group}</div>
-                          {g.formats.map(fmt => (
-                            <button
-                              key={fmt}
-                              onClick={() => {
-                                setPerFileFormats(prev => ({ ...prev, [i]: fmt }));
-                                setFileFormatPickerIndex(null);
-                              }}
-                              className="w-full px-6 py-2.5 text-left text-white text-[20px] active:bg-white/10 flex items-center justify-between"
-                            >
-                              <span>{fmt}</span>
-                              {(perFileFormats[i] || selectedFormat) === fmt && <span className="text-white text-[15px]">✓</span>}
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* More menu (•••) — uses IOSPickerModal (same as format picker) */}
+      <IOSPickerModal
+        open={showMoreMenu}
+        onClose={() => setShowMoreMenu(false)}
+        onSelect={(v) => handleMoreMenuSelect(v)}
+        sections={[{
+          title: 'メディアコンバータ',
+          options: moreMenuSections[0].options.map(o => ({
+            label: o.label,
+            value: o.value,
+            colorClass: o.colorClass,
+          })),
+        }]}
+      />
+
+      {/* Per-file format picker (multi-file): list of files → tap one → format picker */}
+      <IOSPickerModal
+        open={showFileFormatPopup && fileFormatPickerIndex === null}
+        onClose={() => { setShowFileFormatPopup(false); setFileFormatPickerIndex(null); }}
+        onSelect={(v) => {
+          const idx = parseInt(v, 10);
+          if (!isNaN(idx)) setFileFormatPickerIndex(idx);
+        }}
+        sections={[{
+          title: 'ファイル形式',
+          options: files.map((f, i) => ({
+            label: `${f.name} (${perFileFormats[i] || selectedFormat || '未選択'})`,
+            value: String(i),
+          })),
+        }]}
+      />
+
+      {/* Per-file format selector */}
+      <IOSPickerModal
+        open={showFileFormatPopup && fileFormatPickerIndex !== null}
+        onClose={() => setFileFormatPickerIndex(null)}
+        onSelect={(fmt) => {
+          if (fileFormatPickerIndex !== null) {
+            setPerFileFormats(prev => ({ ...prev, [fileFormatPickerIndex]: fmt }));
+          }
+          setFileFormatPickerIndex(null);
+        }}
+        selected={fileFormatPickerIndex !== null ? (perFileFormats[fileFormatPickerIndex] || selectedFormat) : undefined}
+        sections={allFormats.map(g => ({
+          title: g.group,
+          options: g.formats.map(f => ({ label: f, value: f })),
+        }))}
+      />
 
       <DetailSettingsModal
         open={showDetailSettings}
