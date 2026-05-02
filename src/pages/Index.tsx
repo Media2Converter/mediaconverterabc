@@ -47,6 +47,93 @@ async function getDeviceInfo() {
 // Download counter for CDF naming
 let cdfCounter = 1;
 
+/** A button that triggers the native iOS select picker (context-menu picker). */
+const NativeSelectButton: React.FC<{
+  className?: string;
+  style?: React.CSSProperties;
+  ariaLabel?: string;
+  children: React.ReactNode;
+  value?: string;
+  onSelect: (v: string) => void;
+  groups: { label: string; options: { label: string; value: string; disabled?: boolean }[] }[];
+  pickerHeader?: string;
+  delay?: number;
+}> = ({ className, style, ariaLabel, children, value, onSelect, groups, pickerHeader, delay = 0 }) => {
+  const ref = useRef<HTMLSelectElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const open = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { ref.current?.focus(); ref.current?.click(); }, delay);
+  };
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  return (
+    <div className={`relative ${className || ''}`} style={style}>
+      <button
+        type="button"
+        onPointerDown={open}
+        onPointerUp={() => { if (timer.current && delay === 0) { /* already opened */ } }}
+        onPointerLeave={() => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } }}
+        className="w-full h-full"
+        aria-label={ariaLabel}
+        aria-haspopup="menu"
+      >
+        {children}
+      </button>
+      <select
+        ref={ref}
+        value={value || ''}
+        onChange={e => onSelect(e.target.value)}
+        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+        style={{ fontSize: '20px' }}
+        aria-label={ariaLabel}
+      >
+        {pickerHeader && <option disabled value="">{pickerHeader}</option>}
+        {groups.map(g => (
+          <optgroup key={g.label} label={g.label}>
+            {g.options.map(o => (
+              <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  );
+};
+
+/** Hidden native select that auto-opens when `open` becomes true (used for per-file format picker stage 2). */
+const PerFileNativeFormatPicker: React.FC<{
+  open: boolean;
+  value: string;
+  groups: { label: string; options: { label: string; value: string }[] }[];
+  onSelect: (v: string) => void;
+}> = ({ open, value, groups, onSelect }) => {
+  const ref = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (open) {
+      const t = setTimeout(() => { ref.current?.focus(); ref.current?.click(); }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
+  if (!open) return null;
+  return (
+    <select
+      ref={ref}
+      value={value}
+      onChange={e => onSelect(e.target.value)}
+      onBlur={() => onSelect('')}
+      className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 pointer-events-auto"
+      style={{ width: 200, height: 40, zIndex: 100 }}
+    >
+      <option disabled value="">出力形式</option>
+      {groups.map(g => (
+        <optgroup key={g.label} label={g.label}>
+          {g.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+};
+
 const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [fileUrls, setFileUrls] = useState<string[]>([]);
@@ -339,20 +426,24 @@ const Index: React.FC = () => {
       {/* Header with settings and more menu */}
       <div className="w-full flex items-center justify-between mb-8">
         <div className="flex items-center gap-2">
-          <button
-            onPointerDown={handleMoreMenuClick}
-            onPointerUp={() => { if (moreMenuTimer.current) { clearTimeout(moreMenuTimer.current); moreMenuTimer.current = null; } }}
-            onPointerLeave={() => { if (moreMenuTimer.current) { clearTimeout(moreMenuTimer.current); moreMenuTimer.current = null; } }}
+          <NativeSelectButton
+            ariaLabel="その他のオプション"
             className="text-foreground p-2 active:opacity-60"
-            aria-label="その他のオプション"
-            aria-haspopup="menu"
+            style={{ width: 40, height: 40 }}
+            delay={1000}
+            onSelect={handleMoreMenuSelect}
+            pickerHeader="メディアコンバータ"
+            groups={[{
+              label: 'メディアコンバータ',
+              options: moreMenuSections[0].options.map(o => ({ label: o.label, value: o.value })),
+            }]}
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="5" cy="12" r="2" />
               <circle cx="12" cy="12" r="2" />
               <circle cx="19" cy="12" r="2" />
             </svg>
-          </button>
+          </NativeSelectButton>
         </div>
         <h1 className="text-2xl font-bold tracking-tight">メディアコンバータ</h1>
         <button
@@ -399,13 +490,19 @@ const Index: React.FC = () => {
 
         {files.length > 0 && (
           <>
-            <button
-              onClick={() => setShowMainFormatPicker(true)}
-              className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-              style={{ borderRadius: 0 }}
+            <NativeSelectButton
+              className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+              style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
+              ariaLabel="出力形式"
+              value={selectedFormat}
+              onSelect={handleFormatSelect}
+              pickerHeader="出力形式"
+              groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
             >
-              {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
-            </button>
+              <span className="block w-full py-3.5 text-[20px] font-semibold">
+                {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
+              </span>
+            </NativeSelectButton>
 
             {/* Per-file format button (multi-file only) */}
             {isMultiFile && (
@@ -494,34 +591,7 @@ const Index: React.FC = () => {
         </div>
       )}
 
-      {/* Main format picker — same iOS picker UI */}
-      <IOSPickerModal
-        open={showMainFormatPicker}
-        onClose={() => setShowMainFormatPicker(false)}
-        onSelect={(v) => handleFormatSelect(v)}
-        selected={selectedFormat}
-        sections={allFormats.map(g => ({
-          title: g.group,
-          options: g.formats.map(f => ({ label: f, value: f })),
-        }))}
-      />
-
-      {/* More menu (•••) — uses IOSPickerModal (same as format picker) */}
-      <IOSPickerModal
-        open={showMoreMenu}
-        onClose={() => setShowMoreMenu(false)}
-        onSelect={(v) => handleMoreMenuSelect(v)}
-        sections={[{
-          title: 'メディアコンバータ',
-          options: moreMenuSections[0].options.map(o => ({
-            label: o.label,
-            value: o.value,
-            colorClass: o.colorClass,
-          })),
-        }]}
-      />
-
-      {/* Per-file format picker (multi-file): list of files → tap one → format picker */}
+      {/* Per-file format picker (multi-file): list of files → tap one → native format picker */}
       <IOSPickerModal
         open={showFileFormatPopup && fileFormatPickerIndex === null}
         onClose={() => { setShowFileFormatPopup(false); setFileFormatPickerIndex(null); }}
@@ -538,21 +608,17 @@ const Index: React.FC = () => {
         }]}
       />
 
-      {/* Per-file format selector */}
-      <IOSPickerModal
+      {/* Per-file format selector — uses native iOS picker */}
+      <PerFileNativeFormatPicker
         open={showFileFormatPopup && fileFormatPickerIndex !== null}
-        onClose={() => setFileFormatPickerIndex(null)}
+        value={fileFormatPickerIndex !== null ? (perFileFormats[fileFormatPickerIndex] || selectedFormat || '') : ''}
+        groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
         onSelect={(fmt) => {
-          if (fileFormatPickerIndex !== null) {
-            setPerFileFormats(prev => ({ ...prev, [fileFormatPickerIndex]: fmt }));
+          if (fileFormatPickerIndex !== null && fmt) {
+            setPerFileFormats(prev => ({ ...prev, [fileFormatPickerIndex!]: fmt }));
           }
           setFileFormatPickerIndex(null);
         }}
-        selected={fileFormatPickerIndex !== null ? (perFileFormats[fileFormatPickerIndex] || selectedFormat) : undefined}
-        sections={allFormats.map(g => ({
-          title: g.group,
-          options: g.formats.map(f => ({ label: f, value: f })),
-        }))}
       />
 
       <DetailSettingsModal
