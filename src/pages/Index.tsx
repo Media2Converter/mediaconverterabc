@@ -47,6 +47,59 @@ async function getDeviceInfo() {
 // Download counter for CDF naming
 let cdfCounter = 1;
 
+/** A button that triggers the native iOS select picker (context-menu picker). */
+const NativeSelectButton: React.FC<{
+  className?: string;
+  style?: React.CSSProperties;
+  ariaLabel?: string;
+  children: React.ReactNode;
+  value?: string;
+  onSelect: (v: string) => void;
+  groups: { label: string; options: { label: string; value: string; disabled?: boolean }[] }[];
+  pickerHeader?: string;
+  delay?: number;
+}> = ({ className, style, ariaLabel, children, value, onSelect, groups, pickerHeader, delay = 0 }) => {
+  const ref = useRef<HTMLSelectElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const open = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { ref.current?.focus(); ref.current?.click(); }, delay);
+  };
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  return (
+    <div className={`relative ${className || ''}`} style={style}>
+      <button
+        type="button"
+        onPointerDown={open}
+        onPointerUp={() => { if (timer.current && delay === 0) { /* already opened */ } }}
+        onPointerLeave={() => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } }}
+        className="w-full h-full"
+        aria-label={ariaLabel}
+        aria-haspopup="menu"
+      >
+        {children}
+      </button>
+      <select
+        ref={ref}
+        value={value || ''}
+        onChange={e => onSelect(e.target.value)}
+        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+        style={{ fontSize: '20px' }}
+        aria-label={ariaLabel}
+      >
+        {pickerHeader && <option disabled value="">{pickerHeader}</option>}
+        {groups.map(g => (
+          <optgroup key={g.label} label={g.label}>
+            {g.options.map(o => (
+              <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  );
+};
+
 const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [fileUrls, setFileUrls] = useState<string[]>([]);
