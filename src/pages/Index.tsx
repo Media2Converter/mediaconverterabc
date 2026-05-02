@@ -70,6 +70,7 @@ const Index: React.FC = () => {
   // File format popup
   const [showFileFormatPopup, setShowFileFormatPopup] = useState(false);
   const [fileFormatPickerIndex, setFileFormatPickerIndex] = useState<number | null>(null);
+  const [showMainFormatPicker, setShowMainFormatPicker] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
