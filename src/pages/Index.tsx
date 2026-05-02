@@ -557,34 +557,7 @@ const Index: React.FC = () => {
         </div>
       )}
 
-      {/* Main format picker — same iOS picker UI */}
-      <IOSPickerModal
-        open={showMainFormatPicker}
-        onClose={() => setShowMainFormatPicker(false)}
-        onSelect={(v) => handleFormatSelect(v)}
-        selected={selectedFormat}
-        sections={allFormats.map(g => ({
-          title: g.group,
-          options: g.formats.map(f => ({ label: f, value: f })),
-        }))}
-      />
-
-      {/* More menu (•••) — uses IOSPickerModal (same as format picker) */}
-      <IOSPickerModal
-        open={showMoreMenu}
-        onClose={() => setShowMoreMenu(false)}
-        onSelect={(v) => handleMoreMenuSelect(v)}
-        sections={[{
-          title: 'メディアコンバータ',
-          options: moreMenuSections[0].options.map(o => ({
-            label: o.label,
-            value: o.value,
-            colorClass: o.colorClass,
-          })),
-        }]}
-      />
-
-      {/* Per-file format picker (multi-file): list of files → tap one → format picker */}
+      {/* Per-file format picker (multi-file): list of files → tap one → native format picker */}
       <IOSPickerModal
         open={showFileFormatPopup && fileFormatPickerIndex === null}
         onClose={() => { setShowFileFormatPopup(false); setFileFormatPickerIndex(null); }}
@@ -601,21 +574,17 @@ const Index: React.FC = () => {
         }]}
       />
 
-      {/* Per-file format selector */}
-      <IOSPickerModal
+      {/* Per-file format selector — uses native iOS picker */}
+      <PerFileNativeFormatPicker
         open={showFileFormatPopup && fileFormatPickerIndex !== null}
-        onClose={() => setFileFormatPickerIndex(null)}
+        value={fileFormatPickerIndex !== null ? (perFileFormats[fileFormatPickerIndex] || selectedFormat || '') : ''}
+        groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
         onSelect={(fmt) => {
-          if (fileFormatPickerIndex !== null) {
-            setPerFileFormats(prev => ({ ...prev, [fileFormatPickerIndex]: fmt }));
+          if (fileFormatPickerIndex !== null && fmt) {
+            setPerFileFormats(prev => ({ ...prev, [fileFormatPickerIndex!]: fmt }));
           }
           setFileFormatPickerIndex(null);
         }}
-        selected={fileFormatPickerIndex !== null ? (perFileFormats[fileFormatPickerIndex] || selectedFormat) : undefined}
-        sections={allFormats.map(g => ({
-          title: g.group,
-          options: g.formats.map(f => ({ label: f, value: f })),
-        }))}
       />
 
       <DetailSettingsModal
