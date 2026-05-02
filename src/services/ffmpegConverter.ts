@@ -71,7 +71,20 @@ export function buildFFmpegArgs(
       // Resolution - always force even numbers via scale filter with trunc
       const w = settings.resolutionW;
       const h = settings.resolutionH;
-      vFilters.push(`scale='trunc(${w}/2)*2:trunc(${h}/2)*2'`);
+
+      // Aspect ratio: force letterbox (scale + pad with black bars)
+      if (settings.aspectRatio !== '自由') {
+        // Compute target W:H from aspect ratio, then fit-and-pad with black
+        // scale=w:h:force_original_aspect_ratio=decrease ensures contents fit, then pad to target with black
+        vFilters.push(
+          `scale=w='trunc(${w}/2)*2':h='trunc(${h}/2)*2':force_original_aspect_ratio=decrease`,
+          `pad=w='trunc(${w}/2)*2':h='trunc(${h}/2)*2':x='(ow-iw)/2':y='(oh-ih)/2':color=black`,
+          `setsar=1`
+        );
+        args.push('-aspect', settings.aspectRatio);
+      } else {
+        vFilters.push(`scale='trunc(${w}/2)*2:trunc(${h}/2)*2'`);
+      }
 
       // Video bitrate
       const vBitrate = settings.videoBitrate.replace('KBPS', 'k');
@@ -80,11 +93,6 @@ export function buildFFmpegArgs(
       // Framerate — force CFR to fix VFR issues from iPhone
       const fps = settings.framerate.replace('FPS', '');
       args.push('-r', fps);
-
-      // Aspect ratio
-      if (settings.aspectRatio !== '自由') {
-        args.push('-aspect', settings.aspectRatio);
-      }
 
       // Interlace — stabilized with scale + tinterlace + setfield
       if (settings.scanType === 'インターレース方式') {
