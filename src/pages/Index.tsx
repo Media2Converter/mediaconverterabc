@@ -399,23 +399,13 @@ const Index: React.FC = () => {
 
         {files.length > 0 && (
           <>
-            <div className="relative">
-              <select
-                value={selectedFormat}
-                onChange={e => handleFormatSelect(e.target.value)}
-                className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold appearance-none cursor-pointer border-b border-primary-foreground/20"
-                style={{ borderRadius: 0, textAlign: 'center', textAlignLast: 'center' }}
-              >
-                <option value="" disabled>{isMultiFile ? '全ての形式' : '出力形式'}</option>
-                {allFormats.map(g => (
-                  <optgroup key={g.group} label={g.group}>
-                    {g.formats.map(f => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
+            <button
+              onClick={() => setShowMainFormatPicker(true)}
+              className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+              style={{ borderRadius: 0 }}
+            >
+              {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
+            </button>
 
             {/* Per-file format button (multi-file only) */}
             {isMultiFile && (
