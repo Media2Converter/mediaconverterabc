@@ -415,11 +415,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           <>
             {/* Section heading (not a disabled button) */}
             <SectionHeading>ビデオ</SectionHeading>
-            <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
-              options={videoCodecOptions} selected={settings.videoCodec}
-              onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
 
-            {/* Other Actions accordion for video */}
+            {/* Other Actions accordion for video — placed ABOVE codec picker */}
             <AccordionSection title="その他のアクション">
               <button
                 onClick={() => handleSelect('videoCodec', 'copy')}
@@ -428,6 +425,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
                 コピー {settings.videoCodec === 'copy' && '✓'}
               </button>
             </AccordionSection>
+
+            <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
+              options={videoCodecOptions} selected={settings.videoCodec}
+              onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
 
             <NativePickerRow label="縦横比" displayValue={settings.aspectRatio}
               options={aspectRatioOptions} selected={settings.aspectRatio}
