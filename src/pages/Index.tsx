@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { ProgressCircle } from '@/components/converter/IOSComponents';
+import { IOSPickerModal } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
@@ -9,7 +9,6 @@ import {
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort, resetFFmpeg } from '@/services/ffmpegConverter';
 import { AppSettingsModal } from '@/components/converter/AppSettingsModal';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 /** Gather device info for analysis AI */
 async function getDeviceInfo() {
@@ -71,6 +70,7 @@ const Index: React.FC = () => {
   // File format popup
   const [showFileFormatPopup, setShowFileFormatPopup] = useState(false);
   const [fileFormatPickerIndex, setFileFormatPickerIndex] = useState<number | null>(null);
+  const [showMainFormatPicker, setShowMainFormatPicker] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -339,53 +339,20 @@ const Index: React.FC = () => {
       {/* Header with settings and more menu */}
       <div className="w-full flex items-center justify-between mb-8">
         <div className="flex items-center gap-2">
-          <Popover open={showMoreMenu} onOpenChange={setShowMoreMenu}>
-            <PopoverTrigger asChild>
-              <button
-                onPointerDown={handleMoreMenuClick}
-                onPointerUp={() => { if (moreMenuTimer.current) { clearTimeout(moreMenuTimer.current); moreMenuTimer.current = null; } }}
-                onPointerLeave={() => { if (moreMenuTimer.current) { clearTimeout(moreMenuTimer.current); moreMenuTimer.current = null; } }}
-                className="text-foreground p-2 active:opacity-60"
-                aria-label="その他のオプション"
-                aria-haspopup="menu"
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <circle cx="5" cy="12" r="2" />
-                  <circle cx="12" cy="12" r="2" />
-                  <circle cx="19" cy="12" r="2" />
-                </svg>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="start"
-              sideOffset={6}
-              className="p-0 w-[260px] border-0 overflow-hidden"
-              style={{
-                background: 'rgba(50, 50, 52, 0.92)',
-                backdropFilter: 'blur(50px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(50px) saturate(180%)',
-                borderRadius: 14,
-                boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
-              }}
-              role="menu"
-              aria-label="その他のオプション"
-            >
-              {moreMenuSections[0].options.map((opt, i, arr) => (
-                <button
-                  key={opt.value}
-                  role="menuitem"
-                  onClick={() => { handleMoreMenuSelect(opt.value); setShowMoreMenu(false); }}
-                  className="w-full px-4 py-[13px] text-left text-[17px] flex items-center justify-between active:bg-white/10 transition-colors"
-                  style={{
-                    color: opt.colorClass === 'text-destructive' ? 'hsl(var(--destructive))' : '#fff',
-                    borderBottom: i === arr.length - 1 ? 'none' : '0.5px solid rgba(255,255,255,0.12)',
-                  }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </PopoverContent>
-          </Popover>
+          <button
+            onPointerDown={handleMoreMenuClick}
+            onPointerUp={() => { if (moreMenuTimer.current) { clearTimeout(moreMenuTimer.current); moreMenuTimer.current = null; } }}
+            onPointerLeave={() => { if (moreMenuTimer.current) { clearTimeout(moreMenuTimer.current); moreMenuTimer.current = null; } }}
+            className="text-foreground p-2 active:opacity-60"
+            aria-label="その他のオプション"
+            aria-haspopup="menu"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
         </div>
         <h1 className="text-2xl font-bold tracking-tight">メディアコンバータ</h1>
         <button
@@ -432,23 +399,13 @@ const Index: React.FC = () => {
 
         {files.length > 0 && (
           <>
-            <div className="relative">
-              <select
-                value={selectedFormat}
-                onChange={e => handleFormatSelect(e.target.value)}
-                className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold appearance-none cursor-pointer border-b border-primary-foreground/20"
-                style={{ borderRadius: 0, textAlign: 'center', textAlignLast: 'center' }}
-              >
-                <option value="" disabled>{isMultiFile ? '全ての形式' : '出力形式'}</option>
-                {allFormats.map(g => (
-                  <optgroup key={g.group} label={g.group}>
-                    {g.formats.map(f => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
+            <button
+              onClick={() => setShowMainFormatPicker(true)}
+              className="w-full py-3.5 bg-primary text-primary-foreground text-[20px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+              style={{ borderRadius: 0 }}
+            >
+              {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
+            </button>
 
             {/* Per-file format button (multi-file only) */}
             {isMultiFile && (
@@ -537,75 +494,66 @@ const Index: React.FC = () => {
         </div>
       )}
 
-      {/* File format popup (multi-file) */}
-      {showFileFormatPopup && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center ios-fade-in">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-md"
-            role="button"
-            aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
-            tabIndex={0}
-            onClick={() => { setShowFileFormatPopup(false); setFileFormatPickerIndex(null); }}
-            onKeyDown={e => e.key === 'Enter' && setShowFileFormatPopup(false)}
-          />
-          <div aria-live="assertive" className="sr-only" role="status">{fileFormatVo}</div>
-          <div
-            className="relative ios-scale-in"
-            style={{
-              width: 'min(360px, 90vw)',
-              maxHeight: '70vh',
-              background: 'hsl(0, 70%, 45%)',
-              borderRadius: '14px',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="px-4 py-3 text-white text-[20px] font-semibold text-center" style={{ borderBottom: '0.5px solid rgba(255,255,255,0.2)' }}>
-              ファイル形式
-            </div>
-            <div className="overflow-y-auto flex-1">
-              {files.map((f, i) => (
-                <div key={i}>
-                  <button
-                    onClick={() => setFileFormatPickerIndex(fileFormatPickerIndex === i ? null : i)}
-                    className="w-full px-4 py-3 text-left active:opacity-70 transition-opacity"
-                    style={{ borderBottom: '0.5px solid rgba(255,255,255,0.15)' }}
-                  >
-                    <p className="text-white text-[20px] truncate">{f.name}</p>
-                    <p className="text-white/70 text-[16px]">
-                      形式: {perFileFormats[i] || selectedFormat || '未選択'} · {(f.size / 1024 / 1024).toFixed(1)} MB
-                    </p>
-                  </button>
-                  {fileFormatPickerIndex === i && (
-                    <div className="bg-black/20">
-                      {allFormats.map(g => (
-                        <div key={g.group}>
-                          <div className="px-4 py-1 text-white/50 text-[13px] font-medium">{g.group}</div>
-                          {g.formats.map(fmt => (
-                            <button
-                              key={fmt}
-                              onClick={() => {
-                                setPerFileFormats(prev => ({ ...prev, [i]: fmt }));
-                                setFileFormatPickerIndex(null);
-                              }}
-                              className="w-full px-6 py-2.5 text-left text-white text-[20px] active:bg-white/10 flex items-center justify-between"
-                            >
-                              <span>{fmt}</span>
-                              {(perFileFormats[i] || selectedFormat) === fmt && <span className="text-white text-[15px]">✓</span>}
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Main format picker — same iOS picker UI */}
+      <IOSPickerModal
+        open={showMainFormatPicker}
+        onClose={() => setShowMainFormatPicker(false)}
+        onSelect={(v) => handleFormatSelect(v)}
+        selected={selectedFormat}
+        sections={allFormats.map(g => ({
+          title: g.group,
+          options: g.formats.map(f => ({ label: f, value: f })),
+        }))}
+      />
+
+      {/* More menu (•••) — uses IOSPickerModal (same as format picker) */}
+      <IOSPickerModal
+        open={showMoreMenu}
+        onClose={() => setShowMoreMenu(false)}
+        onSelect={(v) => handleMoreMenuSelect(v)}
+        sections={[{
+          title: 'メディアコンバータ',
+          options: moreMenuSections[0].options.map(o => ({
+            label: o.label,
+            value: o.value,
+            colorClass: o.colorClass,
+          })),
+        }]}
+      />
+
+      {/* Per-file format picker (multi-file): list of files → tap one → format picker */}
+      <IOSPickerModal
+        open={showFileFormatPopup && fileFormatPickerIndex === null}
+        onClose={() => { setShowFileFormatPopup(false); setFileFormatPickerIndex(null); }}
+        onSelect={(v) => {
+          const idx = parseInt(v, 10);
+          if (!isNaN(idx)) setFileFormatPickerIndex(idx);
+        }}
+        sections={[{
+          title: 'ファイル形式',
+          options: files.map((f, i) => ({
+            label: `${f.name} (${perFileFormats[i] || selectedFormat || '未選択'})`,
+            value: String(i),
+          })),
+        }]}
+      />
+
+      {/* Per-file format selector */}
+      <IOSPickerModal
+        open={showFileFormatPopup && fileFormatPickerIndex !== null}
+        onClose={() => setFileFormatPickerIndex(null)}
+        onSelect={(fmt) => {
+          if (fileFormatPickerIndex !== null) {
+            setPerFileFormats(prev => ({ ...prev, [fileFormatPickerIndex]: fmt }));
+          }
+          setFileFormatPickerIndex(null);
+        }}
+        selected={fileFormatPickerIndex !== null ? (perFileFormats[fileFormatPickerIndex] || selectedFormat) : undefined}
+        sections={allFormats.map(g => ({
+          title: g.group,
+          options: g.formats.map(f => ({ label: f, value: f })),
+        }))}
+      />
 
       <DetailSettingsModal
         open={showDetailSettings}
