@@ -100,6 +100,40 @@ const NativeSelectButton: React.FC<{
   );
 };
 
+/** Hidden native select that auto-opens when `open` becomes true (used for per-file format picker stage 2). */
+const PerFileNativeFormatPicker: React.FC<{
+  open: boolean;
+  value: string;
+  groups: { label: string; options: { label: string; value: string }[] }[];
+  onSelect: (v: string) => void;
+}> = ({ open, value, groups, onSelect }) => {
+  const ref = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (open) {
+      const t = setTimeout(() => { ref.current?.focus(); ref.current?.click(); }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
+  if (!open) return null;
+  return (
+    <select
+      ref={ref}
+      value={value}
+      onChange={e => onSelect(e.target.value)}
+      onBlur={() => onSelect('')}
+      className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 pointer-events-auto"
+      style={{ width: 200, height: 40, zIndex: 100 }}
+    >
+      <option disabled value="">出力形式</option>
+      {groups.map(g => (
+        <optgroup key={g.label} label={g.label}>
+          {g.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+};
+
 const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [fileUrls, setFileUrls] = useState<string[]>([]);
