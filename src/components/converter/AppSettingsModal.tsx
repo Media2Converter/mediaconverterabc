@@ -199,7 +199,6 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   useEffect(() => {
     if (open) {
       setVoAnnouncement('');
-      playDialogOpenSound();
       setTimeout(() => setVoAnnouncement('設定 ダイアログ'), 50);
     } else {
       setVoAnnouncement('');
