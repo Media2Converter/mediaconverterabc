@@ -1,16 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
-import chevronUpDown from '@/assets/chevron-updown.jpeg';
-import dialogOpenSound from '@/assets/dialog-open.wav';
-
-function playDialogOpenSound() {
-  try {
-    const audio = new Audio(dialogOpenSound);
-    audio.volume = 0.7;
-    audio.play().catch(() => {});
-  } catch {}
-}
+import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
