@@ -250,13 +250,16 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
     </>
   );
 
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useIOSSheetA11y(open, sheetRef);
+
   return (
     <VaulDrawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <VaulDrawer.Portal>
         <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
+        <VOOverlayCloseButton onClose={onClose} />
         <VaulDrawer.Content
-          role="dialog"
-          aria-modal="true"
+          ref={sheetRef}
           aria-label="設定 ダイアログ"
           // @ts-ignore
           popover="auto"
