@@ -42,9 +42,6 @@ const TEXT_COLORS = [
   { label: '自動', value: 'auto' },
 ];
 
-const ContextMenuChevron: React.FC = () => (
-  <img src={chevronUpDown} alt="" aria-hidden="true" style={{ width: 18, height: 22, objectFit: 'contain', opacity: 0.9 }} />
-);
 
 const SettingsRow: React.FC<{
   label: string;
