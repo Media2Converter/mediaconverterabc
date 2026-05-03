@@ -607,35 +607,33 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!open) return null;
 
-  // Unified iOS popup window (centered) for both mobile + desktop
+  // iOS-style half-sheet via vaul Drawer + popover=auto for top-layer rendering
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center px-3" role="dialog" aria-modal="true" aria-label="詳細設定">
-        <div
-          className="absolute inset-0 bg-black/55 backdrop-blur-sm"
-          role="button"
-          aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
-          tabIndex={0}
-          onClick={onClose}
-          onKeyDown={e => e.key === 'Enter' && onClose()}
-        />
-        <div
-          className="relative flex flex-col ios-scale-in"
-          style={{
-            width: isMobile ? '100%' : 'min(520px, 92vw)',
-            maxWidth: isMobile ? '100%' : '520px',
-            maxHeight: '85vh',
-            background: 'rgba(38, 38, 40, 0.96)',
-            backdropFilter: 'blur(40px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-            borderRadius: '20px',
-            overflow: 'hidden',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-          }}
-        >
-          {settingsContent}
-        </div>
-      </div>
+      <VaulDrawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+        <VaulDrawer.Portal>
+          <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
+          <VaulDrawer.Content
+            role="dialog"
+            aria-modal="true"
+            aria-label="詳細設定"
+            // @ts-ignore - popover is a valid HTML attribute
+            popover="auto"
+            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col outline-none"
+            style={{
+              maxHeight: '90vh',
+              background: '#1C1C1E',
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div className="mx-auto mt-2 mb-1 h-1.5 w-12 rounded-full bg-white/30 flex-shrink-0" />
+            <VaulDrawer.Title className="sr-only">詳細設定</VaulDrawer.Title>
+            {settingsContent}
+          </VaulDrawer.Content>
+        </VaulDrawer.Portal>
+      </VaulDrawer.Root>
       {customDialogs}
     </>
   );
