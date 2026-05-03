@@ -43,10 +43,7 @@ const TEXT_COLORS = [
 ];
 
 const ContextMenuChevron: React.FC = () => (
-  <span className="flex flex-col items-center justify-center leading-none text-muted-foreground" style={{ fontSize: '10px', lineHeight: '8px', gap: '1px' }}>
-    <span>▲</span>
-    <span>▼</span>
-  </span>
+  <img src={chevronUpDown} alt="" aria-hidden="true" style={{ width: 18, height: 22, objectFit: 'contain', opacity: 0.9 }} />
 );
 
 const SettingsRow: React.FC<{
