@@ -2,6 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
 import chevronUpDown from '@/assets/chevron-updown.jpeg';
+import dialogOpenSound from '@/assets/dialog-open.wav';
+
+function playDialogOpenSound() {
+  try {
+    const audio = new Audio(dialogOpenSound);
+    audio.volume = 0.7;
+    audio.play().catch(() => {});
+  } catch {}
+}
 
 interface Props {
   open: boolean;
@@ -202,7 +211,8 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   useEffect(() => {
     if (open) {
       setVoAnnouncement('');
-      setTimeout(() => setVoAnnouncement('設定'), 50);
+      playDialogOpenSound();
+      setTimeout(() => setVoAnnouncement('設定 ダイアログ'), 50);
     } else {
       setVoAnnouncement('');
     }
@@ -260,19 +270,19 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
         <VaulDrawer.Content
           role="dialog"
           aria-modal="true"
-          aria-label="設定"
+          aria-label="設定 ダイアログ"
           // @ts-ignore
           popover="auto"
-          className="fixed bottom-0 left-0 right-0 z-50 flex flex-col outline-none"
+          className="fixed bottom-0 left-0 right-0 z-50 flex flex-col outline-none w-full"
           style={{
-            maxHeight: '90vh',
+            height: '80vh',
             background: '#1C1C1E',
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
             boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
           }}
         >
-          <div className="mx-auto mt-2 mb-1 h-1.5 w-12 rounded-full bg-white/30 flex-shrink-0" />
+          <div className="mx-auto mt-2 mb-1 h-1.5 w-12 rounded-full bg-white/40 flex-shrink-0" aria-hidden="true" />
           <VaulDrawer.Title className="sr-only">設定</VaulDrawer.Title>
           {content}
         </VaulDrawer.Content>
