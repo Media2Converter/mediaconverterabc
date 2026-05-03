@@ -626,19 +626,19 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           <VaulDrawer.Content
             role="dialog"
             aria-modal="true"
-            aria-label="詳細設定"
+            aria-label="詳細設定 ダイアログ"
             // @ts-ignore - popover is a valid HTML attribute
             popover="auto"
-            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col outline-none"
+            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col outline-none w-full"
             style={{
-              maxHeight: '90vh',
+              height: '80vh',
               background: '#1C1C1E',
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
             }}
           >
-            <div className="mx-auto mt-2 mb-1 h-1.5 w-12 rounded-full bg-white/30 flex-shrink-0" />
+            <div className="mx-auto mt-2 mb-1 h-1.5 w-12 rounded-full bg-white/40 flex-shrink-0" aria-hidden="true" />
             <VaulDrawer.Title className="sr-only">詳細設定</VaulDrawer.Title>
             {settingsContent}
           </VaulDrawer.Content>
