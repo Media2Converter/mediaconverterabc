@@ -360,7 +360,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   useEffect(() => {
     if (open) {
       setVoAnnouncement('');
-      playDialogOpenSound();
       setTimeout(() => setVoAnnouncement('詳細設定 ダイアログ'), 50);
     } else {
       setVoAnnouncement('');
