@@ -1,16 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
-import chevronUpDown from '@/assets/chevron-updown.jpeg';
-import dialogOpenSound from '@/assets/dialog-open.wav';
-
-function playDialogOpenSound() {
-  try {
-    const audio = new Audio(dialogOpenSound);
-    audio.volume = 0.7;
-    audio.play().catch(() => {});
-  } catch {}
-}
+import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
 
 interface Props {
   open: boolean;
@@ -51,9 +42,6 @@ const TEXT_COLORS = [
   { label: '自動', value: 'auto' },
 ];
 
-const ContextMenuChevron: React.FC = () => (
-  <img src={chevronUpDown} alt="" aria-hidden="true" style={{ width: 18, height: 22, objectFit: 'contain', opacity: 0.9 }} />
-);
 
 const SettingsRow: React.FC<{
   label: string;
@@ -211,7 +199,6 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   useEffect(() => {
     if (open) {
       setVoAnnouncement('');
-      playDialogOpenSound();
       setTimeout(() => setVoAnnouncement('設定 ダイアログ'), 50);
     } else {
       setVoAnnouncement('');
@@ -263,13 +250,16 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
     </>
   );
 
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useIOSSheetA11y(open, sheetRef);
+
   return (
     <VaulDrawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <VaulDrawer.Portal>
         <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
+        <VOOverlayCloseButton onClose={onClose} />
         <VaulDrawer.Content
-          role="dialog"
-          aria-modal="true"
+          ref={sheetRef}
           aria-label="設定 ダイアログ"
           // @ts-ignore
           popover="auto"
