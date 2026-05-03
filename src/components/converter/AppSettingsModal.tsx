@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
+import chevronUpDown from '@/assets/chevron-updown.jpeg';
 
 interface Props {
   open: boolean;
@@ -41,10 +43,7 @@ const TEXT_COLORS = [
 ];
 
 const ContextMenuChevron: React.FC = () => (
-  <span className="flex flex-col items-center justify-center leading-none text-muted-foreground" style={{ fontSize: '10px', lineHeight: '8px', gap: '1px' }}>
-    <span>▲</span>
-    <span>▼</span>
-  </span>
+  <img src={chevronUpDown} alt="" aria-hidden="true" style={{ width: 18, height: 22, objectFit: 'contain', opacity: 0.9 }} />
 );
 
 const SettingsRow: React.FC<{
@@ -255,28 +254,29 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-3" role="dialog" aria-modal="true" aria-label="設定">
-      <div
-        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
-        role="button"
-        aria-label="ポップアップウインドウを閉じる。ポップアップウインドウを閉じるにはアクティベートします。"
-        tabIndex={0}
-        onClick={onClose}
-        onKeyDown={e => e.key === 'Enter' && onClose()}
-      />
-      <div className="relative flex flex-col ios-scale-in" style={{
-        width: isMobile ? '100%' : 'min(520px, 92vw)',
-        maxWidth: isMobile ? '100%' : '520px',
-        maxHeight: '85vh',
-        background: 'rgba(38, 38, 40, 0.96)',
-        backdropFilter: 'blur(40px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-        borderRadius: '20px',
-        overflow: 'hidden',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-      }}>
-        {content}
-      </div>
-    </div>
+    <VaulDrawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <VaulDrawer.Portal>
+        <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
+        <VaulDrawer.Content
+          role="dialog"
+          aria-modal="true"
+          aria-label="設定"
+          // @ts-ignore
+          popover="auto"
+          className="fixed bottom-0 left-0 right-0 z-50 flex flex-col outline-none"
+          style={{
+            maxHeight: '90vh',
+            background: '#1C1C1E',
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
+          }}
+        >
+          <div className="mx-auto mt-2 mb-1 h-1.5 w-12 rounded-full bg-white/30 flex-shrink-0" />
+          <VaulDrawer.Title className="sr-only">設定</VaulDrawer.Title>
+          {content}
+        </VaulDrawer.Content>
+      </VaulDrawer.Portal>
+    </VaulDrawer.Root>
   );
 };
