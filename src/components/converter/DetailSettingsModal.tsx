@@ -23,9 +23,6 @@ interface Props {
   selectedFormat: string | null;
 }
 
-const ContextMenuChevron: React.FC = () => (
-  <img src={chevronUpDown} alt="" aria-hidden="true" style={{ width: 18, height: 22, objectFit: 'contain', opacity: 0.9 }} />
-);
 
 /** A settings row showing label + sub-text of current value, with native picker */
 const NativePickerRow: React.FC<{
