@@ -1,16 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
-import chevronUpDown from '@/assets/chevron-updown.jpeg';
-import dialogOpenSound from '@/assets/dialog-open.wav';
-
-function playDialogOpenSound() {
-  try {
-    const audio = new Audio(dialogOpenSound);
-    audio.volume = 0.7;
-    audio.play().catch(() => {});
-  } catch {}
-}
+import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
@@ -32,9 +23,6 @@ interface Props {
   selectedFormat: string | null;
 }
 
-const ContextMenuChevron: React.FC = () => (
-  <img src={chevronUpDown} alt="" aria-hidden="true" style={{ width: 18, height: 22, objectFit: 'contain', opacity: 0.9 }} />
-);
 
 /** A settings row showing label + sub-text of current value, with native picker */
 const NativePickerRow: React.FC<{
@@ -372,7 +360,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   useEffect(() => {
     if (open) {
       setVoAnnouncement('');
-      playDialogOpenSound();
       setTimeout(() => setVoAnnouncement('詳細設定 ダイアログ'), 50);
     } else {
       setVoAnnouncement('');
@@ -617,15 +604,18 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!open) return null;
 
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useIOSSheetA11y(open, sheetRef);
+
   // iOS-style half-sheet via vaul Drawer + popover=auto for top-layer rendering
   return (
     <>
       <VaulDrawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
         <VaulDrawer.Portal>
           <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
+          <VOOverlayCloseButton onClose={onClose} />
           <VaulDrawer.Content
-            role="dialog"
-            aria-modal="true"
+            ref={sheetRef}
             aria-label="詳細設定 ダイアログ"
             // @ts-ignore - popover is a valid HTML attribute
             popover="auto"
