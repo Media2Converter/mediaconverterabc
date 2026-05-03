@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
+import chevronUpDown from '@/assets/chevron-updown.jpeg';
 
 interface Props {
   open: boolean;
