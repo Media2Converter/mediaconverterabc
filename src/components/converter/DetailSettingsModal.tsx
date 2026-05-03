@@ -604,15 +604,18 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!open) return null;
 
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useIOSSheetA11y(open, sheetRef);
+
   // iOS-style half-sheet via vaul Drawer + popover=auto for top-layer rendering
   return (
     <>
       <VaulDrawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
         <VaulDrawer.Portal>
           <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
+          <VOOverlayCloseButton onClose={onClose} />
           <VaulDrawer.Content
-            role="dialog"
-            aria-modal="true"
+            ref={sheetRef}
             aria-label="詳細設定 ダイアログ"
             // @ts-ignore - popover is a valid HTML attribute
             popover="auto"
