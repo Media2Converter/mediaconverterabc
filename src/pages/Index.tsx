@@ -461,7 +461,7 @@ const Index: React.FC = () => {
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-foreground text-[35px] truncate">{f.name}</p>
-                <p className="text-muted-foreground text-[35px]">{(f.size / 1024 / 1024).toFixed(1)} MB</p>
+                <p className="text-muted-foreground text-[29px]">{(f.size / 1024 / 1024).toFixed(1)} MB</p>
               </div>
               <button onClick={() => confirmRemoveFile(i)} className="text-muted-foreground text-xl leading-none active:text-foreground">×</button>
             </div>
