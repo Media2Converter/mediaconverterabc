@@ -628,7 +628,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
             }}
           >
-            <div className="mx-auto mt-2 mb-1 h-1.5 w-12 rounded-full bg-white/40 flex-shrink-0" aria-hidden="true" />
             <VaulDrawer.Title className="sr-only">詳細設定</VaulDrawer.Title>
             {settingsContent}
           </VaulDrawer.Content>
