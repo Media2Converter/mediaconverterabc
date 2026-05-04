@@ -461,25 +461,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
         <SectionHeading>オーディオ</SectionHeading>
 
-        {/* Other Actions accordion for audio — placed ABOVE codec picker */}
-        <AccordionSection title="その他のアクション">
-          <button
-            onClick={() => handleSelect('audioCodec', 'copy')}
-            className={`w-full px-5 py-3 text-left text-[20px] border-b border-border active:bg-accent transition-colors ${settings.audioCodec === 'copy' ? 'text-primary' : 'text-foreground'}`}
-          >
-            コピー {settings.audioCodec === 'copy' && '✓'}
-          </button>
-          <button
-            onClick={() => handleSelect('audioCodec', 'none')}
-            className={`w-full px-5 py-3 text-left text-[20px] border-b border-border active:bg-accent transition-colors ${settings.audioCodec === 'none' ? 'text-destructive' : 'text-foreground'}`}
-          >
-            音声を消します {settings.audioCodec === 'none' && '✓'}
-          </button>
-        </AccordionSection>
-
         <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
-          options={audioCodecOptions} selected={settings.audioCodec}
+          options={[]} groups={audioCodecGroups} selected={settings.audioCodec}
           onSelect={v => handleSelect('audioCodec', v)} pickerHeader="オーディオコーデック" />
+
 
         {!audioIsNone && settings.audioCodec !== 'copy' && (
           <>
