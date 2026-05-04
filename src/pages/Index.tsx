@@ -8,7 +8,7 @@ import {
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort, resetFFmpeg } from '@/services/ffmpegConverter';
-import { AppSettingsModal } from '@/components/converter/AppSettingsModal';
+
 
 /** Gather device info for analysis AI */
 async function getDeviceInfo() {
@@ -150,7 +150,7 @@ const Index: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [ffmpegCommand, setFfmpegCommand] = useState('');
   const [batteryWarning, setBatteryWarning] = useState(false);
-  const [showAppSettings, setShowAppSettings] = useState(false);
+  
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
