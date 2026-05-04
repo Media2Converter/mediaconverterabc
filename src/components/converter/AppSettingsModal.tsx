@@ -274,6 +274,7 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
           }}
         >
           <VaulDrawer.Title className="sr-only">設定</VaulDrawer.Title>
+          {content}
         </VaulDrawer.Content>
       </VaulDrawer.Portal>
     </VaulDrawer.Root>
