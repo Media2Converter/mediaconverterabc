@@ -200,7 +200,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   };
 
   const compatVideoCodecs = getCompatibleVideoCodecs(selectedFormat);
-  const videoCodecOptions = compatVideoCodecs.map(c => ({ label: c, value: c }));
+  const videoCodecGroups = [
+    { label: 'その他のアクション', options: [{ label: 'コピー', value: 'copy' }] },
+    { label: 'コーデック', options: compatVideoCodecs.map(c => ({ label: c, value: c })) },
+  ];
 
   const audioCodecDisplayName = (c: string) => {
     if (c === 'LPCM') return 'PCM_L';
@@ -208,10 +211,16 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   };
 
   const compatAudioCodecs = getCompatibleAudioCodecs(selectedFormat);
-  const audioCodecOptions = compatAudioCodecs.map(c => ({
-    label: audioCodecDisplayName(c),
-    value: c,
-  }));
+  const audioCodecGroups = [
+    { label: 'その他のアクション', options: [
+      { label: 'コピー', value: 'copy' },
+      { label: '音声を消します', value: 'none' },
+    ] },
+    { label: 'コーデック', options: compatAudioCodecs.map(c => ({
+      label: audioCodecDisplayName(c),
+      value: c,
+    })) },
+  ];
 
   const aspectRatioOptions = ASPECT_RATIOS.map(a => ({ label: a, value: a }));
 
@@ -412,19 +421,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
             {/* Section heading (not a disabled button) */}
             <SectionHeading>ビデオ</SectionHeading>
 
-            {/* Other Actions accordion for video — placed ABOVE codec picker */}
-            <AccordionSection title="その他のアクション">
-              <button
-                onClick={() => handleSelect('videoCodec', 'copy')}
-                className={`w-full px-5 py-3 text-left text-[20px] border-b border-border active:bg-accent transition-colors ${settings.videoCodec === 'copy' ? 'text-primary' : 'text-foreground'}`}
-              >
-                コピー {settings.videoCodec === 'copy' && '✓'}
-              </button>
-            </AccordionSection>
-
             <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
-              options={videoCodecOptions} selected={settings.videoCodec}
+              options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
               onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
+
 
             <NativePickerRow label="縦横比" displayValue={settings.aspectRatio}
               options={aspectRatioOptions} selected={settings.aspectRatio}
@@ -461,25 +461,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
         <SectionHeading>オーディオ</SectionHeading>
 
-        {/* Other Actions accordion for audio — placed ABOVE codec picker */}
-        <AccordionSection title="その他のアクション">
-          <button
-            onClick={() => handleSelect('audioCodec', 'copy')}
-            className={`w-full px-5 py-3 text-left text-[20px] border-b border-border active:bg-accent transition-colors ${settings.audioCodec === 'copy' ? 'text-primary' : 'text-foreground'}`}
-          >
-            コピー {settings.audioCodec === 'copy' && '✓'}
-          </button>
-          <button
-            onClick={() => handleSelect('audioCodec', 'none')}
-            className={`w-full px-5 py-3 text-left text-[20px] border-b border-border active:bg-accent transition-colors ${settings.audioCodec === 'none' ? 'text-destructive' : 'text-foreground'}`}
-          >
-            音声を消します {settings.audioCodec === 'none' && '✓'}
-          </button>
-        </AccordionSection>
-
         <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
-          options={audioCodecOptions} selected={settings.audioCodec}
+          options={[]} groups={audioCodecGroups} selected={settings.audioCodec}
           onSelect={v => handleSelect('audioCodec', v)} pickerHeader="オーディオコーデック" />
+
 
         {!audioIsNone && settings.audioCodec !== 'copy' && (
           <>
