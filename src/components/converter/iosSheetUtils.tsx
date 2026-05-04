@@ -7,13 +7,17 @@ export const ContextMenuChevron: React.FC<{ size?: number }> = ({ size = 18 }) =
   <svg
     aria-hidden="true"
     width={size}
-    height={size * 1.22}
-    viewBox="0 0 18 22"
+    height={size * 1.25}
+    viewBox="0 0 20 26"
     fill="none"
-    style={{ display: 'block', background: 'transparent' }}
+    stroke="currentColor"
+    strokeWidth="2.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={{ display: 'block', background: 'transparent', opacity: 0.85 }}
   >
-    <path d="M9 1.5 L4 6.5 H14 Z" fill="currentColor" opacity="0.95" />
-    <path d="M9 20.5 L4 15.5 H14 Z" fill="currentColor" opacity="0.95" />
+    <path d="M5 9 L10 4 L15 9" />
+    <path d="M5 17 L10 22 L15 17" />
   </svg>
 );
 
