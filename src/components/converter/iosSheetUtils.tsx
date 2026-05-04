@@ -64,7 +64,8 @@ export function useIOSSheetA11y(open: boolean, sheetRef: React.RefObject<HTMLEle
     }, 80);
 
     return () => {
-      clearTimeout(t);
+      clearTimeout(t1);
+      clearTimeout(t2);
       hidden.forEach(({ el, prev }) => {
         if (prev === null) el.removeAttribute('aria-hidden');
         else el.setAttribute('aria-hidden', prev);
