@@ -93,7 +93,7 @@ const NativePickerRow: React.FC<{
       >
         <div className="flex flex-col items-start">
           <span className="text-foreground text-[35px]">{label}</span>
-          <span className={`text-[22px] ${destructiveValue ? 'text-destructive' : warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue}</span>
+          <span className={`text-[29px] ${destructiveValue ? 'text-destructive' : warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue}</span>
         </div>
         <ContextMenuChevron />
       </button>
@@ -149,7 +149,7 @@ const AccordionSection: React.FC<{ title: string; children: React.ReactNode }> =
         className="w-full flex items-center justify-between px-5 py-3 active:bg-accent transition-colors"
       >
         <span className="text-foreground text-[35px]">{title}</span>
-        <span className="text-muted-foreground text-[22px]">{expanded ? '▲' : '▼'}</span>
+        <span className="text-muted-foreground text-[29px]">{expanded ? '▲' : '▼'}</span>
       </button>
       {expanded && <div>{children}</div>}
     </div>
