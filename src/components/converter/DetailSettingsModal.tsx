@@ -225,6 +225,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const aspectRatioOptions = ASPECT_RATIOS.map(a => ({ label: a, value: a }));
 
   const resolutionOptions = [
+    { label: '打ち込む（カスタム）', value: 'custom' },
     ...RESOLUTIONS.map(r => {
       const w = isPortrait ? r.h : r.w;
       const h = isPortrait ? r.w : r.h;
@@ -234,7 +235,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         value: `${r.w}x${r.h}`,
       };
     }),
-    { label: '打ち込む（カスタム）', value: 'custom' },
   ];
 
   const getAudioBitrates = () => {
@@ -252,8 +252,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const canCustomBitrate = !isAmr && !isAdpcm;
   const audioBitrateOptions = [
-    ...getAudioBitrates().map(b => ({ label: b, value: b })),
     ...(canCustomBitrate ? [{ label: '打ち込む（カスタム）', value: 'custom' }] : []),
+    ...getAudioBitrates().map(b => ({ label: b, value: b })),
   ];
 
   const getChannelOptions = () => {
@@ -261,9 +261,9 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return CHANNELS.map(c => ({ label: c, value: c }));
   };
 
-  const videoBitrateOptions = [...VIDEO_BITRATES.map(b => ({ label: b, value: b })), { label: '打ち込む（カスタム）', value: 'custom' }];
+  const videoBitrateOptions = [{ label: '打ち込む（カスタム）', value: 'custom' }, ...VIDEO_BITRATES.map(b => ({ label: b, value: b }))];
   const scanTypeOptions = SCAN_TYPES.map(s => ({ label: s, value: s }));
-  const framerateOptions = [...FRAMERATES.map(f => ({ label: f, value: f })), { label: '打ち込む（カスタム）', value: 'custom' }];
+  const framerateOptions = [{ label: '打ち込む（カスタム）', value: 'custom' }, ...FRAMERATES.map(f => ({ label: f, value: f }))];
   const speedOptions = SPEEDS.map(s => ({ label: `${s}×`, value: s }));
   const frequencyOptions = getFrequencies().map(f => ({ label: f, value: f }));
   const volumeOptions = VOLUME_OPTIONS.map(v => ({
