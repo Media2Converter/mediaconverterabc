@@ -602,10 +602,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     </>
   );
 
-  if (!open) return null;
-
   const sheetRef = useRef<HTMLDivElement>(null);
   useIOSSheetA11y(open, sheetRef);
+
+  if (!open) return null;
 
   // iOS-style half-sheet via vaul Drawer + popover=auto for top-layer rendering
   return (
