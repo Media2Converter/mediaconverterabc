@@ -623,10 +623,6 @@ const Index: React.FC = () => {
         selectedFormat={selectedFormat || null}
       />
 
-      <AppSettingsModal
-        open={showAppSettings}
-        onClose={() => setShowAppSettings(false)}
-      />
     </div>
   );
 };
