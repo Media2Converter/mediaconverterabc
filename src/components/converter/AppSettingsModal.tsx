@@ -253,8 +253,6 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
     </>
   );
 
-  const sheetRef = useRef<HTMLDivElement>(null);
-  useIOSSheetA11y(open, sheetRef);
 
   return (
     <VaulDrawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
