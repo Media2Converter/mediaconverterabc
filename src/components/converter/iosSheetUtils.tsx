@@ -43,20 +43,25 @@ export function useIOSSheetA11y(open: boolean, sheetRef: React.RefObject<HTMLEle
       hidden.push({ el, prev });
     });
 
-    // Defer injection of role/aria-modal so Safari treats it as a *new* dialog appearing
-    // (this is the trigger for the iOS system "pop" notification sound).
-    // Force aria-modal immediately so VoiceOver treats this as a brand-new system window
-    sheet.setAttribute('role', 'dialog');
-    sheet.setAttribute('aria-modal', 'true');
+    // Stage the ARIA attribute injection so Safari/VoiceOver perceives a brand-new
+    // system dialog "appearing" — this transition is what triggers the iOS notification
+    // ("pop") sound. We deliberately DO NOT set role/aria-modal on initial mount; we
+    // inject them on the next frame so the AT sees: (no dialog) -> (dialog appeared).
     sheet.setAttribute('tabindex', '-1');
-    const t = window.setTimeout(() => {
-      // Then escalate to assertive live region so VO announces sheet contents forcefully
+
+    const t1 = window.setTimeout(() => {
+      sheet.setAttribute('role', 'dialog');
+      sheet.setAttribute('aria-modal', 'true');
+    }, 16);
+
+    const t2 = window.setTimeout(() => {
+      // Escalate to assertive live region so VO forcefully announces window contents
       sheet.setAttribute('aria-live', 'assertive');
       try {
         const focusable = sheet.querySelector<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
         focusable?.focus();
       } catch {}
-    }, 30);
+    }, 80);
 
     return () => {
       clearTimeout(t);
