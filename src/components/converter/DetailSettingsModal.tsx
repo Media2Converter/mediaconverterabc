@@ -200,7 +200,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   };
 
   const compatVideoCodecs = getCompatibleVideoCodecs(selectedFormat);
-  const videoCodecOptions = compatVideoCodecs.map(c => ({ label: c, value: c }));
+  const videoCodecGroups = [
+    { label: 'その他のアクション', options: [{ label: 'コピー', value: 'copy' }] },
+    { label: 'コーデック', options: compatVideoCodecs.map(c => ({ label: c, value: c })) },
+  ];
 
   const audioCodecDisplayName = (c: string) => {
     if (c === 'LPCM') return 'PCM_L';
@@ -208,10 +211,16 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   };
 
   const compatAudioCodecs = getCompatibleAudioCodecs(selectedFormat);
-  const audioCodecOptions = compatAudioCodecs.map(c => ({
-    label: audioCodecDisplayName(c),
-    value: c,
-  }));
+  const audioCodecGroups = [
+    { label: 'その他のアクション', options: [
+      { label: 'コピー', value: 'copy' },
+      { label: '音声を消します', value: 'none' },
+    ] },
+    { label: 'コーデック', options: compatAudioCodecs.map(c => ({
+      label: audioCodecDisplayName(c),
+      value: c,
+    })) },
+  ];
 
   const aspectRatioOptions = ASPECT_RATIOS.map(a => ({ label: a, value: a }));
 
