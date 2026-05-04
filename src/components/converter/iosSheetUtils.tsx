@@ -45,12 +45,13 @@ export function useIOSSheetA11y(open: boolean, sheetRef: React.RefObject<HTMLEle
 
     // Defer injection of role/aria-modal so Safari treats it as a *new* dialog appearing
     // (this is the trigger for the iOS system "pop" notification sound).
-    sheet.removeAttribute('role');
-    sheet.removeAttribute('aria-modal');
+    // Force aria-modal immediately so VoiceOver treats this as a brand-new system window
+    sheet.setAttribute('role', 'dialog');
+    sheet.setAttribute('aria-modal', 'true');
+    sheet.setAttribute('tabindex', '-1');
     const t = window.setTimeout(() => {
-      sheet.setAttribute('role', 'dialog');
-      sheet.setAttribute('aria-modal', 'true');
-      // Force focus into the sheet so VoiceOver moves cursor here
+      // Then escalate to assertive live region so VO announces sheet contents forcefully
+      sheet.setAttribute('aria-live', 'assertive');
       try {
         const focusable = sheet.querySelector<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
         focusable?.focus();
