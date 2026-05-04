@@ -215,6 +215,9 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
     return () => document.removeEventListener('keydown', handler);
   }, [open, onClose]);
 
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useIOSSheetA11y(open, sheetRef);
+
   if (!open) return null;
 
   const content = (
@@ -250,8 +253,6 @@ export const AppSettingsModal: React.FC<Props> = ({ open, onClose }) => {
     </>
   );
 
-  const sheetRef = useRef<HTMLDivElement>(null);
-  useIOSSheetA11y(open, sheetRef);
 
   return (
     <VaulDrawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
