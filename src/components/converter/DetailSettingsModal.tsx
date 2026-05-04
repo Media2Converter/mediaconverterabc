@@ -421,19 +421,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
             {/* Section heading (not a disabled button) */}
             <SectionHeading>ビデオ</SectionHeading>
 
-            {/* Other Actions accordion for video — placed ABOVE codec picker */}
-            <AccordionSection title="その他のアクション">
-              <button
-                onClick={() => handleSelect('videoCodec', 'copy')}
-                className={`w-full px-5 py-3 text-left text-[20px] border-b border-border active:bg-accent transition-colors ${settings.videoCodec === 'copy' ? 'text-primary' : 'text-foreground'}`}
-              >
-                コピー {settings.videoCodec === 'copy' && '✓'}
-              </button>
-            </AccordionSection>
-
             <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
-              options={videoCodecOptions} selected={settings.videoCodec}
+              options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
               onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
+
 
             <NativePickerRow label="縦横比" displayValue={settings.aspectRatio}
               options={aspectRatioOptions} selected={settings.aspectRatio}
