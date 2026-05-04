@@ -423,40 +423,31 @@ const Index: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
-      {/* Header with settings and more menu */}
+      {/* Header: title left, more options top-right */}
       <div className="w-full flex items-center justify-between mb-8">
-        <div className="flex items-center gap-2">
-          <NativeSelectButton
-            ariaLabel="その他のオプション"
-            className="text-foreground p-2 active:opacity-60"
-            style={{ width: 40, height: 40 }}
-            delay={1000}
-            onSelect={handleMoreMenuSelect}
-            pickerHeader="メディアコンバータ"
-            groups={[{
-              label: 'メディアコンバータ',
-              options: moreMenuSections[0].options.map(o => ({ label: o.label, value: o.value })),
-            }]}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="5" cy="12" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="19" cy="12" r="2" />
-            </svg>
-          </NativeSelectButton>
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight">メディアコンバータ</h1>
-        <button
-          onClick={() => setShowAppSettings(true)}
+        <h1 className="font-bold tracking-tight" style={{ fontSize: '47px' }}>メディアコンバータ</h1>
+        <NativeSelectButton
+          ariaLabel="その他のオプション"
           className="text-foreground p-2 active:opacity-60"
-          aria-label="設定"
+          style={{ width: 40, height: 40 }}
+          delay={1000}
+          onSelect={handleMoreMenuSelect}
+          pickerHeader="メディアコンバータ"
+          groups={[{
+            label: 'メディアコンバータ',
+            options: moreMenuSections[0].options.map(o => ({
+              label: o.label,
+              value: o.value,
+              disabled: o.value === 'retry' && (converting || !selectedFormat || files.length === 0),
+            })),
+          }]}
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="12" r="2" />
+            <circle cx="12" cy="12" r="2" />
+            <circle cx="19" cy="12" r="2" />
           </svg>
-        </button>
+        </NativeSelectButton>
       </div>
 
       {files.length > 0 && (
