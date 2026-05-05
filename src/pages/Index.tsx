@@ -154,6 +154,20 @@ const Index: React.FC = () => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Preview fullscreen overlays
+  const [previewView, setPreviewView] = useState<null | 'jsom' | 'ffmpeg'>(null);
+
+  // Build a JSOM (JSON) instruction document from current state
+  const jsomInstructions = JSON.stringify({
+    task: 'media-conversion',
+    inputs: files.map(f => ({ name: f.name, size: f.size, type: f.type })),
+    outputFormat: selectedFormat,
+    perFileFormats,
+    settings,
+    videoDuration,
+    isVideo,
+  }, null, 2);
+
   // File format popup
   const [showFileFormatPopup, setShowFileFormatPopup] = useState(false);
   const [fileFormatPickerIndex, setFileFormatPickerIndex] = useState<number | null>(null);
