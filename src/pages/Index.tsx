@@ -550,16 +550,24 @@ const Index: React.FC = () => {
       />
 
       {converting && (
-        <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-background/95 backdrop-blur-md px-6 py-8" role="dialog" aria-modal="true" aria-label="変換中">
-          {/* Command preview above the percentage */}
-          <div className="w-full max-w-md mb-4 max-h-[20vh] overflow-y-auto bg-card/80 rounded-lg p-3 border border-border">
-            <p className="text-muted-foreground text-[13px] font-mono whitespace-pre-wrap break-all leading-snug">
-              {ffmpegCommand || 'コマンドを準備中...'}
-            </p>
-          </div>
-          {/* Big fullscreen percentage */}
-          <div className="flex flex-col items-center justify-center flex-1 w-full">
-            <svg width="min(70vw, 280px)" height="min(70vw, 280px)" viewBox="0 0 120 120" style={{ maxWidth: '70vw', maxHeight: '40vh' }}>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="変換中">
+          <div
+            className="relative flex flex-col items-center px-6 py-6"
+            style={{
+              width: 'min(92vw, 480px)',
+              maxHeight: '90vh',
+              background: '#1C1C1E',
+              borderRadius: 20,
+              boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+              overflow: 'hidden',
+            }}
+          >
+            <div className="w-full mb-4 max-h-[18vh] overflow-y-auto bg-card/80 rounded-lg p-3 border border-border">
+              <p className="text-muted-foreground text-[13px] font-mono whitespace-pre-wrap break-all leading-snug">
+                {ffmpegCommand || 'コマンドを準備中...'}
+              </p>
+            </div>
+            <svg width="200" height="200" viewBox="0 0 120 120" style={{ maxWidth: '60vw' }}>
               <circle cx="60" cy="60" r="50" fill="none" stroke="hsl(var(--border))" strokeWidth="6" />
               <circle
                 cx="60" cy="60" r="50" fill="none"
@@ -574,58 +582,41 @@ const Index: React.FC = () => {
                 {Math.round(progress)}%
               </text>
             </svg>
-            <p className="text-foreground text-[31px] text-center whitespace-pre-line mt-6 max-w-md">{statusMessage}</p>
+            <p className="text-foreground text-[31px] text-center whitespace-pre-line mt-4 max-w-md">{statusMessage}</p>
+            <NativeSelectButton
+              ariaLabel="プレビューを表示"
+              className="active:opacity-80 transition-opacity mt-4"
+              style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', borderRadius: 0, width: 'auto' }}
+              onSelect={(v) => { if (v === 'jsom' || v === 'ffmpeg') setPreviewView(v); }}
+              pickerHeader="プレビューを表示"
+              groups={[{
+                label: 'プレビューを表示',
+                options: [
+                  { label: 'JSOM', value: 'jsom' },
+                  { label: 'FFmpeg.wasm', value: 'ffmpeg' },
+                ],
+              }]}
+            >
+              <span className="block px-10 py-3 text-[31px] font-semibold">プレビューを表示</span>
+            </NativeSelectButton>
+            <button
+              onClick={handleCancel}
+              className="px-10 py-3 mt-2 bg-destructive text-destructive-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"
+              style={{ borderRadius: 0 }}
+            >
+              キャンセル
+            </button>
           </div>
-          <NativeSelectButton
-            ariaLabel="プレビューを表示"
-            className="active:opacity-80 transition-opacity"
-            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 56, marginBottom: 8, borderRadius: 0, width: 'auto', display: 'inline-block', padding: '0 40px' }}
-            onSelect={(v) => { if (v === 'jsom' || v === 'ffmpeg') setPreviewView(v); }}
-            pickerHeader="プレビューを表示"
-            groups={[{
-              label: 'プレビューを表示',
-              options: [
-                { label: 'JSOM', value: 'jsom' },
-                { label: 'FFmpeg.wasm', value: 'ffmpeg' },
-              ],
-            }]}
-          >
-            <span className="block px-10 py-3 text-[31px] font-semibold">プレビューを表示</span>
-          </NativeSelectButton>
-          <button
-            onClick={handleCancel}
-            className="px-10 py-3 bg-destructive text-destructive-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"
-            style={{ borderRadius: 0 }}
-          >
-            キャンセル
-          </button>
         </div>
       )}
 
       {/* Fullscreen preview overlays */}
       {previewView && (
-        <div
-          className="fixed inset-0 z-[200] bg-background text-foreground flex flex-col"
-          role="dialog"
-          aria-modal="true"
-          aria-label={previewView === 'jsom' ? 'JSOM 指示書' : 'FFmpeg.wasm コマンド'}
-        >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <h2 className="text-[31px] font-semibold">
-              {previewView === 'jsom' ? 'JSOM 指示書' : 'FFmpeg.wasm コマンド'}
-            </h2>
-            <button
-              onClick={() => setPreviewView(null)}
-              className="text-foreground text-[31px] px-4 py-2 active:opacity-60"
-              aria-label="閉じる"
-            >
-              ×
-            </button>
-          </div>
-          <pre className="flex-1 overflow-auto p-4 text-[22px] font-mono whitespace-pre-wrap break-all leading-snug">
-            {previewView === 'jsom' ? jsomInstructions : (ffmpegCommand || 'コマンドはまだ生成されていません。')}
-          </pre>
-        </div>
+        <PreviewOverlay
+          kind={previewView}
+          content={previewView === 'jsom' ? jsomInstructions : (ffmpegCommand || 'コマンドはまだ生成されていません。')}
+          onClose={() => setPreviewView(null)}
+        />
       )}
 
       {convertedUrl && !converting && (
