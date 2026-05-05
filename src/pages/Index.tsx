@@ -165,7 +165,7 @@ const Index: React.FC = () => {
     perFileFormats,
     settings,
     videoDuration,
-    isVideo,
+    isVideo: files.some(f => f.type.startsWith('video/')),
   }, null, 2);
 
   // File format popup
