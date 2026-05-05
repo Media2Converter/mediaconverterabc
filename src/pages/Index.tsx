@@ -439,7 +439,7 @@ const Index: React.FC = () => {
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
       {/* Header: title left, more options top-right */}
       <div className="w-full flex items-center justify-between mb-8">
-        <h1 className="font-bold tracking-tight" style={{ fontSize: '47px' }}>メディアコンバータ</h1>
+        <h1 className="font-bold tracking-tight" style={{ fontSize: '35px' }}>メディアコンバータ</h1>
         <NativeSelectButton
           ariaLabel="その他のオプション"
           className="text-foreground p-2 active:opacity-60"
@@ -471,10 +471,10 @@ const Index: React.FC = () => {
               {f.type.startsWith('video/') && fileUrls[i] ? (
                 <video src={fileUrls[i]} className="w-14 h-14 rounded-lg object-cover bg-secondary" muted />
               ) : (
-                <div className="w-14 h-14 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground text-[35px]">♪</div>
+                <div className="w-14 h-14 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground text-[31px]">♪</div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-foreground text-[35px] truncate">{f.name}</p>
+                <p className="text-foreground text-[31px] truncate">{f.name}</p>
                 <p className="text-muted-foreground text-[29px]">{(f.size / 1024 / 1024).toFixed(1)} MB</p>
               </div>
               <button onClick={() => confirmRemoveFile(i)} className="text-muted-foreground text-xl leading-none active:text-foreground">×</button>
@@ -487,7 +487,7 @@ const Index: React.FC = () => {
       <div className="w-full flex flex-col">
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="w-full py-3.5 bg-primary text-primary-foreground text-[35px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+          className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
           style={{ borderRadius: 0 }}
         >
           {files.length > 0 ? 'ファイルを追加' : 'ファイルを選択'}
@@ -504,7 +504,7 @@ const Index: React.FC = () => {
               pickerHeader="出力形式"
               groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
             >
-              <span className="block w-full py-3.5 text-[35px] font-semibold">
+              <span className="block w-full py-3.5 text-[31px] font-semibold">
                 {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
               </span>
             </NativeSelectButton>
@@ -513,7 +513,7 @@ const Index: React.FC = () => {
             {isMultiFile && (
               <button
                 onClick={() => setShowFileFormatPopup(true)}
-                className="w-full py-3.5 bg-primary text-primary-foreground text-[35px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+                className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
                 style={{ borderRadius: 0 }}
               >
                 ファイル形式
@@ -523,7 +523,7 @@ const Index: React.FC = () => {
             {selectedFormat && (
               <button
                 onClick={() => setShowDetailSettings(true)}
-                className="w-full py-3.5 bg-primary text-primary-foreground text-[35px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+                className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
                 style={{ borderRadius: 0 }}
               >
                 詳細設定
@@ -531,7 +531,7 @@ const Index: React.FC = () => {
             )}
             {selectedFormat && !converting && !convertedUrl && (
               <button onClick={handleConvert}
-                className="w-full py-3.5 bg-primary text-primary-foreground text-[35px] font-semibold active:opacity-80 transition-opacity"
+                className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"
                 style={{ borderRadius: 0 }}>
                 変換
               </button>
@@ -574,7 +574,7 @@ const Index: React.FC = () => {
                 {Math.round(progress)}%
               </text>
             </svg>
-            <p className="text-foreground text-[35px] text-center whitespace-pre-line mt-6 max-w-md">{statusMessage}</p>
+            <p className="text-foreground text-[31px] text-center whitespace-pre-line mt-6 max-w-md">{statusMessage}</p>
           </div>
           <NativeSelectButton
             ariaLabel="プレビューを表示"
@@ -590,11 +590,11 @@ const Index: React.FC = () => {
               ],
             }]}
           >
-            <span className="block px-10 py-3 text-[35px] font-semibold">プレビューを表示</span>
+            <span className="block px-10 py-3 text-[31px] font-semibold">プレビューを表示</span>
           </NativeSelectButton>
           <button
             onClick={handleCancel}
-            className="px-10 py-3 bg-destructive text-destructive-foreground text-[35px] font-semibold active:opacity-80 transition-opacity"
+            className="px-10 py-3 bg-destructive text-destructive-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"
             style={{ borderRadius: 0 }}
           >
             キャンセル
@@ -611,12 +611,12 @@ const Index: React.FC = () => {
           aria-label={previewView === 'jsom' ? 'JSOM 指示書' : 'FFmpeg.wasm コマンド'}
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <h2 className="text-[35px] font-semibold">
+            <h2 className="text-[31px] font-semibold">
               {previewView === 'jsom' ? 'JSOM 指示書' : 'FFmpeg.wasm コマンド'}
             </h2>
             <button
               onClick={() => setPreviewView(null)}
-              className="text-foreground text-[35px] px-4 py-2 active:opacity-60"
+              className="text-foreground text-[31px] px-4 py-2 active:opacity-60"
               aria-label="閉じる"
             >
               ×
@@ -631,7 +631,7 @@ const Index: React.FC = () => {
       {convertedUrl && !converting && (
         <div className="w-full mt-4 flex flex-col">
           <button onClick={handleDownload}
-            className="w-full py-3.5 bg-primary text-primary-foreground text-[35px] font-semibold active:opacity-80 transition-opacity"
+            className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"
             style={{ borderRadius: 0 }}>
             ダウンロード
           </button>
