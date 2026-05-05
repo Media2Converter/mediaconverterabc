@@ -134,6 +134,96 @@ const PerFileNativeFormatPicker: React.FC<{
   );
 };
 
+/** Fullscreen preview for JSOM/FFmpeg with long-press → native picker → Web Share as "コード". */
+const PreviewOverlay: React.FC<{
+  kind: 'jsom' | 'ffmpeg';
+  content: string;
+  onClose: () => void;
+}> = ({ kind, content, onClose }) => {
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const title = kind === 'jsom' ? 'JSOM 指示書' : 'FFmpeg.wasm コマンド';
+
+  const shareAsCode = async () => {
+    const ext = kind === 'jsom' ? 'json' : 'sh';
+    const mime = kind === 'jsom' ? 'application/json' : 'text/plain';
+    const filename = `コード.${ext}`;
+    try {
+      const blob = new Blob([content], { type: mime });
+      const file = new File([blob], filename, { type: mime });
+      const navAny = navigator as any;
+      if (navAny.canShare && navAny.canShare({ files: [file] })) {
+        await navAny.share({ files: [file], title: filename });
+        return;
+      }
+      // Fallback download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      /* user cancelled */
+    }
+  };
+
+  const openPicker = () => {
+    setTimeout(() => { selectRef.current?.focus(); selectRef.current?.click(); }, 16);
+  };
+
+  const handleStart = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => { openPicker(); longPressTimer.current = null; }, 600);
+  };
+  const handleEnd = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] bg-background text-foreground flex flex-col"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h2 className="text-[31px] font-semibold">{title}</h2>
+        <button
+          onClick={onClose}
+          className="text-foreground text-[31px] px-4 py-2 active:opacity-60"
+          aria-label="閉じる"
+        >
+          ×
+        </button>
+      </div>
+      <div className="relative flex-1 overflow-hidden">
+        <pre
+          className="absolute inset-0 overflow-auto p-4 text-[22px] font-mono whitespace-pre-wrap break-all leading-snug select-text"
+          onTouchStart={handleStart}
+          onTouchEnd={handleEnd}
+          onTouchCancel={handleEnd}
+          onMouseDown={handleStart}
+          onMouseUp={handleEnd}
+          onMouseLeave={handleEnd}
+          aria-label={`${title}。長押しでダウンロードメニューを表示`}
+        >
+          {content}
+        </pre>
+        <select
+          ref={selectRef}
+          value=""
+          onChange={(e) => { if (e.target.value === 'download') shareAsCode(); e.target.value = ''; }}
+          className="absolute opacity-0 pointer-events-none"
+          style={{ left: '50%', top: '50%', width: 1, height: 1 }}
+          aria-label="アクション"
+        >
+          <option value="" disabled>{title}</option>
+          <option value="download">ダウンロード</option>
+        </select>
+      </div>
+    </div>
+  );
+};
+
 const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [fileUrls, setFileUrls] = useState<string[]>([]);
