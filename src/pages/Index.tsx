@@ -154,6 +154,20 @@ const Index: React.FC = () => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Preview fullscreen overlays
+  const [previewView, setPreviewView] = useState<null | 'jsom' | 'ffmpeg'>(null);
+
+  // Build a JSOM (JSON) instruction document from current state
+  const jsomInstructions = JSON.stringify({
+    task: 'media-conversion',
+    inputs: files.map(f => ({ name: f.name, size: f.size, type: f.type })),
+    outputFormat: selectedFormat,
+    perFileFormats,
+    settings,
+    videoDuration,
+    isVideo: files.some(f => f.type.startsWith('video/')),
+  }, null, 2);
+
   // File format popup
   const [showFileFormatPopup, setShowFileFormatPopup] = useState(false);
   const [fileFormatPickerIndex, setFileFormatPickerIndex] = useState<number | null>(null);
@@ -562,6 +576,22 @@ const Index: React.FC = () => {
             </svg>
             <p className="text-foreground text-[35px] text-center whitespace-pre-line mt-6 max-w-md">{statusMessage}</p>
           </div>
+          <NativeSelectButton
+            ariaLabel="プレビューを表示"
+            className="active:opacity-80 transition-opacity"
+            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 56, marginBottom: 8, borderRadius: 0, width: 'auto', display: 'inline-block', padding: '0 40px' }}
+            onSelect={(v) => { if (v === 'jsom' || v === 'ffmpeg') setPreviewView(v); }}
+            pickerHeader="プレビューを表示"
+            groups={[{
+              label: 'プレビューを表示',
+              options: [
+                { label: 'JSOM', value: 'jsom' },
+                { label: 'FFmpeg.wasm', value: 'ffmpeg' },
+              ],
+            }]}
+          >
+            <span className="block px-10 py-3 text-[35px] font-semibold">プレビューを表示</span>
+          </NativeSelectButton>
           <button
             onClick={handleCancel}
             className="px-10 py-3 bg-destructive text-destructive-foreground text-[35px] font-semibold active:opacity-80 transition-opacity"
@@ -569,6 +599,32 @@ const Index: React.FC = () => {
           >
             キャンセル
           </button>
+        </div>
+      )}
+
+      {/* Fullscreen preview overlays */}
+      {previewView && (
+        <div
+          className="fixed inset-0 z-[200] bg-background text-foreground flex flex-col"
+          role="dialog"
+          aria-modal="true"
+          aria-label={previewView === 'jsom' ? 'JSOM 指示書' : 'FFmpeg.wasm コマンド'}
+        >
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <h2 className="text-[35px] font-semibold">
+              {previewView === 'jsom' ? 'JSOM 指示書' : 'FFmpeg.wasm コマンド'}
+            </h2>
+            <button
+              onClick={() => setPreviewView(null)}
+              className="text-foreground text-[35px] px-4 py-2 active:opacity-60"
+              aria-label="閉じる"
+            >
+              ×
+            </button>
+          </div>
+          <pre className="flex-1 overflow-auto p-4 text-[22px] font-mono whitespace-pre-wrap break-all leading-snug">
+            {previewView === 'jsom' ? jsomInstructions : (ffmpegCommand || 'コマンドはまだ生成されていません。')}
+          </pre>
         </div>
       )}
 
