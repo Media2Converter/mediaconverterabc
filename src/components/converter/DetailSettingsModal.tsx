@@ -592,32 +592,30 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!open) return null;
 
-  // iOS-style half-sheet via vaul Drawer + popover=auto for top-layer rendering
+  // iOS-style centered dialog popup
   return (
     <>
-      <VaulDrawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-        <VaulDrawer.Portal>
-          <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-          <VOOverlayCloseButton onClose={onClose} />
-          <VaulDrawer.Content
-            ref={sheetRef}
-            aria-label="詳細設定 ダイアログ"
-            // @ts-ignore - popover is a valid HTML attribute
-            popover="auto"
-            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col outline-none w-full"
-            style={{
-              height: '80vh',
-              background: '#1C1C1E',
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
-            }}
-          >
-            <VaulDrawer.Title className="sr-only">詳細設定</VaulDrawer.Title>
-            {settingsContent}
-          </VaulDrawer.Content>
-        </VaulDrawer.Portal>
-      </VaulDrawer.Root>
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <VOOverlayCloseButton onClose={onClose} />
+        <div
+          ref={sheetRef}
+          aria-label="詳細設定 ダイアログ"
+          // @ts-ignore - popover is a valid HTML attribute
+          popover="auto"
+          className="relative z-10 flex flex-col outline-none"
+          style={{
+            width: 'min(92vw, 520px)',
+            maxHeight: '85vh',
+            background: '#1C1C1E',
+            borderRadius: 20,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+            overflow: 'hidden',
+          }}
+        >
+          {settingsContent}
+        </div>
+      </div>
       {customDialogs}
     </>
   );
