@@ -92,7 +92,7 @@ const NativePickerRow: React.FC<{
         className="w-full flex items-center justify-between px-5 py-3 border-b border-border active:bg-accent transition-colors"
       >
         <div className="flex flex-col items-start">
-          <span className="text-foreground text-[35px]">{label}</span>
+          <span className="text-foreground text-[31px]">{label}</span>
           <span className={`text-[29px] ${destructiveValue ? 'text-destructive' : warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue}</span>
         </div>
         <ContextMenuChevron />
@@ -148,7 +148,7 @@ const AccordionSection: React.FC<{ title: string; children: React.ReactNode }> =
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-5 py-3 active:bg-accent transition-colors"
       >
-        <span className="text-foreground text-[35px]">{title}</span>
+        <span className="text-foreground text-[31px]">{title}</span>
         <span className="text-muted-foreground text-[29px]">{expanded ? '▲' : '▼'}</span>
       </button>
       {expanded && <div>{children}</div>}
@@ -403,7 +403,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         >
           ✕
         </button>
-        <h2 className="absolute left-1/2 -translate-x-1/2 text-foreground text-[35px] font-semibold pointer-events-none truncate max-w-[55%] text-center">{formatTitle}</h2>
+        <h2 className="absolute left-1/2 -translate-x-1/2 text-foreground text-[31px] font-semibold pointer-events-none truncate max-w-[55%] text-center">{formatTitle}</h2>
         <button
           ref={closeButtonRef}
           onClick={onClose}
@@ -516,15 +516,15 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomRes(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
-            <h3 className="text-foreground text-[35px] font-semibold text-center mb-4">解像度を入力</h3>
+            <h3 className="text-foreground text-[31px] font-semibold text-center mb-4">解像度を入力</h3>
             <div className="flex items-center gap-2 justify-center">
               <input type="number" inputMode="numeric" placeholder={String(settings.resolutionW)}
                 value={customResW} onChange={e => setCustomResW(e.target.value)}
-                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[35px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-              <span className="text-foreground text-[35px]">×</span>
+                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[31px]">×</span>
               <input type="number" inputMode="numeric" placeholder={String(settings.resolutionH)}
                 value={customResH} onChange={e => setCustomResH(e.target.value)}
-                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[35px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
             </div>
             <button onClick={() => {
               const w = parseInt(customResW) || settings.resolutionW;
@@ -535,7 +535,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               setShowCustomRes(false);
               setCustomResW('');
               setCustomResH('');
-            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[35px] font-semibold active:opacity-80">OK</button>
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[31px] font-semibold active:opacity-80">OK</button>
           </div>
         </div>
       )}
@@ -544,14 +544,14 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomBitrate(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
-            <h3 className="text-foreground text-[35px] font-semibold text-center mb-4">
+            <h3 className="text-foreground text-[31px] font-semibold text-center mb-4">
               {showCustomBitrate === 'video' ? '動画' : '音声'}ビットレートを入力
             </h3>
             <div className="flex items-center gap-2 justify-center">
               <input type="number" inputMode="numeric" placeholder={showCustomBitrate === 'video' ? '5120' : '128'}
                 value={customBitrate} onChange={e => setCustomBitrate(e.target.value)}
-                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[35px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-              <span className="text-foreground text-[35px]">KBPS</span>
+                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[31px]">KBPS</span>
             </div>
             <button onClick={() => {
               const key = showCustomBitrate === 'video' ? 'videoBitrate' : 'audioBitrate';
@@ -559,7 +559,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               onChange({ ...settings, [key]: `${customBitrate || def}KBPS` });
               setShowCustomBitrate(null);
               setCustomBitrate('');
-            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[35px] font-semibold active:opacity-80">OK</button>
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[31px] font-semibold active:opacity-80">OK</button>
           </div>
         </div>
       )}
@@ -568,19 +568,19 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomFramerate(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
-            <h3 className="text-foreground text-[35px] font-semibold text-center mb-4">フレームレートを入力</h3>
+            <h3 className="text-foreground text-[31px] font-semibold text-center mb-4">フレームレートを入力</h3>
             <div className="flex items-center gap-2 justify-center">
               <input type="number" inputMode="decimal" placeholder="30"
                 value={customFramerate} onChange={e => setCustomFramerate(e.target.value)}
-                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[35px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-              <span className="text-foreground text-[35px]">FPS</span>
+                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[31px]">FPS</span>
             </div>
             <button onClick={() => {
               const val = parseFloat(customFramerate) || 30;
               onChange({ ...settings, framerate: `${val}FPS` });
               setShowCustomFramerate(false);
               setCustomFramerate('');
-            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[35px] font-semibold active:opacity-80">OK</button>
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[31px] font-semibold active:opacity-80">OK</button>
           </div>
         </div>
       )}
@@ -592,32 +592,30 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!open) return null;
 
-  // iOS-style half-sheet via vaul Drawer + popover=auto for top-layer rendering
+  // iOS-style centered dialog popup
   return (
     <>
-      <VaulDrawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-        <VaulDrawer.Portal>
-          <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
-          <VOOverlayCloseButton onClose={onClose} />
-          <VaulDrawer.Content
-            ref={sheetRef}
-            aria-label="詳細設定 ダイアログ"
-            // @ts-ignore - popover is a valid HTML attribute
-            popover="auto"
-            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col outline-none w-full"
-            style={{
-              height: '80vh',
-              background: '#1C1C1E',
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
-            }}
-          >
-            <VaulDrawer.Title className="sr-only">詳細設定</VaulDrawer.Title>
-            {settingsContent}
-          </VaulDrawer.Content>
-        </VaulDrawer.Portal>
-      </VaulDrawer.Root>
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <VOOverlayCloseButton onClose={onClose} />
+        <div
+          ref={sheetRef}
+          aria-label="詳細設定 ダイアログ"
+          // @ts-ignore - popover is a valid HTML attribute
+          popover="auto"
+          className="relative z-10 flex flex-col outline-none"
+          style={{
+            width: 'min(92vw, 520px)',
+            maxHeight: '85vh',
+            background: '#1C1C1E',
+            borderRadius: 20,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+            overflow: 'hidden',
+          }}
+        >
+          {settingsContent}
+        </div>
+      </div>
       {customDialogs}
     </>
   );
