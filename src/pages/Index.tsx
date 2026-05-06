@@ -731,11 +731,6 @@ const Index: React.FC = () => {
               overflow: 'hidden',
             }}
           >
-            <div className="w-full mb-4 max-h-[18vh] overflow-y-auto bg-card/80 rounded-lg p-3 border border-border">
-              <p className="text-muted-foreground text-[13px] font-mono whitespace-pre-wrap break-all leading-snug">
-                {ffmpegCommand || 'コマンドを準備中...'}
-              </p>
-            </div>
             <svg width="200" height="200" viewBox="0 0 120 120" style={{ maxWidth: '60vw' }}>
               <circle cx="60" cy="60" r="50" fill="none" stroke="hsl(var(--border))" strokeWidth="6" />
               <circle
