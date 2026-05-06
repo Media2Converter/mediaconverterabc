@@ -599,16 +599,12 @@ const Index: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
-      {/* Header: title left (long-press → code download), more options top-right */}
-      <div className="w-full flex items-center justify-between mb-8">
-        <TitleWithCodeDownload
-          jsonContent={jsomInstructions}
-          ffmpegContent={ffmpegCommand || 'コマンドはまだ生成されていません。'}
-        />
+      {/* Edge-pinned more options button (always at viewport corner) */}
+      <div className="fixed top-2 right-2 z-[60]">
         <NativeSelectButton
           ariaLabel="その他のオプション"
-          className="text-foreground p-2 active:opacity-60"
-          style={{ width: 40, height: 40 }}
+          className="text-foreground p-2 active:opacity-60 bg-background/80 backdrop-blur rounded-full"
+          style={{ width: 44, height: 44 }}
           delay={1000}
           onSelect={handleMoreMenuSelect}
           pickerHeader="メディアコンバータ"
@@ -627,6 +623,14 @@ const Index: React.FC = () => {
             <circle cx="19" cy="12" r="2" />
           </svg>
         </NativeSelectButton>
+      </div>
+
+      {/* Header: title (long-press → code download) */}
+      <div className="w-full flex items-center justify-start mb-8">
+        <TitleWithCodeDownload
+          jsonContent={jsomInstructions}
+          ffmpegContent={ffmpegCommand || 'コマンドはまだ生成されていません。'}
+        />
       </div>
 
       {files.length > 0 && (
