@@ -134,7 +134,7 @@ const PerFileNativeFormatPicker: React.FC<{
   );
 };
 
-/** Fullscreen preview for JSOM/FFmpeg with long-press → native picker → Web Share as "コード". */
+/** Fullscreen preview for JSON/FFmpeg with long-press → native picker → Web Share as "コード". */
 const PreviewOverlay: React.FC<{
   kind: 'jsom' | 'ffmpeg';
   content: string;
@@ -142,7 +142,7 @@ const PreviewOverlay: React.FC<{
 }> = ({ kind, content, onClose }) => {
   const selectRef = useRef<HTMLSelectElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const title = kind === 'jsom' ? 'JSOM 指示書' : 'FFmpeg.wasm コマンド';
+  const title = kind === 'jsom' ? 'JSON 指示書' : 'FFmpeg.wasm コマンド';
 
   const shareAsCode = async () => {
     const ext = kind === 'jsom' ? 'json' : 'sh';
@@ -220,6 +220,78 @@ const PreviewOverlay: React.FC<{
           <option value="download">ダウンロード</option>
         </select>
       </div>
+    </div>
+  );
+};
+
+/** Main title with long-press → native picker → Web Share code as "コード" file. */
+const TitleWithCodeDownload: React.FC<{ jsonContent: string; ffmpegContent: string }> = ({ jsonContent, ffmpegContent }) => {
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const shareAsCode = async (kind: 'json' | 'ffmpeg') => {
+    const ext = kind === 'json' ? 'json' : 'sh';
+    const mime = kind === 'json' ? 'application/json' : 'text/plain';
+    const filename = `コード.${ext}`;
+    const content = kind === 'json' ? jsonContent : ffmpegContent;
+    try {
+      const blob = new Blob([content], { type: mime });
+      const file = new File([blob], filename, { type: mime });
+      const navAny = navigator as any;
+      if (navAny.canShare && navAny.canShare({ files: [file] })) {
+        await navAny.share({ files: [file], title: filename });
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch { /* cancelled */ }
+  };
+
+  const openPicker = () => {
+    setTimeout(() => { selectRef.current?.focus(); selectRef.current?.click(); }, 16);
+  };
+  const handleStart = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => { openPicker(); longPressTimer.current = null; }, 1000);
+  };
+  const handleEnd = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  };
+
+  return (
+    <div className="relative">
+      <h1
+        className="font-bold tracking-tight select-none"
+        style={{ fontSize: '35px' }}
+        onTouchStart={handleStart}
+        onTouchEnd={handleEnd}
+        onTouchCancel={handleEnd}
+        onMouseDown={handleStart}
+        onMouseUp={handleEnd}
+        onMouseLeave={handleEnd}
+        onContextMenu={(e) => e.preventDefault()}
+        aria-label="メディアコンバータ。長押しでコードをダウンロード"
+      >
+        メディアコンバータ
+      </h1>
+      <select
+        ref={selectRef}
+        value=""
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === 'json' || v === 'ffmpeg') shareAsCode(v);
+          e.target.value = '';
+        }}
+        className="absolute opacity-0 pointer-events-none"
+        style={{ left: 0, top: 0, width: 1, height: 1 }}
+        aria-label="コードをダウンロード"
+      >
+        <option value="" disabled>コードをダウンロード</option>
+        <option value="json">JSON</option>
+        <option value="ffmpeg">FFmpeg.wasm</option>
+      </select>
     </div>
   );
 };
@@ -527,9 +599,12 @@ const Index: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
-      {/* Header: title left, more options top-right */}
+      {/* Header: title left (long-press → code download), more options top-right */}
       <div className="w-full flex items-center justify-between mb-8">
-        <h1 className="font-bold tracking-tight" style={{ fontSize: '35px' }}>メディアコンバータ</h1>
+        <TitleWithCodeDownload
+          jsonContent={jsomInstructions}
+          ffmpegContent={ffmpegCommand || 'コマンドはまだ生成されていません。'}
+        />
         <NativeSelectButton
           ariaLabel="その他のオプション"
           className="text-foreground p-2 active:opacity-60"
@@ -682,7 +757,7 @@ const Index: React.FC = () => {
               groups={[{
                 label: 'プレビューを表示',
                 options: [
-                  { label: 'JSOM', value: 'jsom' },
+                  { label: 'JSON', value: 'jsom' },
                   { label: 'FFmpeg.wasm', value: 'ffmpeg' },
                 ],
               }]}
