@@ -134,7 +134,7 @@ const PerFileNativeFormatPicker: React.FC<{
   );
 };
 
-/** Fullscreen preview for JSOM/FFmpeg with long-press → native picker → Web Share as "コード". */
+/** Fullscreen preview for JSON/FFmpeg with long-press → native picker → Web Share as "コード". */
 const PreviewOverlay: React.FC<{
   kind: 'jsom' | 'ffmpeg';
   content: string;
@@ -142,7 +142,7 @@ const PreviewOverlay: React.FC<{
 }> = ({ kind, content, onClose }) => {
   const selectRef = useRef<HTMLSelectElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const title = kind === 'jsom' ? 'JSOM 指示書' : 'FFmpeg.wasm コマンド';
+  const title = kind === 'jsom' ? 'JSON 指示書' : 'FFmpeg.wasm コマンド';
 
   const shareAsCode = async () => {
     const ext = kind === 'jsom' ? 'json' : 'sh';
