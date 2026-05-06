@@ -527,9 +527,12 @@ const Index: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
-      {/* Header: title left, more options top-right */}
+      {/* Header: title left (long-press → code download), more options top-right */}
       <div className="w-full flex items-center justify-between mb-8">
-        <h1 className="font-bold tracking-tight" style={{ fontSize: '35px' }}>メディアコンバータ</h1>
+        <TitleWithCodeDownload
+          jsonContent={jsomInstructions}
+          ffmpegContent={ffmpegCommand || 'コマンドはまだ生成されていません。'}
+        />
         <NativeSelectButton
           ariaLabel="その他のオプション"
           className="text-foreground p-2 active:opacity-60"
