@@ -682,7 +682,7 @@ const Index: React.FC = () => {
               groups={[{
                 label: 'プレビューを表示',
                 options: [
-                  { label: 'JSOM', value: 'jsom' },
+                  { label: 'JSON', value: 'jsom' },
                   { label: 'FFmpeg.wasm', value: 'ffmpeg' },
                 ],
               }]}
