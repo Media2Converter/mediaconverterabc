@@ -595,11 +595,12 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   // iOS-style centered dialog popup
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-        <VOOverlayCloseButton onClose={onClose} />
+      <VOOverlayCloseButton onClose={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
         <div
           ref={sheetRef}
+          className="pointer-events-auto"
           aria-label="詳細設定 ダイアログ"
           // @ts-ignore - popover is a valid HTML attribute
           popover="auto"
