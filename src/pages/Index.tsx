@@ -263,7 +263,7 @@ const TitleWithCodeDownload: React.FC<{ jsonContent: string; ffmpegContent: stri
   return (
     <div className="relative">
       <h1
-        className="font-bold tracking-tight select-none"
+        className="font-bold tracking-tight select-none leading-[1.05]"
         style={{ fontSize: '35px' }}
         onTouchStart={handleStart}
         onTouchEnd={handleEnd}
@@ -274,7 +274,7 @@ const TitleWithCodeDownload: React.FC<{ jsonContent: string; ffmpegContent: stri
         onContextMenu={(e) => e.preventDefault()}
         aria-label="メディアコンバータ。長押しでコードをダウンロード"
       >
-        メディアコンバータ
+        メディア<br />コンバータ
       </h1>
       <select
         ref={selectRef}
