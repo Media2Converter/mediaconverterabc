@@ -89,9 +89,11 @@ const NativePickerRow: React.FC<{
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onClick={handleClick}
+        aria-label={`${label}、現在: ${displayValue}`}
+        aria-haspopup="menu"
         className="w-full flex items-center justify-between px-5 py-3 border-b border-border active:bg-accent transition-colors"
       >
-        <div className="flex flex-col items-start">
+        <div className="flex flex-col items-start" aria-hidden="true">
           <span className="text-foreground text-[31px]">{label}</span>
           <span className={`text-[29px] ${destructiveValue ? 'text-destructive' : warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue}</span>
         </div>
