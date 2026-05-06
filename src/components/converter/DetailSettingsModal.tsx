@@ -600,11 +600,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
         <div
           ref={sheetRef}
-          className="pointer-events-auto"
           aria-label="詳細設定 ダイアログ"
           // @ts-ignore - popover is a valid HTML attribute
           popover="auto"
-          className="relative z-10 flex flex-col outline-none"
+          className="relative z-10 flex flex-col outline-none pointer-events-auto"
           style={{
             width: 'min(92vw, 520px)',
             maxHeight: '85vh',
