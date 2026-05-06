@@ -11,7 +11,7 @@ export const AUDIO_CODECS = [
   'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS',
 ];
 
-export const ASPECT_RATIOS = ['自由', '16:9', '22:9', '11:9', '11:8', '9:7', '4:3', '1:1', '3:4', '7:9', '8:11', '9:11', '9:22', '9:16'];
+export const ASPECT_RATIOS = ['自由', '16:9', '11:9', '9:7', '4:3', '1:1', '3:4', '7:9', '9:11', '9:16'];
 
 export const SCAN_TYPES = ['プログレッシブ方式', 'インターレース方式'];
 
