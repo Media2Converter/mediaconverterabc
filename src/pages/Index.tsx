@@ -134,20 +134,20 @@ const PerFileNativeFormatPicker: React.FC<{
   );
 };
 
-/** Fullscreen preview for JSON/FFmpeg with long-press → native picker → Web Share as "コード". */
+/** Fullscreen preview for JSON/FFmpeg with ••• button → native picker → Web Share. */
 const PreviewOverlay: React.FC<{
   kind: 'jsom' | 'ffmpeg';
   content: string;
   onClose: () => void;
 }> = ({ kind, content, onClose }) => {
   const selectRef = useRef<HTMLSelectElement>(null);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const title = kind === 'jsom' ? 'JSON 指示書' : 'FFmpeg.wasm コマンド';
 
   const shareAsCode = async () => {
     const ext = kind === 'jsom' ? 'json' : 'sh';
     const mime = kind === 'jsom' ? 'application/json' : 'text/plain';
-    const filename = `コード.${ext}`;
+    const baseName = kind === 'jsom' ? 'コード' : 'コマンド';
+    const filename = `${baseName}.${ext}`;
     try {
       const blob = new Blob([content], { type: mime });
       const file = new File([blob], filename, { type: mime });
@@ -156,7 +156,6 @@ const PreviewOverlay: React.FC<{
         await navAny.share({ files: [file], title: filename });
         return;
       }
-      // Fallback download
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = filename; a.click();
@@ -170,14 +169,6 @@ const PreviewOverlay: React.FC<{
     setTimeout(() => { selectRef.current?.focus(); selectRef.current?.click(); }, 16);
   };
 
-  const handleStart = () => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    longPressTimer.current = setTimeout(() => { openPicker(); longPressTimer.current = null; }, 600);
-  };
-  const handleEnd = () => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-  };
-
   return (
     <div
       className="fixed inset-0 z-[200] bg-background text-foreground flex flex-col"
@@ -186,7 +177,33 @@ const PreviewOverlay: React.FC<{
       aria-label={title}
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h2 className="text-[31px] font-semibold">{title}</h2>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={openPicker}
+            aria-label="その他のオプション"
+            aria-haspopup="menu"
+            className="flex items-center justify-center text-foreground active:opacity-60"
+            style={{ width: 40, height: 40 }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
+          <select
+            ref={selectRef}
+            value=""
+            onChange={(e) => { if (e.target.value === 'download') shareAsCode(); e.target.value = ''; }}
+            className="absolute inset-0 opacity-0 pointer-events-auto cursor-pointer"
+            aria-label="プレビューのその他のオプション"
+          >
+            <option value="" disabled>{title}</option>
+            <option value="download">ダウンロード</option>
+          </select>
+        </div>
+        <h2 className="text-[31px] font-semibold flex-1 text-center px-2 truncate">{title}</h2>
         <button
           onClick={onClose}
           className="text-foreground text-[31px] px-4 py-2 active:opacity-60"
@@ -198,27 +215,10 @@ const PreviewOverlay: React.FC<{
       <div className="relative flex-1 overflow-hidden">
         <pre
           className="absolute inset-0 overflow-auto p-4 text-[22px] font-mono whitespace-pre-wrap break-all leading-snug select-text"
-          onTouchStart={handleStart}
-          onTouchEnd={handleEnd}
-          onTouchCancel={handleEnd}
-          onMouseDown={handleStart}
-          onMouseUp={handleEnd}
-          onMouseLeave={handleEnd}
-          aria-label={`${title}。長押しでダウンロードメニューを表示`}
+          aria-label={title}
         >
           {content}
         </pre>
-        <select
-          ref={selectRef}
-          value=""
-          onChange={(e) => { if (e.target.value === 'download') shareAsCode(); e.target.value = ''; }}
-          className="absolute opacity-0 pointer-events-none"
-          style={{ left: '50%', top: '50%', width: 1, height: 1 }}
-          aria-label="アクション"
-        >
-          <option value="" disabled>{title}</option>
-          <option value="download">ダウンロード</option>
-        </select>
       </div>
     </div>
   );
