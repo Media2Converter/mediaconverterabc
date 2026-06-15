@@ -97,7 +97,7 @@ const NativePickerRow: React.FC<{
           <span className="text-foreground text-[31px]">{label}</span>
           <span className={`text-[29px] ${destructiveValue ? 'text-destructive' : warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue}</span>
         </div>
-        <ContextMenuChevron />
+        <ContextMenuChevron size={26} />
       </button>
       <select
         ref={selectRef}
