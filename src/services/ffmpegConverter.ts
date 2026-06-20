@@ -222,7 +222,7 @@ export async function convertWithFFmpeg(
 
   if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
 
-  onStatus?.('Gemini3Flash → FFmpegコマンドを生成中...');
+  onStatus?.('FFmpegコマンドを生成中...');
   const args = buildFFmpegArgs(inputName, outputName, settings, format, isVideo);
   const fullCmd = `ffmpeg ${args.join(' ')}`;
   onCommand?.(fullCmd);
