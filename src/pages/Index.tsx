@@ -536,7 +536,6 @@ const Index: React.FC = () => {
         { label: '再試行', value: 'retry' },
         { label: '初期化', value: 'reset', colorClass: 'text-destructive' },
         { label: 'FFmpegを初期化', value: 'reset_ffmpeg' },
-        { label: 'Gemini3Flashを初期化', value: 'reset_gemini' },
       ],
     },
   ];
