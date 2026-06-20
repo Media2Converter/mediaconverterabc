@@ -565,9 +565,6 @@ const Index: React.FC = () => {
         resetFFmpeg();
         window.alert('FFmpegが初期化されました。');
         break;
-      case 'reset_gemini':
-        window.alert('Gemini3Flashの指示書・コマンドが初期化されました。');
-        break;
     }
   };
 
