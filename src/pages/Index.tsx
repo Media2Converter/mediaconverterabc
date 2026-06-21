@@ -579,10 +579,14 @@ const Index: React.FC = () => {
     return () => { if (moreMenuTimer.current) clearTimeout(moreMenuTimer.current); };
   }, []);
 
-  const allFormats = [
-    { group: '動画形式', formats: VIDEO_FORMATS },
-    { group: '音声形式', formats: AUDIO_FORMATS },
-  ];
+  const allFormats = (() => {
+    if (isMixedMedia) return [];
+    if (!isVideo && hasAudioFile) return [{ group: '音声形式', formats: AUDIO_FORMATS }];
+    return [
+      { group: '動画形式', formats: VIDEO_FORMATS },
+      { group: '音声形式', formats: AUDIO_FORMATS },
+    ];
+  })();
 
   // VoiceOver announcement for file format popup
   const [fileFormatVo, setFileFormatVo] = useState('');
