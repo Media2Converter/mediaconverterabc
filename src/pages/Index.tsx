@@ -357,6 +357,19 @@ const Index: React.FC = () => {
     checkBattery();
   }, []);
 
+  // Clear selected format when file composition makes it incompatible
+  useEffect(() => {
+    if (files.length === 0) return;
+    const hasAudio = files.some(f => f.type.startsWith('audio/'));
+    const hasVideo = files.some(f => f.type.startsWith('video/'));
+    if (hasAudio && hasVideo && selectedFormat) {
+      setSelectedFormat('');
+    }
+    if (!hasVideo && hasAudio && selectedFormat && isVideoFormat(selectedFormat)) {
+      setSelectedFormat('');
+    }
+  }, [files, selectedFormat]);
+
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
