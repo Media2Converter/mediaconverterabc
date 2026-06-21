@@ -696,7 +696,7 @@ const Index: React.FC = () => {
             )}
 
             {/* Per-file format button (multi-file only) */}
-            {isMultiFile && (
+            {isMultiFile && allFormats.length > 0 && (
               <button
                 onClick={() => setShowFileFormatPopup(true)}
                 className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
