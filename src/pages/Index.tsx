@@ -393,6 +393,8 @@ const Index: React.FC = () => {
   };
 
   const isVideo = files.some(f => f.type.startsWith('video/'));
+  const hasAudioFile = files.some(f => f.type.startsWith('audio/'));
+  const isMixedMedia = isVideo && hasAudioFile;
   const isMultiFile = files.length >= 2;
 
   const handleFormatSelect = (value: string) => {
