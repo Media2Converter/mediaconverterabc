@@ -679,19 +679,21 @@ const Index: React.FC = () => {
 
         {files.length > 0 && (
           <>
-            <NativeSelectButton
-              className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-              style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
-              ariaLabel="出力形式"
-              value={selectedFormat}
-              onSelect={handleFormatSelect}
-              pickerHeader="出力形式"
-              groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
-            >
-              <span className="block w-full py-3.5 text-[31px] font-semibold">
-                {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
-              </span>
-            </NativeSelectButton>
+            {allFormats.length > 0 && (
+              <NativeSelectButton
+                className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+                style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
+                ariaLabel="出力形式"
+                value={selectedFormat}
+                onSelect={handleFormatSelect}
+                pickerHeader="出力形式"
+                groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
+              >
+                <span className="block w-full py-3.5 text-[31px] font-semibold">
+                  {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
+                </span>
+              </NativeSelectButton>
+            )}
 
             {/* Per-file format button (multi-file only) */}
             {isMultiFile && (
