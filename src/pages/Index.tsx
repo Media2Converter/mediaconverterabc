@@ -357,6 +357,19 @@ const Index: React.FC = () => {
     checkBattery();
   }, []);
 
+  // Clear selected format when file composition makes it incompatible
+  useEffect(() => {
+    if (files.length === 0) return;
+    const hasAudio = files.some(f => f.type.startsWith('audio/'));
+    const hasVideo = files.some(f => f.type.startsWith('video/'));
+    if (hasAudio && hasVideo && selectedFormat) {
+      setSelectedFormat('');
+    }
+    if (!hasVideo && hasAudio && selectedFormat && isVideoFormat(selectedFormat)) {
+      setSelectedFormat('');
+    }
+  }, [files, selectedFormat]);
+
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
@@ -393,6 +406,8 @@ const Index: React.FC = () => {
   };
 
   const isVideo = files.some(f => f.type.startsWith('video/'));
+  const hasAudioFile = files.some(f => f.type.startsWith('audio/'));
+  const isMixedMedia = isVideo && hasAudioFile;
   const isMultiFile = files.length >= 2;
 
   const handleFormatSelect = (value: string) => {
@@ -577,10 +592,14 @@ const Index: React.FC = () => {
     return () => { if (moreMenuTimer.current) clearTimeout(moreMenuTimer.current); };
   }, []);
 
-  const allFormats = [
-    { group: '動画形式', formats: VIDEO_FORMATS },
-    { group: '音声形式', formats: AUDIO_FORMATS },
-  ];
+  const allFormats = (() => {
+    if (isMixedMedia) return [];
+    if (!isVideo && hasAudioFile) return [{ group: '音声形式', formats: AUDIO_FORMATS }];
+    return [
+      { group: '動画形式', formats: VIDEO_FORMATS },
+      { group: '音声形式', formats: AUDIO_FORMATS },
+    ];
+  })();
 
   // VoiceOver announcement for file format popup
   const [fileFormatVo, setFileFormatVo] = useState('');
@@ -660,22 +679,24 @@ const Index: React.FC = () => {
 
         {files.length > 0 && (
           <>
-            <NativeSelectButton
-              className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-              style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
-              ariaLabel="出力形式"
-              value={selectedFormat}
-              onSelect={handleFormatSelect}
-              pickerHeader="出力形式"
-              groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
-            >
-              <span className="block w-full py-3.5 text-[31px] font-semibold">
-                {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
-              </span>
-            </NativeSelectButton>
+            {allFormats.length > 0 && (
+              <NativeSelectButton
+                className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+                style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
+                ariaLabel="出力形式"
+                value={selectedFormat}
+                onSelect={handleFormatSelect}
+                pickerHeader="出力形式"
+                groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
+              >
+                <span className="block w-full py-3.5 text-[31px] font-semibold">
+                  {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
+                </span>
+              </NativeSelectButton>
+            )}
 
             {/* Per-file format button (multi-file only) */}
-            {isMultiFile && (
+            {isMultiFile && allFormats.length > 0 && (
               <button
                 onClick={() => setShowFileFormatPopup(true)}
                 className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
