@@ -279,7 +279,7 @@ export function isVideoFormat(fmt: string): boolean {
 }
 
 export function isAdpcmCodec(codec: string): boolean {
-  return codec.startsWith('ADPCM_');
+  return codec.startsWith('ADPCM');
 }
 
 export function getResolutionForAspect(ratio: string, w: number, h: number): { w: number; h: number } {
