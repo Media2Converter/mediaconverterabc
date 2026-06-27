@@ -143,7 +143,7 @@ export const VOLUME_OPTIONS: { label: string; value: string; color?: 'orange' | 
 })();
 
 export const IPHONE_BAD_VIDEO_CODECS = ['AV1', 'H.263', 'H.261', 'H.320', 'DIVX', 'MJPEG'];
-export const IPHONE_BAD_AUDIO_CODECS = ['OPUS', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM', 'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS'];
+export const IPHONE_BAD_AUDIO_CODECS = ['OPUS', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S16BE', 'PCM_S24LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM', 'ADPCM', 'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS'];
 export const IPHONE_BAD_FORMATS = ['AVI', '3G2', '3GP', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'OPUS'];
 
 export const FORMAT_AUDIO_CODEC_COMPAT: Record<string, string[]> = {
@@ -152,7 +152,7 @@ export const FORMAT_AUDIO_CODEC_COMPAT: Record<string, string[]> = {
   'MOV': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AC3', 'EAC3', 'MP3', 'PCM_S16LE', 'PCM_S32LE', 'LPCM', 'ALAC', 'FLAC'],
   '3G2': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AMR_NB', 'AMR_WB'],
   '3GP': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AMR_NB', 'AMR_WB'],
-  'AVI': ['MP3', 'PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'AC3', 'LPCM', 'ADPCM_IMA', 'ADPCM_MS'],
+  'AVI': ['MP3', 'PCM_S16LE', 'PCM_S16BE', 'PCM_S24LE', 'PCM_U8', 'PCM_S32LE', 'AC3', 'LPCM', 'ADPCM', 'ADPCM_IMA', 'ADPCM_MS'],
   'OPUS': ['OPUS'],
   'EAC3': ['EAC3'],
   'AC3': ['AC3'],
