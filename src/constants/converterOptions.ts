@@ -91,6 +91,7 @@ export const AMR_NB_FREQUENCIES = ['8000Hz'];
 export const AMR_WB_FREQUENCIES = ['16000Hz'];
 
 export const ADPCM_BITRATES: Record<string, string[]> = {
+  'ADPCM': ['32KBPS'],
   'ADPCM_G721': ['32KBPS'],
   'ADPCM_G723': ['24KBPS', '40KBPS'],
   'ADPCM_G726': ['16KBPS', '24KBPS', '32KBPS', '40KBPS'],
