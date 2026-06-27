@@ -6,9 +6,9 @@ export const AUDIO_CODECS = [
   'OPUS', 'EAC3', 'AC3', 'AAC', 'AAC_HE_V1', 'AAC_HE_V2',
   'MP3', 'WAV', 'OGG', 'AIFF', 'RAW',
   'AMR_NB', 'AMR_WB',
-  'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM',
+  'PCM_U8', 'PCM_S16LE', 'PCM_S16BE', 'PCM_S24LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM',
   'ALAC', 'FLAC',
-  'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS',
+  'ADPCM', 'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS',
 ];
 
 export const ASPECT_RATIOS = ['自由', '16:9', '11:9', '9:7', '4:3', '1:1', '3:4', '7:9', '9:11', '9:16'];
