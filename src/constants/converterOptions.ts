@@ -6,9 +6,9 @@ export const AUDIO_CODECS = [
   'OPUS', 'EAC3', 'AC3', 'AAC', 'AAC_HE_V1', 'AAC_HE_V2',
   'MP3', 'WAV', 'OGG', 'AIFF', 'RAW',
   'AMR_NB', 'AMR_WB',
-  'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM',
+  'PCM_U8', 'PCM_S16LE', 'PCM_S16BE', 'PCM_S24LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM',
   'ALAC', 'FLAC',
-  'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS',
+  'ADPCM', 'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS',
 ];
 
 export const ASPECT_RATIOS = ['自由', '16:9', '11:9', '9:7', '4:3', '1:1', '3:4', '7:9', '9:11', '9:16'];
@@ -91,6 +91,7 @@ export const AMR_NB_FREQUENCIES = ['8000Hz'];
 export const AMR_WB_FREQUENCIES = ['16000Hz'];
 
 export const ADPCM_BITRATES: Record<string, string[]> = {
+  'ADPCM': ['32KBPS'],
   'ADPCM_G721': ['32KBPS'],
   'ADPCM_G723': ['24KBPS', '40KBPS'],
   'ADPCM_G726': ['16KBPS', '24KBPS', '32KBPS', '40KBPS'],
@@ -142,7 +143,7 @@ export const VOLUME_OPTIONS: { label: string; value: string; color?: 'orange' | 
 })();
 
 export const IPHONE_BAD_VIDEO_CODECS = ['AV1', 'H.263', 'H.261', 'H.320', 'DIVX', 'MJPEG'];
-export const IPHONE_BAD_AUDIO_CODECS = ['OPUS', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM', 'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS'];
+export const IPHONE_BAD_AUDIO_CODECS = ['OPUS', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'PCM_U8', 'PCM_S16LE', 'PCM_S16BE', 'PCM_S24LE', 'PCM_S32LE', 'PCM_G.711', 'LPCM', 'ADPCM', 'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI', 'ADPCM_IMA', 'ADPCM_MS'];
 export const IPHONE_BAD_FORMATS = ['AVI', '3G2', '3GP', 'OGG', 'RAW', 'AMR_NB', 'AMR_WB', 'OPUS'];
 
 export const FORMAT_AUDIO_CODEC_COMPAT: Record<string, string[]> = {
@@ -151,7 +152,7 @@ export const FORMAT_AUDIO_CODEC_COMPAT: Record<string, string[]> = {
   'MOV': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AC3', 'EAC3', 'MP3', 'PCM_S16LE', 'PCM_S32LE', 'LPCM', 'ALAC', 'FLAC'],
   '3G2': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AMR_NB', 'AMR_WB'],
   '3GP': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AMR_NB', 'AMR_WB'],
-  'AVI': ['MP3', 'PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'AC3', 'LPCM', 'ADPCM_IMA', 'ADPCM_MS'],
+  'AVI': ['MP3', 'PCM_S16LE', 'PCM_S16BE', 'PCM_S24LE', 'PCM_U8', 'PCM_S32LE', 'AC3', 'LPCM', 'ADPCM', 'ADPCM_IMA', 'ADPCM_MS'],
   'OPUS': ['OPUS'],
   'EAC3': ['EAC3'],
   'AC3': ['AC3'],
@@ -200,9 +201,10 @@ export const CODEC_MAP: Record<string, string> = {
   'AAC_HE_V1': 'aac', 'AAC_HE_V2': 'aac',
   'MP3': 'libmp3lame', 'WAV': 'pcm_s16le', 'OGG': 'libvorbis', 'AIFF': 'pcm_s16be',
   'RAW': 'pcm_s16le', 'AMR_NB': 'libopencore_amrnb', 'AMR_WB': 'libopencore_amrwb',
-  'PCM_U8': 'pcm_u8', 'PCM_S16LE': 'pcm_s16le', 'PCM_S32LE': 'pcm_s32le', 'PCM_G.711': 'pcm_alaw',
+  'PCM_U8': 'pcm_u8', 'PCM_S16LE': 'pcm_s16le', 'PCM_S16BE': 'pcm_s16be', 'PCM_S24LE': 'pcm_s24le', 'PCM_S32LE': 'pcm_s32le', 'PCM_G.711': 'pcm_alaw',
   'LPCM': 'pcm_s16le',
   'ALAC': 'alac', 'FLAC': 'flac',
+  'ADPCM': 'adpcm_ima_wav',
   'ADPCM_G721': 'adpcm_g726', 'ADPCM_G723': 'adpcm_g723_1', 'ADPCM_G726': 'adpcm_g726',
   'ADPCM_G727': 'adpcm_g726le', 'ADPCM_G728': 'adpcm_g726', 'ADPCM_OKI': 'adpcm_ima_wav',
   'ADPCM_IMA': 'adpcm_ima_wav', 'ADPCM_MS': 'adpcm_ms',
@@ -277,7 +279,7 @@ export function isVideoFormat(fmt: string): boolean {
 }
 
 export function isAdpcmCodec(codec: string): boolean {
-  return codec.startsWith('ADPCM_');
+  return codec.startsWith('ADPCM');
 }
 
 export function getResolutionForAspect(ratio: string, w: number, h: number): { w: number; h: number } {
