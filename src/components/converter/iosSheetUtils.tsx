@@ -10,12 +10,13 @@ export const ContextMenuChevron: React.FC<{ size?: number }> = ({ size = 18 }) =
     height={size * 1.25}
     viewBox="0 0 20 26"
     fill="none"
-    stroke="currentColor"
+    stroke="#ffffff"
     strokeWidth="2.6"
     strokeLinecap="round"
     strokeLinejoin="round"
-    style={{ display: 'block', background: 'transparent', opacity: 0.85 }}
+    style={{ display: 'block', background: 'transparent', opacity: 1 }}
   >
+
     <path d="M5 9 L10 4 L15 9" />
     <path d="M5 17 L10 22 L15 17" />
   </svg>

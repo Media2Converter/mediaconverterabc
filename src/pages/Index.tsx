@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { IOSPickerModal } from '@/components/converter/IOSComponents';
+import { IOSPickerModal, IOSActionSheet } from '@/components/converter/IOSComponents';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
@@ -140,7 +140,7 @@ const PreviewOverlay: React.FC<{
   content: string;
   onClose: () => void;
 }> = ({ kind, content, onClose }) => {
-  const selectRef = useRef<HTMLSelectElement>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const title = kind === 'jsom' ? 'JSON 指示書' : 'FFmpeg.wasm コマンド';
 
   const shareAsCode = async () => {
@@ -165,10 +165,6 @@ const PreviewOverlay: React.FC<{
     }
   };
 
-  const openPicker = () => {
-    setTimeout(() => { selectRef.current?.focus(); selectRef.current?.click(); }, 16);
-  };
-
   return (
     <div
       className="fixed inset-0 z-[200] bg-background text-foreground flex flex-col"
@@ -177,32 +173,20 @@ const PreviewOverlay: React.FC<{
       aria-label={title}
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="relative">
-          <button
-            type="button"
-            onClick={openPicker}
-            aria-label="その他のオプション"
-            aria-haspopup="menu"
-            className="flex items-center justify-center text-foreground active:opacity-60"
-            style={{ width: 40, height: 40 }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <circle cx="5" cy="12" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="19" cy="12" r="2" />
-            </svg>
-          </button>
-          <select
-            ref={selectRef}
-            value=""
-            onChange={(e) => { if (e.target.value === 'download') shareAsCode(); e.target.value = ''; }}
-            className="absolute inset-0 opacity-0 pointer-events-auto cursor-pointer"
-            aria-label="プレビューのその他のオプション"
-          >
-            <option value="" disabled>{title}</option>
-            <option value="download">ダウンロード</option>
-          </select>
-        </div>
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          aria-label="その他のオプション"
+          aria-haspopup="menu"
+          className="flex items-center justify-center text-foreground active:opacity-60"
+          style={{ width: 40, height: 40 }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <circle cx="5" cy="12" r="2" />
+            <circle cx="12" cy="12" r="2" />
+            <circle cx="19" cy="12" r="2" />
+          </svg>
+        </button>
         <h2 className="text-[31px] font-semibold flex-1 text-center px-2 truncate">{title}</h2>
         <button
           onClick={onClose}
@@ -220,9 +204,15 @@ const PreviewOverlay: React.FC<{
           {content}
         </pre>
       </div>
+      <IOSActionSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        options={[{ label: 'ダウンロード', action: shareAsCode }]}
+      />
     </div>
   );
 };
+
 
 /** Main title with long-press → native picker → Web Share code as "コード" file. */
 const TitleWithCodeDownload: React.FC<{ jsonContent: string; ffmpegContent: string }> = ({ jsonContent, ffmpegContent }) => {
@@ -602,6 +592,13 @@ const Index: React.FC = () => {
     ];
   })();
 
+  // For the per-file format picker we always allow every format (needed for mixed media).
+  const perFileAllFormats = [
+    { group: '動画形式', formats: VIDEO_FORMATS },
+    { group: '音声形式', formats: AUDIO_FORMATS },
+  ];
+
+
   // VoiceOver announcement for file format popup
   const [fileFormatVo, setFileFormatVo] = useState('');
   useEffect(() => {
@@ -696,8 +693,9 @@ const Index: React.FC = () => {
               </NativeSelectButton>
             )}
 
-            {/* Per-file format button (shown for all files when formats exist) */}
-            {files.length > 0 && allFormats.length > 0 && (
+            {/* Per-file format button: only for multi-file or mixed audio+video */}
+            {(isMultiFile || isMixedMedia) && (
+
               <button
                 onClick={() => setShowFileFormatPopup(true)}
                 className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
@@ -834,7 +832,8 @@ const Index: React.FC = () => {
       <PerFileNativeFormatPicker
         open={showFileFormatPopup && fileFormatPickerIndex !== null}
         value={fileFormatPickerIndex !== null ? (perFileFormats[fileFormatPickerIndex] || selectedFormat || '') : ''}
-        groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
+        groups={perFileAllFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
+
         onSelect={(fmt) => {
           if (fileFormatPickerIndex !== null && fmt) {
             setPerFileFormats(prev => ({ ...prev, [fileFormatPickerIndex!]: fmt }));
