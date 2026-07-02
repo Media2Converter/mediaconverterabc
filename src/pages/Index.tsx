@@ -832,7 +832,8 @@ const Index: React.FC = () => {
       <PerFileNativeFormatPicker
         open={showFileFormatPopup && fileFormatPickerIndex !== null}
         value={fileFormatPickerIndex !== null ? (perFileFormats[fileFormatPickerIndex] || selectedFormat || '') : ''}
-        groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
+        groups={perFileAllFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
+
         onSelect={(fmt) => {
           if (fileFormatPickerIndex !== null && fmt) {
             setPerFileFormats(prev => ({ ...prev, [fileFormatPickerIndex!]: fmt }));
