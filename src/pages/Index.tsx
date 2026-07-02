@@ -686,8 +686,9 @@ const Index: React.FC = () => {
               </NativeSelectButton>
             )}
 
-            {/* Per-file format button (shown for all files when formats exist) */}
-            {files.length > 0 && allFormats.length > 0 && (
+            {/* Per-file format button: only for multi-file or mixed audio+video */}
+            {(isMultiFile || isMixedMedia) && (
+
               <button
                 onClick={() => setShowFileFormatPopup(true)}
                 className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
