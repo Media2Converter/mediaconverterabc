@@ -592,6 +592,13 @@ const Index: React.FC = () => {
     ];
   })();
 
+  // For the per-file format picker we always allow every format (needed for mixed media).
+  const perFileAllFormats = [
+    { group: '動画形式', formats: VIDEO_FORMATS },
+    { group: '音声形式', formats: AUDIO_FORMATS },
+  ];
+
+
   // VoiceOver announcement for file format popup
   const [fileFormatVo, setFileFormatVo] = useState('');
   useEffect(() => {
