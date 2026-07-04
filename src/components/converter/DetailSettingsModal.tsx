@@ -170,6 +170,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const [customFramerate, setCustomFramerate] = useState('');
   const [savedSettings, setSavedSettings] = useState<ConvertSettings>(settings);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const isInterlace = settings.scanType === 'インターレース方式';
   const arParts = settings.aspectRatio.split(':').map(Number);
