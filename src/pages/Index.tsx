@@ -140,8 +140,8 @@ const PreviewOverlay: React.FC<{
   content: string;
   onClose: () => void;
 }> = ({ kind, content, onClose }) => {
-  const [sheetOpen, setSheetOpen] = useState(false);
   const title = kind === 'jsom' ? 'JSON 指示書' : 'FFmpeg.wasm コマンド';
+
 
   const shareAsCode = async () => {
     const ext = kind === 'jsom' ? 'json' : 'sh';
