@@ -615,7 +615,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           style={{
             width: 'min(92vw, 520px)',
             maxHeight: '85vh',
-            background: '#1C1C1E',
+            background: '#B91C1C',
             borderRadius: 20,
             boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
             overflow: 'hidden',
@@ -625,6 +625,16 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         </div>
       </div>
       {customDialogs}
+      <IOSConfirmDialog
+        open={showDiscardConfirm}
+        onClose={() => setShowDiscardConfirm(false)}
+        onConfirm={confirmDiscard}
+        title="設定内容を破棄しますか？"
+        message=""
+        confirmLabel="破棄"
+        cancelLabel="キャンセル"
+        destructive
+      />
     </>
   );
 };
