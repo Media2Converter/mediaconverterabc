@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
+import { IOSConfirmDialog } from './IOSComponents';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
@@ -169,6 +170,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const [customFramerate, setCustomFramerate] = useState('');
   const [savedSettings, setSavedSettings] = useState<ConvertSettings>(settings);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const isInterlace = settings.scanType === 'インターレース方式';
   const arParts = settings.aspectRatio.split(':').map(Number);
@@ -190,11 +192,14 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   }, [open]);
 
   const handleCancel = () => {
-    if (window.confirm('この設定は保存されません。')) {
-      onChange(savedSettings);
-      onClose();
-    }
+    setShowDiscardConfirm(true);
   };
+  const confirmDiscard = () => {
+    onChange(savedSettings);
+    setShowDiscardConfirm(false);
+    onClose();
+  };
+
 
   const resolutionLabel = (tag?: string) => {
     if (!tag) return '';
@@ -395,27 +400,28 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       {/* VoiceOver announcement */}
       <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
 
-      {/* iOS popup header: circle X (left) + circle ✓ (right) */}
+      {/* iOS popup header: キャンセル (left) + 完了 (right) */}
       <div className="px-4 py-3 flex items-center justify-between flex-shrink-0 relative" style={{ minHeight: '60px' }}>
         <button
           onClick={handleCancel}
           aria-label="キャンセル"
-          className="flex items-center justify-center rounded-full active:opacity-60 transition-opacity"
-          style={{ width: 36, height: 36, background: 'rgba(80,80,84,0.9)', color: '#fff', fontSize: 18, fontWeight: 600 }}
+          className="text-[22px] font-normal active:opacity-60 transition-opacity px-1"
+          style={{ color: '#fff' }}
         >
-          ✕
+          キャンセル
         </button>
-        <h2 className="absolute left-1/2 -translate-x-1/2 text-foreground text-[31px] font-semibold pointer-events-none truncate max-w-[55%] text-center">{formatTitle}</h2>
+        <h2 className="absolute left-1/2 -translate-x-1/2 text-[24px] font-semibold pointer-events-none truncate max-w-[55%] text-center" style={{ color: '#fff' }}>{formatTitle}</h2>
         <button
           ref={closeButtonRef}
           onClick={onClose}
           aria-label="完了"
-          className="flex items-center justify-center rounded-full active:opacity-60 transition-opacity"
-          style={{ width: 36, height: 36, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', fontSize: 18, fontWeight: 700 }}
+          className="text-[22px] font-semibold active:opacity-60 transition-opacity px-1"
+          style={{ color: '#fff' }}
         >
-          ✓
+          完了
         </button>
       </div>
+
 
       <div className="overflow-y-auto overscroll-contain flex-1 -webkit-overflow-scrolling-touch">
         {showVideoSection && (
@@ -609,7 +615,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           style={{
             width: 'min(92vw, 520px)',
             maxHeight: '85vh',
-            background: '#1C1C1E',
+            background: '#B91C1C',
             borderRadius: 20,
             boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
             overflow: 'hidden',
@@ -619,6 +625,16 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         </div>
       </div>
       {customDialogs}
+      <IOSConfirmDialog
+        open={showDiscardConfirm}
+        onClose={() => setShowDiscardConfirm(false)}
+        onConfirm={confirmDiscard}
+        title="設定内容を破棄しますか？"
+        message=""
+        confirmLabel="破棄"
+        cancelLabel="キャンセル"
+        destructive
+      />
     </>
   );
 };
