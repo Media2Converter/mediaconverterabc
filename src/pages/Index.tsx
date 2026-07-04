@@ -173,20 +173,20 @@ const PreviewOverlay: React.FC<{
       aria-label={title}
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          aria-label="その他のオプション"
-          aria-haspopup="menu"
+        <NativeSelectButton
+          ariaLabel="その他のオプション"
           className="flex items-center justify-center text-foreground active:opacity-60"
           style={{ width: 40, height: 40 }}
+          onSelect={v => { if (v === 'download') shareAsCode(); }}
+          pickerHeader="オプション"
+          groups={[{ label: 'オプション', options: [{ label: 'ダウンロード', value: 'download' }] }]}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <circle cx="5" cy="12" r="2" />
             <circle cx="12" cy="12" r="2" />
             <circle cx="19" cy="12" r="2" />
           </svg>
-        </button>
+        </NativeSelectButton>
         <h2 className="text-[31px] font-semibold flex-1 text-center px-2 truncate">{title}</h2>
         <button
           onClick={onClose}
@@ -204,11 +204,6 @@ const PreviewOverlay: React.FC<{
           {content}
         </pre>
       </div>
-      <IOSActionSheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        options={[{ label: 'ダウンロード', action: shareAsCode }]}
-      />
     </div>
   );
 };
