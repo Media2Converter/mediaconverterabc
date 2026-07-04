@@ -400,22 +400,22 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       {/* VoiceOver announcement */}
       <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
 
-      {/* iOS popup header: キャンセル (left) + 完了 (right) */}
-      <div className="px-4 py-3 flex items-center justify-between flex-shrink-0 relative" style={{ minHeight: '60px' }}>
+      {/* iOS popup header: キャンセル (left) + 完了 (right) — flex layout so title never overlaps */}
+      <div className="px-4 py-3 flex items-center justify-between gap-2 flex-shrink-0" style={{ minHeight: '56px' }}>
         <button
           onClick={handleCancel}
           aria-label="キャンセル"
-          className="text-[22px] font-normal active:opacity-60 transition-opacity px-1"
+          className="text-[17px] font-normal active:opacity-60 transition-opacity px-1 flex-shrink-0"
           style={{ color: '#fff' }}
         >
           キャンセル
         </button>
-        <h2 className="absolute left-1/2 -translate-x-1/2 text-[24px] font-semibold pointer-events-none truncate max-w-[55%] text-center" style={{ color: '#fff' }}>{formatTitle}</h2>
+        <h2 className="text-[17px] font-semibold text-center truncate flex-1 min-w-0" style={{ color: '#fff' }}>{formatTitle}</h2>
         <button
           ref={closeButtonRef}
           onClick={onClose}
           aria-label="完了"
-          className="text-[22px] font-semibold active:opacity-60 transition-opacity px-1"
+          className="text-[17px] font-semibold active:opacity-60 transition-opacity px-1 flex-shrink-0"
           style={{ color: '#fff' }}
         >
           完了
