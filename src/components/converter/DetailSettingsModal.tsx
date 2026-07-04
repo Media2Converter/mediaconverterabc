@@ -600,27 +600,33 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!open) return null;
 
-  // iOS-style centered dialog popup
+  // iOS-style half-modal bottom sheet
   return (
     <>
       <VOOverlayCloseButton onClose={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-end justify-center pointer-events-none">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto ios-fade-in" onClick={onClose} />
         <div
           ref={sheetRef}
           aria-label="詳細設定 ダイアログ"
           // @ts-ignore - popover is a valid HTML attribute
           popover="auto"
-          className="relative z-10 flex flex-col outline-none pointer-events-auto"
+          className="relative z-10 flex flex-col outline-none pointer-events-auto ios-slide-up"
           style={{
-            width: 'min(92vw, 520px)',
-            maxHeight: '85vh',
+            width: '100%',
+            maxWidth: 640,
+            height: '92vh',
             background: '#B91C1C',
-            borderRadius: 20,
-            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+            borderTopLeftRadius: 14,
+            borderTopRightRadius: 14,
+            boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
             overflow: 'hidden',
           }}
         >
+          {/* iOS grabber handle */}
+          <div className="flex justify-center pt-2 pb-1 flex-shrink-0">
+            <div style={{ width: 36, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.5)' }} />
+          </div>
           {settingsContent}
         </div>
       </div>
@@ -630,7 +636,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         onClose={() => setShowDiscardConfirm(false)}
         onConfirm={confirmDiscard}
         title="設定内容を破棄しますか？"
-        message=""
+        message="この操作は取り消せません。"
         confirmLabel="破棄"
         cancelLabel="キャンセル"
         destructive
