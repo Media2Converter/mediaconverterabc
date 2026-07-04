@@ -759,22 +759,14 @@ const Index: React.FC = () => {
             </svg>
             <p className="text-foreground text-[31px] text-center whitespace-pre-line mt-4 max-w-md">{statusMessage}</p>
             <div className="w-full mt-4 flex flex-col gap-2">
-              <NativeSelectButton
-                ariaLabel="プレビューを表示"
-                className="active:opacity-80 transition-opacity w-full"
+              <button
+                onClick={() => setPreviewView('ffmpeg')}
+                aria-label="プレビューを表示"
+                className="active:opacity-80 transition-opacity w-full text-[31px] font-semibold"
                 style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', borderRadius: 0, height: 56 }}
-                onSelect={(v) => { if (v === 'jsom' || v === 'ffmpeg') setPreviewView(v); }}
-                pickerHeader="プレビューを表示"
-                groups={[{
-                  label: 'プレビューを表示',
-                  options: [
-                    { label: 'JSON', value: 'jsom' },
-                    { label: 'FFmpeg.wasm', value: 'ffmpeg' },
-                  ],
-                }]}
               >
-                <span className="block w-full text-[31px] font-semibold">プレビューを表示</span>
-              </NativeSelectButton>
+                プレビューを表示
+              </button>
               <button
                 onClick={handleCancel}
                 className="w-full bg-destructive text-destructive-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"

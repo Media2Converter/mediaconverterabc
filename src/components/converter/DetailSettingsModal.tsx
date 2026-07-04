@@ -400,22 +400,22 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       {/* VoiceOver announcement */}
       <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
 
-      {/* iOS popup header: キャンセル (left) + 完了 (right) */}
-      <div className="px-4 py-3 flex items-center justify-between flex-shrink-0 relative" style={{ minHeight: '60px' }}>
+      {/* iOS popup header: キャンセル (left) + 完了 (right) — flex layout so title never overlaps */}
+      <div className="px-4 py-3 flex items-center justify-between gap-2 flex-shrink-0" style={{ minHeight: '56px' }}>
         <button
           onClick={handleCancel}
           aria-label="キャンセル"
-          className="text-[22px] font-normal active:opacity-60 transition-opacity px-1"
+          className="text-[17px] font-normal active:opacity-60 transition-opacity px-1 flex-shrink-0"
           style={{ color: '#fff' }}
         >
           キャンセル
         </button>
-        <h2 className="absolute left-1/2 -translate-x-1/2 text-[24px] font-semibold pointer-events-none truncate max-w-[55%] text-center" style={{ color: '#fff' }}>{formatTitle}</h2>
+        <h2 className="text-[17px] font-semibold text-center truncate flex-1 min-w-0" style={{ color: '#fff' }}>{formatTitle}</h2>
         <button
           ref={closeButtonRef}
           onClick={onClose}
           aria-label="完了"
-          className="text-[22px] font-semibold active:opacity-60 transition-opacity px-1"
+          className="text-[17px] font-semibold active:opacity-60 transition-opacity px-1 flex-shrink-0"
           style={{ color: '#fff' }}
         >
           完了
@@ -600,27 +600,33 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!open) return null;
 
-  // iOS-style centered dialog popup
+  // iOS-style half-modal bottom sheet
   return (
     <>
       <VOOverlayCloseButton onClose={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-end justify-center pointer-events-none">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto ios-fade-in" onClick={onClose} />
         <div
           ref={sheetRef}
           aria-label="詳細設定 ダイアログ"
           // @ts-ignore - popover is a valid HTML attribute
           popover="auto"
-          className="relative z-10 flex flex-col outline-none pointer-events-auto"
+          className="relative z-10 flex flex-col outline-none pointer-events-auto ios-slide-up"
           style={{
-            width: 'min(92vw, 520px)',
-            maxHeight: '85vh',
+            width: '100%',
+            maxWidth: 640,
+            height: '92vh',
             background: '#B91C1C',
-            borderRadius: 20,
-            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+            borderTopLeftRadius: 14,
+            borderTopRightRadius: 14,
+            boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
             overflow: 'hidden',
           }}
         >
+          {/* iOS grabber handle */}
+          <div className="flex justify-center pt-2 pb-1 flex-shrink-0">
+            <div style={{ width: 36, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.5)' }} />
+          </div>
           {settingsContent}
         </div>
       </div>
@@ -630,7 +636,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         onClose={() => setShowDiscardConfirm(false)}
         onConfirm={confirmDiscard}
         title="設定内容を破棄しますか？"
-        message=""
+        message="この操作は取り消せません。"
         confirmLabel="破棄"
         cancelLabel="キャンセル"
         destructive
