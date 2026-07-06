@@ -109,7 +109,7 @@ const PerFileNativeFormatPicker: React.FC<{
   const ref = useRef<HTMLSelectElement>(null);
   useEffect(() => {
     if (open) {
-      const t = setTimeout(() => { ref.current?.focus(); ref.current?.click(); }, 50);
+      const t = setTimeout(() => { ref.current?.focus(); ref.current?.click(); }, 300);
       return () => clearTimeout(t);
     }
   }, [open]);
