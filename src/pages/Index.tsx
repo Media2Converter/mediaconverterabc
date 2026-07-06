@@ -812,23 +812,6 @@ const Index: React.FC = () => {
         </div>
       )}
 
-      {/* Per-file format picker (multi-file): list of files → tap one → native format picker */}
-      <IOSPickerModal
-        open={showFileFormatPopup && fileFormatPickerIndex === null}
-        onClose={() => { setShowFileFormatPopup(false); setFileFormatPickerIndex(null); }}
-        onSelect={(v) => {
-          const idx = parseInt(v, 10);
-          if (!isNaN(idx)) setFileFormatPickerIndex(idx);
-        }}
-        sections={[{
-          title: 'ファイル形式',
-          options: files.map((f, i) => ({
-            label: `${f.name} (${perFileFormats[i] || selectedFormat || '未選択'})`,
-            value: String(i),
-          })),
-        }]}
-      />
-
       {/* Per-file format selector — uses native iOS picker. Audio files: audio-only. Video files: all formats. */}
       <PerFileNativeFormatPicker
         open={showFileFormatPopup && fileFormatPickerIndex !== null}
