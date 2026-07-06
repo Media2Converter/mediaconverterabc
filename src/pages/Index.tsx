@@ -815,12 +815,18 @@ const Index: React.FC = () => {
         }]}
       />
 
-      {/* Per-file format selector — uses native iOS picker */}
+      {/* Per-file format selector — uses native iOS picker. Audio files: audio-only. Video files: all formats. */}
       <PerFileNativeFormatPicker
         open={showFileFormatPopup && fileFormatPickerIndex !== null}
         value={fileFormatPickerIndex !== null ? (perFileFormats[fileFormatPickerIndex] || selectedFormat || '') : ''}
-        groups={perFileAllFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
-
+        groups={(() => {
+          const f = fileFormatPickerIndex !== null ? files[fileFormatPickerIndex] : null;
+          const isAudioOnly = !!f && f.type.startsWith('audio/');
+          const g = isAudioOnly
+            ? [{ group: '音声形式', formats: AUDIO_FORMATS }]
+            : perFileAllFormats;
+          return g.map(x => ({ label: x.group, options: x.formats.map(fmt => ({ label: fmt, value: fmt })) }));
+        })()}
         onSelect={(fmt) => {
           if (fileFormatPickerIndex !== null && fmt) {
             setPerFileFormats(prev => ({ ...prev, [fileFormatPickerIndex!]: fmt }));
