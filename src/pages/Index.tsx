@@ -689,14 +689,29 @@ const Index: React.FC = () => {
 
             {/* Per-file format button: only for multi-file or mixed audio+video */}
             {(isMultiFile || isMixedMedia) && (
-
-              <button
-                onClick={() => setShowFileFormatPopup(true)}
-                className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-                style={{ borderRadius: 0 }}
+              <NativeSelectButton
+                className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+                style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
+                ariaLabel="ファイル形式"
+                value=""
+                onSelect={(v) => {
+                  const idx = parseInt(v, 10);
+                  if (!isNaN(idx)) {
+                    setFileFormatPickerIndex(idx);
+                    setShowFileFormatPopup(true);
+                  }
+                }}
+                pickerHeader="ファイル形式"
+                groups={[{
+                  label: 'ファイル形式',
+                  options: files.map((f, i) => ({
+                    label: `${f.name} (${perFileFormats[i] || selectedFormat || '未選択'})`,
+                    value: String(i),
+                  })),
+                }]}
               >
-                ファイル形式
-              </button>
+                <span className="block w-full py-3.5 text-[31px] font-semibold">ファイル形式</span>
+              </NativeSelectButton>
             )}
 
             {selectedFormat && (
