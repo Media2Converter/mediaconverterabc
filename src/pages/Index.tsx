@@ -829,6 +829,7 @@ const Index: React.FC = () => {
             setPerFileFormats(prev => ({ ...prev, [fileFormatPickerIndex!]: fmt }));
           }
           setFileFormatPickerIndex(null);
+          setShowFileFormatPopup(false);
         }}
       />
 
