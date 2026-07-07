@@ -192,13 +192,17 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   }, [open]);
 
   const handleCancel = () => {
-    setShowDiscardConfirm(true);
+    if (window.confirm('設定内容を破棄しますか？\nこの操作は取り消せません。')) {
+      onChange(savedSettings);
+      onClose();
+    }
   };
   const confirmDiscard = () => {
     onChange(savedSettings);
     setShowDiscardConfirm(false);
     onClose();
   };
+
 
 
   const resolutionLabel = (tag?: string) => {
