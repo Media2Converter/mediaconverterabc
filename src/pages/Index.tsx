@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import JSZip from 'jszip';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
@@ -7,6 +8,7 @@ import {
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort, resetFFmpeg } from '@/services/ffmpegConverter';
+
 
 
 /** Gather device info for analysis AI */
