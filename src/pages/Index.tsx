@@ -457,31 +457,43 @@ const Index: React.FC = () => {
     setConverting(true);
     setProgress(0);
     setConvertedUrl(null);
+    setConvertedResults([]);
     setStatusMessage('FFmpeg WASM エンジンを初期化中...');
 
     const ffmpegLogs: string[] = [];
+    const results: { url: string; filename: string }[] = [];
 
     try {
-      const inputFile = files[0];
-      const formatForFile = perFileFormats[0] || selectedFormat;
+      for (let i = 0; i < files.length; i++) {
+        const inputFile = files[i];
+        const formatForFile = perFileFormats[i] || selectedFormat;
+        const fileIsVideo = inputFile.type.startsWith('video/');
 
-      const result = await convertWithFFmpeg(
-        inputFile,
-        formatForFile,
-        settings,
-        isVideo,
-        (pct) => setProgress(pct),
-        (msg) => ffmpegLogs.push(msg),
-        (status) => setStatusMessage(status),
-        (cmd) => setFfmpegCommand(cmd),
-      );
+        if (files.length > 1) {
+          setStatusMessage(`(${i + 1}/${files.length}) ${inputFile.name} を変換中...`);
+        }
 
-      setConvertedUrl(result.url);
-      // CDF naming
-      const cdfNum = String(cdfCounter).padStart(4, '0');
-      const ext = result.filename.split('.').pop() || 'mp4';
-      setConvertedFilename(`CDF_${cdfNum}.${ext}`);
-      cdfCounter++;
+        const result = await convertWithFFmpeg(
+          inputFile,
+          formatForFile,
+          settings,
+          fileIsVideo,
+          (pct) => setProgress(((i + pct / 100) / files.length) * 100),
+          (msg) => ffmpegLogs.push(msg),
+          (status) => setStatusMessage(status),
+          (cmd) => setFfmpegCommand(cmd),
+        );
+
+        const cdfNum = String(cdfCounter).padStart(4, '0');
+        const ext = result.filename.split('.').pop() || 'mp4';
+        const filename = `CDF_${cdfNum}.${ext}`;
+        cdfCounter++;
+        results.push({ url: result.url, filename });
+      }
+
+      setConvertedResults(results);
+      setConvertedUrl(results[0].url);
+      setConvertedFilename(results[0].filename);
 
       setProgress(100);
       setStatusMessage('変換完了！ダウンロードできます');
@@ -513,25 +525,61 @@ const Index: React.FC = () => {
   };
 
   const handleDownload = async () => {
-    if (!convertedUrl) return;
-    // Try Web Share API for native share sheet
+    const list = convertedResults.length > 0 ? convertedResults : (convertedUrl ? [{ url: convertedUrl, filename: convertedFilename }] : []);
+    if (list.length === 0) return;
+
+    // Multiple files → zip as メディアコンバータ.zip
+    if (list.length >= 2) {
+      try {
+        setStatusMessage('ZIPファイルを作成中...');
+        const zip = new JSZip();
+        const folder = zip.folder('メディアコンバータ')!;
+        for (const item of list) {
+          const res = await fetch(item.url);
+          const blob = await res.blob();
+          folder.file(item.filename, blob);
+        }
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const zipName = 'メディアコンバータ.zip';
+        const file = new File([zipBlob], zipName, { type: 'application/zip' });
+        const navAny = navigator as any;
+        if (navAny.canShare && navAny.canShare({ files: [file] })) {
+          await navAny.share({ files: [file], title: zipName });
+          setStatusMessage('変換完了！ダウンロードできます');
+          return;
+        }
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url; a.download = zipName; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setStatusMessage('変換完了！ダウンロードできます');
+        return;
+      } catch (err) {
+        console.error('ZIP creation failed:', err);
+      }
+    }
+
+    // Single file
+    const only = list[0];
     try {
-      const res = await fetch(convertedUrl);
+      const res = await fetch(only.url);
       const blob = await res.blob();
-      const file = new File([blob], convertedFilename, { type: blob.type });
+      const file = new File([blob], only.filename, { type: blob.type });
       const navAny = navigator as any;
       if (navAny.canShare && navAny.canShare({ files: [file] })) {
-        await navAny.share({ files: [file], title: convertedFilename });
+        await navAny.share({ files: [file], title: only.filename });
         return;
       }
     } catch (err) {
-      // fall through to download
+      // fall through
     }
     const a = document.createElement('a');
-    a.href = convertedUrl;
-    a.download = convertedFilename;
+    a.href = only.url;
+    a.download = only.filename;
     a.click();
   };
+
+
 
   // More menu (•••) options
   const moreMenuSections = [
