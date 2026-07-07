@@ -192,7 +192,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   }, [open]);
 
   const handleCancel = () => {
-    if (window.confirm('設定内容を破棄しますか？\nこの操作は取り消せません。')) {
+    if (window.confirm('設定内容を破棄しますか？\nこの操作は取り消せません。\n詳細設定を閉じた場合はもう一度形式を選択し直す必要かあります。')) {
       onChange(savedSettings);
       onClose();
     }
@@ -640,7 +640,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         onClose={() => setShowDiscardConfirm(false)}
         onConfirm={confirmDiscard}
         title="設定内容を破棄しますか？"
-        message="この操作は取り消せません。"
+        message={'この操作は取り消せません。\n詳細設定を閉じた場合はもう一度形式を選択し直す必要かあります。'}
         confirmLabel="破棄"
         cancelLabel="キャンセル"
         destructive

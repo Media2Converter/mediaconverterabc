@@ -324,6 +324,12 @@ const Index: React.FC = () => {
   const [fileFormatPickerIndex, setFileFormatPickerIndex] = useState<number | null>(null);
   const [showMainFormatPicker, setShowMainFormatPicker] = useState(false);
 
+  // New multi-file format flow (2+ files)
+  const [showFileMultiSelect, setShowFileMultiSelect] = useState(false);
+  const [multiSelectedIndices, setMultiSelectedIndices] = useState<number[]>([]);
+  const [pendingMultiFormatPicker, setPendingMultiFormatPicker] = useState(false);
+  const [pendingMultiIndices, setPendingMultiIndices] = useState<number[]>([]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Battery monitoring
@@ -412,6 +418,25 @@ const Index: React.FC = () => {
         setSettings(prev => ({ ...prev, videoCodec: compatVideo[0] || 'H.264' }));
       }
     }
+    // Single file: open detail settings immediately
+    if (files.length === 1) {
+      setDetailContext('all');
+      setTimeout(() => setShowDetailSettings(true), 200);
+    }
+  };
+
+  // Called when user picks per-format from the multi-file 次へ picker
+  const handleMultiFormatChosen = (fmt: string) => {
+    setPendingMultiFormatPicker(false);
+    if (!fmt) return;
+    setPerFileFormats(prev => {
+      const next = { ...prev };
+      pendingMultiIndices.forEach(i => { next[i] = fmt; });
+      return next;
+    });
+    setPendingMultiIndices([]);
+    setDetailContext('all');
+    setTimeout(() => setShowDetailSettings(true), 200);
   };
 
   const analyzeError = async (errorMessage: string, logs: string[]) => {
@@ -724,7 +749,7 @@ const Index: React.FC = () => {
 
         {files.length > 0 && (
           <>
-            {allFormats.length > 0 && (
+            {allFormats.length > 0 && !(isMultiFile && selectedFormat) && (
               <NativeSelectButton
                 className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
                 style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
@@ -735,93 +760,25 @@ const Index: React.FC = () => {
                 groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
               >
                 <span className="block w-full py-3.5 text-[31px] font-semibold">
-                  {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
+                  {selectedFormat ? `出力形式: ${selectedFormat}` : '出力形式'}
                 </span>
               </NativeSelectButton>
             )}
 
-            {/* Per-file format button: only for multi-file or mixed audio+video */}
-            {(isMultiFile || isMixedMedia) && (
-              <NativeSelectButton
-                className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-                style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
-                ariaLabel="ファイル形式"
-                value=""
-                onSelect={(v) => {
-                  const idx = parseInt(v, 10);
-                  if (!isNaN(idx)) {
-                    setFileFormatPickerIndex(idx);
-                    setShowFileFormatPopup(true);
-                  }
+            {/* 2+ files: after initial format pick, show 「形式」 button opening multi-select flow */}
+            {isMultiFile && selectedFormat && (
+              <button
+                onClick={() => {
+                  setMultiSelectedIndices([]);
+                  setShowFileMultiSelect(true);
                 }}
-                pickerHeader="ファイル形式"
-                groups={[{
-                  label: 'ファイル形式',
-                  options: files.map((f, i) => ({
-                    label: `${f.name} (${perFileFormats[i] || selectedFormat || '未選択'})`,
-                    value: String(i),
-                  })),
-                }]}
+                className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+                style={{ borderRadius: 0 }}
               >
-                <span className="block w-full py-3.5 text-[31px] font-semibold">ファイル形式</span>
-              </NativeSelectButton>
+                形式
+              </button>
             )}
 
-            {selectedFormat && (() => {
-              const videoCount = files.filter(f => f.type.startsWith('video/')).length;
-              const audioCount = files.filter(f => f.type.startsWith('audio/')).length;
-              const needsPicker = isMultiFile || isMixedMedia;
-              if (!needsPicker) {
-                return (
-                  <button
-                    onClick={() => { setDetailContext('all'); setShowDetailSettings(true); }}
-                    className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-                    style={{ borderRadius: 0 }}
-                  >
-                    詳細設定
-                  </button>
-                );
-              }
-              // Build picker groups
-              const fileOptions = files.map((f, i) => ({
-                label: `${f.name}`,
-                value: `file:${i}`,
-              }));
-              const extraOptions: { label: string; value: string }[] = [];
-              if (isMixedMedia) {
-                // Mixed: if either type has 2+, show ビデオ/オーディオ. If exactly one of each, no extra.
-                if (videoCount >= 2 || audioCount >= 2) {
-                  if (videoCount >= 1) extraOptions.push({ label: 'ビデオ', value: 'group:video' });
-                  if (audioCount >= 1) extraOptions.push({ label: 'オーディオ', value: 'group:audio' });
-                }
-              } else {
-                // Single-type multi-file: show 全て
-                extraOptions.push({ label: '全て', value: 'all' });
-              }
-              return (
-                <NativeSelectButton
-                  className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-                  style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
-                  ariaLabel="詳細設定"
-                  value=""
-                  onSelect={(v) => {
-                    if (!v) return;
-                    if (v === 'all') setDetailContext('all');
-                    else if (v === 'group:video') setDetailContext('video');
-                    else if (v === 'group:audio') setDetailContext('audio');
-                    else if (v.startsWith('file:')) setDetailContext(`file:${v.slice(5)}` as any);
-                    setShowDetailSettings(true);
-                  }}
-                  pickerHeader="詳細設定"
-                  groups={[
-                    { label: 'ファイル', options: fileOptions },
-                    ...(extraOptions.length ? [{ label: '共通', options: extraOptions }] : []),
-                  ]}
-                >
-                  <span className="block w-full py-3.5 text-[31px] font-semibold">詳細設定</span>
-                </NativeSelectButton>
-              );
-            })()}
 
             {selectedFormat && !converting && !convertedUrl && (
               <button onClick={handleConvert}
@@ -933,6 +890,117 @@ const Index: React.FC = () => {
         }}
       />
 
+      {/* Multi-file selection sheet (iOS style) - toggle checks; video/audio mutually exclusive */}
+      {showFileMultiSelect && (
+        <div
+          className="fixed inset-0 z-[65] flex items-end justify-center ios-fade-in"
+          onClick={() => setShowFileMultiSelect(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="ファイルを選択"
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-md" />
+          <div
+            className="relative w-full max-w-sm mx-2 mb-2 ios-slide-up"
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              className="mb-2 overflow-hidden"
+              style={{
+                background: 'rgba(50, 50, 52, 0.9)',
+                backdropFilter: 'blur(50px)',
+                WebkitBackdropFilter: 'blur(50px)',
+                borderRadius: 14,
+                maxHeight: '60vh',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <div className="px-4 pt-3 pb-2 text-[13px] font-medium uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.55)', borderBottom: '0.5px solid rgba(255,255,255,0.15)' }}>
+                ファイルを選択
+              </div>
+              <div className="overflow-y-auto overscroll-contain">
+                {files.map((f, i) => {
+                  const isAudio = f.type.startsWith('audio/');
+                  const kind: 'audio' | 'video' = isAudio ? 'audio' : 'video';
+                  const selectedKind: 'audio' | 'video' | null = multiSelectedIndices.length === 0
+                    ? null
+                    : (files[multiSelectedIndices[0]].type.startsWith('audio/') ? 'audio' : 'video');
+                  const disabled = selectedKind !== null && selectedKind !== kind;
+                  const checked = multiSelectedIndices.includes(i);
+                  const isLast = i === files.length - 1;
+                  return (
+                    <button
+                      key={i}
+                      disabled={disabled}
+                      onClick={() => {
+                        setMultiSelectedIndices(prev =>
+                          prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
+                        );
+                      }}
+                      className="w-full px-4 py-[13px] text-left text-[20px] flex items-center justify-between transition-colors"
+                      style={{
+                        borderBottom: isLast ? 'none' : '0.5px solid rgba(255,255,255,0.12)',
+                        color: disabled ? 'rgba(255,255,255,0.35)' : '#fff',
+                        background: 'transparent',
+                      }}
+                    >
+                      <span className="truncate flex-1 pr-2">{f.name}</span>
+                      {checked && <span style={{ color: '#fff', fontSize: 18 }}>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                if (multiSelectedIndices.length === 0) return;
+                const indices = [...multiSelectedIndices];
+                setShowFileMultiSelect(false);
+                setPendingMultiIndices(indices);
+                setTimeout(() => setPendingMultiFormatPicker(true), 200);
+              }}
+              disabled={multiSelectedIndices.length === 0}
+              className="w-full rounded-[14px] px-4 py-[13px] text-center text-[20px] font-semibold mb-2 transition-colors"
+              style={{
+                background: 'rgba(50, 50, 52, 0.9)',
+                backdropFilter: 'blur(50px)',
+                WebkitBackdropFilter: 'blur(50px)',
+                color: multiSelectedIndices.length === 0 ? 'rgba(255,255,255,0.35)' : '#fff',
+              }}
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setShowFileMultiSelect(false)}
+              className="w-full rounded-[14px] px-4 py-[13px] text-center text-[20px] font-semibold"
+              style={{
+                background: 'rgba(50, 50, 52, 0.95)',
+                backdropFilter: 'blur(50px)',
+                WebkitBackdropFilter: 'blur(50px)',
+                color: '#fff',
+              }}
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Native format picker auto-opened after 次へ */}
+      <PerFileNativeFormatPicker
+        open={pendingMultiFormatPicker}
+        value=""
+        groups={(() => {
+          const kind = pendingMultiIndices.length > 0 && files[pendingMultiIndices[0]].type.startsWith('audio/') ? 'audio' : 'video';
+          const g = kind === 'audio'
+            ? [{ group: '音声形式', formats: AUDIO_FORMATS }]
+            : perFileAllFormats;
+          return g.map(x => ({ label: x.group, options: x.formats.map(fmt => ({ label: fmt, value: fmt })) }));
+        })()}
+        onSelect={handleMultiFormatChosen}
+      />
+
       <DetailSettingsModal
         open={showDetailSettings}
         onClose={() => setShowDetailSettings(false)}
@@ -943,6 +1011,7 @@ const Index: React.FC = () => {
         isVideo={isVideo}
         selectedFormat={selectedFormat || null}
       />
+
 
     </div>
   );
