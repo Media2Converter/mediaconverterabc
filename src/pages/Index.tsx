@@ -418,6 +418,25 @@ const Index: React.FC = () => {
         setSettings(prev => ({ ...prev, videoCodec: compatVideo[0] || 'H.264' }));
       }
     }
+    // Single file: open detail settings immediately
+    if (files.length === 1) {
+      setDetailContext('all');
+      setTimeout(() => setShowDetailSettings(true), 200);
+    }
+  };
+
+  // Called when user picks per-format from the multi-file 次へ picker
+  const handleMultiFormatChosen = (fmt: string) => {
+    setPendingMultiFormatPicker(false);
+    if (!fmt) return;
+    setPerFileFormats(prev => {
+      const next = { ...prev };
+      pendingMultiIndices.forEach(i => { next[i] = fmt; });
+      return next;
+    });
+    setPendingMultiIndices([]);
+    setDetailContext('all');
+    setTimeout(() => setShowDetailSettings(true), 200);
   };
 
   const analyzeError = async (errorMessage: string, logs: string[]) => {
