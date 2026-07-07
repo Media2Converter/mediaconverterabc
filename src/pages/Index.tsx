@@ -716,15 +716,62 @@ const Index: React.FC = () => {
               </NativeSelectButton>
             )}
 
-            {selectedFormat && (
-              <button
-                onClick={() => setShowDetailSettings(true)}
-                className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-                style={{ borderRadius: 0 }}
-              >
-                詳細設定
-              </button>
-            )}
+            {selectedFormat && (() => {
+              const videoCount = files.filter(f => f.type.startsWith('video/')).length;
+              const audioCount = files.filter(f => f.type.startsWith('audio/')).length;
+              const needsPicker = isMultiFile || isMixedMedia;
+              if (!needsPicker) {
+                return (
+                  <button
+                    onClick={() => { setDetailContext('all'); setShowDetailSettings(true); }}
+                    className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+                    style={{ borderRadius: 0 }}
+                  >
+                    詳細設定
+                  </button>
+                );
+              }
+              // Build picker groups
+              const fileOptions = files.map((f, i) => ({
+                label: `${f.name}`,
+                value: `file:${i}`,
+              }));
+              const extraOptions: { label: string; value: string }[] = [];
+              if (isMixedMedia) {
+                // Mixed: if either type has 2+, show ビデオ/オーディオ. If exactly one of each, no extra.
+                if (videoCount >= 2 || audioCount >= 2) {
+                  if (videoCount >= 1) extraOptions.push({ label: 'ビデオ', value: 'group:video' });
+                  if (audioCount >= 1) extraOptions.push({ label: 'オーディオ', value: 'group:audio' });
+                }
+              } else {
+                // Single-type multi-file: show 全て
+                extraOptions.push({ label: '全て', value: 'all' });
+              }
+              return (
+                <NativeSelectButton
+                  className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+                  style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
+                  ariaLabel="詳細設定"
+                  value=""
+                  onSelect={(v) => {
+                    if (!v) return;
+                    if (v === 'all') setDetailContext('all');
+                    else if (v === 'group:video') setDetailContext('video');
+                    else if (v === 'group:audio') setDetailContext('audio');
+                    else if (v.startsWith('file:')) setDetailContext(`file:${v.slice(5)}` as any);
+                    setShowDetailSettings(true);
+                  }}
+                  pickerHeader="詳細設定"
+                  groups={[
+                    { label: 'ファイル', options: fileOptions },
+                    ...(extraOptions.length ? [{ label: '共通', options: extraOptions }] : []),
+                  ]}
+                >
+                  <span className="block w-full py-3.5 text-[31px] font-semibold">詳細設定</span>
+                </NativeSelectButton>
+              );
+            })()}
+
             {selectedFormat && !converting && !convertedUrl && (
               <button onClick={handleConvert}
                 className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"
