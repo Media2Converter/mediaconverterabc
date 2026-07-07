@@ -324,6 +324,12 @@ const Index: React.FC = () => {
   const [fileFormatPickerIndex, setFileFormatPickerIndex] = useState<number | null>(null);
   const [showMainFormatPicker, setShowMainFormatPicker] = useState(false);
 
+  // New multi-file format flow (2+ files)
+  const [showFileMultiSelect, setShowFileMultiSelect] = useState(false);
+  const [multiSelectedIndices, setMultiSelectedIndices] = useState<number[]>([]);
+  const [pendingMultiFormatPicker, setPendingMultiFormatPicker] = useState(false);
+  const [pendingMultiIndices, setPendingMultiIndices] = useState<number[]>([]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Battery monitoring
