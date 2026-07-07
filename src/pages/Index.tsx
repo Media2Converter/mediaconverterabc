@@ -289,15 +289,18 @@ const Index: React.FC = () => {
   // Per-file format overrides (for multi-file)
   const [perFileFormats, setPerFileFormats] = useState<Record<number, string>>({});
   const [showDetailSettings, setShowDetailSettings] = useState(false);
+  const [detailContext, setDetailContext] = useState<'all' | 'video' | 'audio' | `file:${number}`>('all');
   const [settings, setSettings] = useState<ConvertSettings>(defaultSettings);
   const [converting, setConverting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
   const [convertedFilename, setConvertedFilename] = useState('');
+  const [convertedResults, setConvertedResults] = useState<{ url: string; filename: string }[]>([]);
   const [videoDuration, setVideoDuration] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
   const [ffmpegCommand, setFfmpegCommand] = useState('');
   const [batteryWarning, setBatteryWarning] = useState(false);
+
   
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
