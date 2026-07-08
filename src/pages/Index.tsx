@@ -739,113 +739,74 @@ const Index: React.FC = () => {
 
         {files.length > 0 && (
           <>
-            {allFormats.length > 0 && (
+        {files.length > 0 && (() => {
+          // Determine picker groups for the single-file case
+          const singleFile = files[0];
+          const singleIsAudio = files.length === 1 && singleFile?.type.startsWith('audio/');
+          const singleGroups = singleIsAudio
+            ? [{ label: '音声形式', options: AUDIO_FORMATS.map(f => ({ label: f, value: f })) }]
+            : [
+                { label: '動画形式', options: VIDEO_FORMATS.map(f => ({ label: f, value: f })) },
+                { label: '音声形式', options: AUDIO_FORMATS.map(f => ({ label: f, value: f })) },
+              ];
+
+          if (files.length === 1) {
+            return (
               <NativeSelectButton
                 className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
                 style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
-                ariaLabel="出力形式"
+                ariaLabel="形式"
                 value={selectedFormat}
-                onSelect={handleFormatSelect}
-                pickerHeader="出力形式"
-                groups={allFormats.map(g => ({ label: g.group, options: g.formats.map(f => ({ label: f, value: f })) }))}
+                onSelect={(v) => {
+                  if (!v) return;
+                  handleFormatSelect(v);
+                  setPerFileFormats({ 0: v });
+                  setDetailContext('all');
+                  setTimeout(() => setShowDetailSettings(true), 200);
+                }}
+                pickerHeader="形式"
+                groups={singleGroups}
               >
                 <span className="block w-full py-3.5 text-[31px] font-semibold">
-                  {selectedFormat ? (isMultiFile ? `全ての形式: ${selectedFormat}` : `出力形式: ${selectedFormat}`) : (isMultiFile ? '全ての形式' : '出力形式')}
+                  {selectedFormat ? `形式: ${selectedFormat}` : '形式'}
                 </span>
               </NativeSelectButton>
-            )}
+            );
+          }
 
-            {/* Per-file format button: only for multi-file or mixed audio+video */}
-            {(isMultiFile || isMixedMedia) && (
-              <NativeSelectButton
-                className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-                style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
-                ariaLabel="ファイル形式"
-                value=""
-                onSelect={(v) => {
-                  const idx = parseInt(v, 10);
-                  if (!isNaN(idx)) {
-                    setFileFormatPickerIndex(idx);
-                    setShowFileFormatPopup(true);
-                  }
-                }}
-                pickerHeader="ファイル形式"
-                groups={[{
-                  label: 'ファイル形式',
-                  options: files.map((f, i) => ({
-                    label: `${f.name} (${perFileFormats[i] || selectedFormat || '未選択'})`,
-                    value: String(i),
-                  })),
-                }]}
-              >
-                <span className="block w-full py-3.5 text-[31px] font-semibold">ファイル形式</span>
-              </NativeSelectButton>
-            )}
+          // Multi-file: pick a filename → open grouping modal
+          return (
+            <NativeSelectButton
+              className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+              style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
+              ariaLabel="形式"
+              value=""
+              onSelect={(v) => {
+                const idx = parseInt(v, 10);
+                if (isNaN(idx)) return;
+                setFlowSelectedIds([idx]);
+                setShowFormatFlow(true);
+              }}
+              pickerHeader="形式"
+              groups={[{
+                label: 'ファイル',
+                options: files.map((f, i) => ({
+                  label: `${f.name}${perFileFormats[i] ? ` (${perFileFormats[i]})` : ''}`,
+                  value: String(i),
+                })),
+              }]}
+            >
+              <span className="block w-full py-3.5 text-[31px] font-semibold">形式</span>
+            </NativeSelectButton>
+          );
+        })()}
 
-            {selectedFormat && (() => {
-              const videoCount = files.filter(f => f.type.startsWith('video/')).length;
-              const audioCount = files.filter(f => f.type.startsWith('audio/')).length;
-              const needsPicker = isMultiFile || isMixedMedia;
-              if (!needsPicker) {
-                return (
-                  <button
-                    onClick={() => { setDetailContext('all'); setShowDetailSettings(true); }}
-                    className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-                    style={{ borderRadius: 0 }}
-                  >
-                    詳細設定
-                  </button>
-                );
-              }
-              // Build picker groups
-              const fileOptions = files.map((f, i) => ({
-                label: `${f.name}`,
-                value: `file:${i}`,
-              }));
-              const extraOptions: { label: string; value: string }[] = [];
-              if (isMixedMedia) {
-                // Mixed: if either type has 2+, show ビデオ/オーディオ. If exactly one of each, no extra.
-                if (videoCount >= 2 || audioCount >= 2) {
-                  if (videoCount >= 1) extraOptions.push({ label: 'ビデオ', value: 'group:video' });
-                  if (audioCount >= 1) extraOptions.push({ label: 'オーディオ', value: 'group:audio' });
-                }
-              } else {
-                // Single-type multi-file: show 全て
-                extraOptions.push({ label: '全て', value: 'all' });
-              }
-              return (
-                <NativeSelectButton
-                  className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-                  style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
-                  ariaLabel="詳細設定"
-                  value=""
-                  onSelect={(v) => {
-                    if (!v) return;
-                    if (v === 'all') setDetailContext('all');
-                    else if (v === 'group:video') setDetailContext('video');
-                    else if (v === 'group:audio') setDetailContext('audio');
-                    else if (v.startsWith('file:')) setDetailContext(`file:${v.slice(5)}` as any);
-                    setShowDetailSettings(true);
-                  }}
-                  pickerHeader="詳細設定"
-                  groups={[
-                    { label: 'ファイル', options: fileOptions },
-                    ...(extraOptions.length ? [{ label: '共通', options: extraOptions }] : []),
-                  ]}
-                >
-                  <span className="block w-full py-3.5 text-[31px] font-semibold">詳細設定</span>
-                </NativeSelectButton>
-              );
-            })()}
-
-            {selectedFormat && !converting && !convertedUrl && (
-              <button onClick={handleConvert}
-                className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"
-                style={{ borderRadius: 0 }}>
-                変換
-              </button>
-            )}
-          </>
+        {files.length > 0 && selectedFormat && !converting && !convertedUrl && (
+          <button onClick={handleConvert}
+            className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"
+            style={{ borderRadius: 0 }}>
+            変換
+          </button>
         )}
       </div>
 
@@ -857,6 +818,7 @@ const Index: React.FC = () => {
         onChange={handleFileSelected}
         multiple
       />
+
 
       {converting && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="変換中">
