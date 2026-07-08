@@ -648,16 +648,29 @@ const Index: React.FC = () => {
   ];
 
 
-  // VoiceOver announcement for file format popup
-  const [fileFormatVo, setFileFormatVo] = useState('');
-  useEffect(() => {
-    if (showFileFormatPopup) {
-      setFileFormatVo('');
-      setTimeout(() => setFileFormatVo('ファイル形式'), 50);
-    } else {
-      setFileFormatVo('');
-    }
-  }, [showFileFormatPopup]);
+  // Helpers for the format flow
+  const fileTypeOf = (i: number) => files[i]?.type.startsWith('video/') ? 'video' : 'audio';
+  const flowActiveGroup: 'video' | 'audio' | null =
+    flowSelectedIds.length > 0 ? (fileTypeOf(flowSelectedIds[0]) as 'video' | 'audio') : null;
+
+  const openFlowFormatPicker = () => {
+    setTimeout(() => { flowFormatSelectRef.current?.focus(); flowFormatSelectRef.current?.click(); }, 50);
+  };
+
+  const applyFlowFormat = (fmt: string) => {
+    if (!fmt || flowSelectedIds.length === 0) return;
+    setPerFileFormats(prev => {
+      const next = { ...prev };
+      for (const i of flowSelectedIds) next[i] = fmt;
+      return next;
+    });
+    handleFormatSelect(fmt);
+    setDetailContext(flowActiveGroup === 'audio' ? 'audio' : flowActiveGroup === 'video' ? 'video' : 'all');
+    setShowFormatFlow(false);
+    setFlowSelectedIds([]);
+    setTimeout(() => setShowDetailSettings(true), 200);
+  };
+
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
