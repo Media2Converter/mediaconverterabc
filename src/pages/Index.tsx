@@ -737,9 +737,8 @@ const Index: React.FC = () => {
           {files.length > 0 ? 'ファイルを追加' : 'ファイルを選択'}
         </button>
 
-        {files.length > 0 && (
-          <>
         {files.length > 0 && (() => {
+
           // Determine picker groups for the single-file case
           const singleFile = files[0];
           const singleIsAudio = files.length === 1 && singleFile?.type.startsWith('audio/');
