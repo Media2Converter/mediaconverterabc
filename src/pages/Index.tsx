@@ -319,10 +319,12 @@ const Index: React.FC = () => {
     isVideo: files.some(f => f.type.startsWith('video/')),
   }, null, 2);
 
-  // File format popup
-  const [showFileFormatPopup, setShowFileFormatPopup] = useState(false);
-  const [fileFormatPickerIndex, setFileFormatPickerIndex] = useState<number | null>(null);
-  const [showMainFormatPicker, setShowMainFormatPicker] = useState(false);
+  // Format flow (multi-file): grouping modal + native format picker
+  const [showFormatFlow, setShowFormatFlow] = useState(false);
+  const [flowSelectedIds, setFlowSelectedIds] = useState<number[]>([]);
+  const flowFormatSelectRef = useRef<HTMLSelectElement>(null);
+
+
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
