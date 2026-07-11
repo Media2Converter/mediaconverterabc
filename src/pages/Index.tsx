@@ -650,28 +650,37 @@ const Index: React.FC = () => {
   ];
 
 
-  // Helpers for the format flow
-  const fileTypeOf = (i: number) => files[i]?.type.startsWith('video/') ? 'video' : 'audio';
-  const flowActiveGroup: 'video' | 'audio' | null =
-    flowSelectedIds.length > 0 ? (fileTypeOf(flowSelectedIds[0]) as 'video' | 'audio') : null;
-
-  const openFlowFormatPicker = () => {
-    setTimeout(() => { flowFormatSelectRef.current?.focus(); flowFormatSelectRef.current?.click(); }, 50);
+  // Multi-file: open a native picker showing filenames (with current format annotation)
+  const openFilenamePicker = () => {
+    setPendingFileSelect(true);
+    setTimeout(() => { fileSelectRef.current?.focus(); fileSelectRef.current?.click(); }, 50);
   };
 
-  const applyFlowFormat = (fmt: string) => {
-    if (!fmt || flowSelectedIds.length === 0) return;
+  const onFilenamePicked = (v: string) => {
+    setPendingFileSelect(false);
+    const idx = parseInt(v, 10);
+    if (isNaN(idx)) return;
+    setPendingFormatForIdx(idx);
+    setTimeout(() => { formatSelectRef.current?.focus(); formatSelectRef.current?.click(); }, 100);
+  };
+
+  const onFormatPicked = (fmt: string) => {
+    const idx = pendingFormatForIdx;
+    setPendingFormatForIdx(null);
+    if (!fmt || idx === null) return;
     setPerFileFormats(prev => {
-      const next = { ...prev };
-      for (const i of flowSelectedIds) next[i] = fmt;
+      const next = { ...prev, [idx]: fmt };
+      // Update global selectedFormat so 変換 button appears
+      handleFormatSelect(fmt);
+      // If any file still lacks a format, re-open the filename picker
+      const allAssigned = files.every((_, i) => next[i]);
+      if (!allAssigned) {
+        setTimeout(() => openFilenamePicker(), 250);
+      }
       return next;
     });
-    handleFormatSelect(fmt);
-    setDetailContext(flowActiveGroup === 'audio' ? 'audio' : flowActiveGroup === 'video' ? 'video' : 'all');
-    setShowFormatFlow(false);
-    setFlowSelectedIds([]);
-    setTimeout(() => setShowDetailSettings(true), 200);
   };
+
 
 
   return (
