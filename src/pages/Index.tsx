@@ -784,32 +784,20 @@ const Index: React.FC = () => {
             );
           }
 
-          // Multi-file: pick a filename → open grouping modal
+          // Multi-file: plain button → filename picker → per-file format picker (loops)
           return (
-            <NativeSelectButton
-              className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-              style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
-              ariaLabel="形式"
-              value=""
-              onSelect={(v) => {
-                const idx = parseInt(v, 10);
-                if (isNaN(idx)) return;
-                setFlowSelectedIds([idx]);
-                setShowFormatFlow(true);
-              }}
-              pickerHeader="形式"
-              groups={[{
-                label: 'ファイル',
-                options: files.map((f, i) => ({
-                  label: `${f.name}${perFileFormats[i] ? ` (${perFileFormats[i]})` : ''}`,
-                  value: String(i),
-                })),
-              }]}
+            <button
+              type="button"
+              onClick={openFilenamePicker}
+              aria-label="形式"
+              className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+              style={{ borderRadius: 0, minHeight: 52 }}
             >
-              <span className="block w-full py-3.5 text-[31px] font-semibold">形式</span>
-            </NativeSelectButton>
+              形式
+            </button>
           );
         })()}
+
 
         {files.length > 0 && selectedFormat && !converting && !convertedUrl && (
           <button onClick={handleConvert}
