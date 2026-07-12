@@ -798,6 +798,39 @@ const Index: React.FC = () => {
           );
         })()}
 
+        {files.length > 0 && (
+          files.length === 1 ? (
+            <button
+              type="button"
+              onClick={() => { setDetailContext('all'); setShowDetailSettings(true); }}
+              aria-label="詳細設定"
+              className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+              style={{ borderRadius: 0, minHeight: 52 }}
+            >
+              詳細設定
+            </button>
+          ) : (
+            <NativeSelectButton
+              className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+              style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
+              ariaLabel="詳細設定"
+              value=""
+              onSelect={(v) => {
+                const idx = parseInt(v, 10);
+                if (isNaN(idx)) return;
+                setDetailContext(`file:${idx}` as const);
+                setTimeout(() => setShowDetailSettings(true), 100);
+              }}
+              pickerHeader="詳細設定するファイル"
+              groups={[{
+                label: 'ファイル',
+                options: files.map((f, i) => ({ label: f.name, value: String(i) })),
+              }]}
+            >
+              <span className="block w-full py-3.5 text-[31px] font-semibold">詳細設定</span>
+            </NativeSelectButton>
+          )
+        )}
 
         {files.length > 0 && selectedFormat && !converting && !convertedUrl && (
           <button onClick={handleConvert}
