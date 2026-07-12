@@ -952,8 +952,8 @@ const Index: React.FC = () => {
             ref={formatSelectRef}
             value=""
             onChange={(e) => onFormatPicked(e.target.value)}
-            className="absolute opacity-0 pointer-events-none"
-            style={{ left: 0, top: 0, width: 1, height: 1 }}
+            className="fixed opacity-0"
+            style={{ left: '50%', top: '50%', width: 1, height: 1, pointerEvents: pendingFormatForIdx !== null ? 'auto' : 'none' }}
             aria-label="形式を選択"
           >
             <option value="" disabled>形式を選択</option>
