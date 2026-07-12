@@ -784,17 +784,25 @@ const Index: React.FC = () => {
             );
           }
 
-          // Multi-file: plain button → filename picker → per-file format picker (loops)
+          // Multi-file: native picker of filenames → then per-file format picker (loops)
           return (
-            <button
-              type="button"
-              onClick={openFilenamePicker}
-              aria-label="形式"
-              className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
-              style={{ borderRadius: 0, minHeight: 52 }}
+            <NativeSelectButton
+              className="w-full active:opacity-80 transition-opacity border-b border-primary-foreground/20"
+              style={{ borderRadius: 0, background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', minHeight: 52 }}
+              ariaLabel="形式"
+              value=""
+              onSelect={(v) => onFilenamePicked(v)}
+              pickerHeader="ファイルを選択"
+              groups={[{
+                label: 'ファイル',
+                options: files.map((f, i) => ({
+                  label: `${f.name}${perFileFormats[i] ? ` (${perFileFormats[i]})` : ''}`,
+                  value: String(i),
+                })),
+              }]}
             >
-              形式
-            </button>
+              <span className="block w-full py-3.5 text-[31px] font-semibold">形式</span>
+            </NativeSelectButton>
           );
         })()}
 
