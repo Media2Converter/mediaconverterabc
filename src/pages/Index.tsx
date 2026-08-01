@@ -452,7 +452,9 @@ const Index: React.FC = () => {
   };
 
   const handleConvert = async () => {
-    if (!selectedFormat || files.length === 0) return;
+    const everyFileHasFormat = files.length > 0 && files.every((_, i) => perFileFormats[i]);
+    if (files.length === 0) return;
+    if (!selectedFormat && !everyFileHasFormat) return;
 
     if (batteryWarning) {
       window.alert('🔋 充電警告\n\nバッテリーが20%以下です。\n変換処理は電力を大量に消費します。\n充電器に接続してから変換することをお勧めします。');
@@ -649,6 +651,13 @@ const Index: React.FC = () => {
     { group: '音声形式', formats: AUDIO_FORMATS },
   ];
 
+  // Every uploaded file has an output format assigned (multi-file flow)
+  const allFormatsAssigned = files.length > 0 && files.every((_, i) => !!perFileFormats[i]);
+  // Detail settings / convert become available only once formats are chosen
+  const formatsReady = files.length === 1 ? !!selectedFormat : allFormatsAssigned;
+
+
+
 
   // Multi-file: open a native picker showing filenames (with current format annotation)
   const openFilenamePicker = () => {
@@ -686,7 +695,7 @@ const Index: React.FC = () => {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
       {/* Edge-pinned more options button (always at viewport corner) */}
-      <div className="fixed top-2 right-2 z-[60]">
+      <div className="fixed top-2 right-2 z-[40]">
         <NativeSelectButton
           ariaLabel="その他のオプション"
           className="text-foreground p-2 active:opacity-60 bg-background/80 backdrop-blur rounded-full"
@@ -806,7 +815,7 @@ const Index: React.FC = () => {
           );
         })()}
 
-        {files.length > 0 && (
+        {files.length > 0 && formatsReady && (
           files.length === 1 ? (
             <button
               type="button"
@@ -840,7 +849,7 @@ const Index: React.FC = () => {
           )
         )}
 
-        {files.length > 0 && selectedFormat && !converting && !convertedUrl && (
+        {files.length > 0 && formatsReady && !converting && !convertedUrl && (
           <button onClick={handleConvert}
             className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"
             style={{ borderRadius: 0 }}>

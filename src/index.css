@@ -69,6 +69,13 @@
   to { transform: rotate(360deg); }
 }
 
+@keyframes ios-slide-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
 .ios-slide-up { animation: ios-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+.ios-slide-down { animation: ios-slide-down 0.3s cubic-bezier(0.32, 0, 0.67, 0) forwards; }
 .ios-fade-in { animation: ios-fade-in 0.25s ease-out; }
 .ios-scale-in { animation: ios-scale-in 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+

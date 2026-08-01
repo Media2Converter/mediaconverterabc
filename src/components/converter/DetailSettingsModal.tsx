@@ -3,6 +3,7 @@ import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
 import { IOSConfirmDialog } from './IOSComponents';
+import sheetSound from '@/assets/shinki-rokuon.m4a.asset.json';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
@@ -90,11 +91,11 @@ const NativePickerRow: React.FC<{
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onClick={handleClick}
-        aria-label={`${label}、現在: ${displayValue}`}
-        aria-haspopup="menu"
+        aria-hidden="true"
+        tabIndex={-1}
         className="w-full flex items-center justify-between px-5 py-3 border-b border-border active:bg-accent transition-colors"
       >
-        <div className="flex flex-col items-start" aria-hidden="true">
+        <div className="flex flex-col items-start">
           <span className="text-foreground text-[31px]">{label}</span>
           <span className={`text-[29px] ${destructiveValue ? 'text-destructive' : warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue}</span>
         </div>
@@ -103,6 +104,7 @@ const NativePickerRow: React.FC<{
       <select
         ref={selectRef}
         value={selected}
+        aria-label={`${label}、現在: ${displayValue}`}
         onChange={e => {
           const val = e.target.value;
           if (val.startsWith('__separator_')) return;
@@ -125,6 +127,7 @@ const NativePickerRow: React.FC<{
     </div>
   );
 };
+
 
 /** Boxed (non-clickable) section heading — matches iOS rounded outline label */
 const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -194,13 +197,13 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const handleCancel = () => {
     if (window.confirm('設定内容を破棄しますか？\nこの操作は取り消せません。')) {
       onChange(savedSettings);
-      onClose();
+      requestClose();
     }
   };
   const confirmDiscard = () => {
     onChange(savedSettings);
     setShowDiscardConfirm(false);
-    onClose();
+    requestClose();
   };
 
 
@@ -392,7 +395,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        requestClose();
       }
     };
     document.addEventListener('keydown', handler);
@@ -417,7 +420,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <h2 className="text-[17px] font-semibold text-center truncate flex-1 min-w-0" style={{ color: '#fff' }}>{formatTitle}</h2>
         <button
           ref={closeButtonRef}
-          onClick={onClose}
+          onClick={() => requestClose()}
           aria-label="完了"
           className="text-[17px] font-semibold active:opacity-60 transition-opacity px-1 flex-shrink-0"
           style={{ color: '#fff' }}
@@ -600,22 +603,56 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   );
 
   const sheetRef = useRef<HTMLDivElement>(null);
-  useIOSSheetA11y(open, sheetRef);
+  const [closing, setClosing] = useState(false);
+  const [rendered, setRendered] = useState(open);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  if (!open) return null;
+  const playSheetSound = () => {
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(sheetSound.url);
+        audioRef.current.preload = 'auto';
+      }
+      audioRef.current.currentTime = 0;
+      void audioRef.current.play();
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (open) {
+      setRendered(true);
+      setClosing(false);
+      playSheetSound();
+    }
+  }, [open]);
+
+  const requestClose = (after?: () => void) => {
+    if (closing) return;
+    playSheetSound();
+    setClosing(true);
+    window.setTimeout(() => {
+      setRendered(false);
+      setClosing(false);
+      after ? after() : onClose();
+    }, 300);
+  };
+
+  useIOSSheetA11y(open && !closing, sheetRef);
+
+  if (!rendered) return null;
 
   // iOS-style half-modal bottom sheet
   return (
     <>
-      <VOOverlayCloseButton onClose={onClose} />
+      <VOOverlayCloseButton onClose={() => requestClose()} />
       <div className="fixed inset-0 z-50 flex items-end justify-center pointer-events-none">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto ios-fade-in" onClick={onClose} />
+        <div className={`absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto ${closing ? 'opacity-0 transition-opacity duration-300' : 'ios-fade-in'}`} onClick={() => requestClose()} />
         <div
           ref={sheetRef}
           aria-label="詳細設定 ダイアログ"
           // @ts-ignore - popover is a valid HTML attribute
           popover="auto"
-          className="relative z-10 flex flex-col outline-none pointer-events-auto ios-slide-up"
+          className={`relative z-10 flex flex-col outline-none pointer-events-auto ${closing ? 'ios-slide-down' : 'ios-slide-up'}`}
           style={{
             width: '100%',
             maxWidth: 640,
@@ -627,10 +664,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
             overflow: 'hidden',
           }}
         >
-          {/* iOS grabber handle */}
-          <div className="flex justify-center pt-2 pb-1 flex-shrink-0">
-            <div style={{ width: 36, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.5)' }} />
-          </div>
           {settingsContent}
         </div>
       </div>
@@ -648,3 +681,4 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     </>
   );
 };
+

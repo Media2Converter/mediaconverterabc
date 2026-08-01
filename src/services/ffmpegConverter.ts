@@ -38,11 +38,14 @@ export function buildFFmpegArgs(
   format: string,
   isVideo: boolean,
 ): string[] {
-  // Input repair flags: ignore corrupt packets / errors so playback continues
+  // Input repair flags: ignore corrupt packets / errors, regenerate timestamps
   const args: string[] = [
     '-y',
+    '-nostdin',
     '-err_detect', 'ignore_err',
-    '-fflags', '+discardcorrupt+genpts',
+    '-ignore_unknown',
+    '-max_error_rate', '1.0',
+    '-fflags', '+discardcorrupt+genpts+igndts',
     '-i', inputName,
   ];
   const outputIsVideo = isVideoFormat(format);
@@ -175,6 +178,9 @@ export function buildFFmpegArgs(
 
   // Buffer safety — large buffer to prevent muxing queue overflow
   args.push('-max_muxing_queue_size', '9999');
+
+  // Output-side timestamp regeneration + never abort on recoverable errors
+  args.push('-fflags', '+genpts', '-avoid_negative_ts', 'make_zero');
 
   // movflags: faststart for iPhone playback / metadata at start
   if (['3gp', '3g2'].includes(lowerFormat)) {
