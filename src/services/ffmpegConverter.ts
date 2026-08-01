@@ -42,7 +42,7 @@ export function buildFFmpegArgs(
   const args: string[] = [
     '-y',
     '-nostdin',
-    '-err_detect', 'ignore_err',
+    '-err_detect', 'careful',
     '-ignore_unknown',
     '-max_error_rate', '1.0',
     '-fflags', '+discardcorrupt+genpts+igndts',

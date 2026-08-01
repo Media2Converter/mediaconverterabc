@@ -104,7 +104,7 @@ const NativePickerRow: React.FC<{
       <select
         ref={selectRef}
         value={selected}
-        aria-label={`${label}、現在: ${displayValue}`}
+        aria-label={label}
         onChange={e => {
           const val = e.target.value;
           if (val.startsWith('__separator_')) return;
@@ -339,7 +339,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       case 'aspectRatio':
         onChange({ ...settings, aspectRatio: value });
         if (value !== '自由' && !checkAspectResolutionMatch(value, settings.resolutionW, settings.resolutionH)) {
-          window.alert('⚠️ アスペクト比と解像度のずれ\n\n現在の解像度がアスペクト比と一致しません（5px以上のずれ）。\n\n解決方法：解像度の設定でアスペクト比に合った値を選択してください。');
+          window.alert('現在の解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれているため、このままでは映像が意図した比率になりません。');
         }
         break;
       case 'resolution':
@@ -347,7 +347,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         { const [rw, rh] = value.split('x').map(Number);
           onChange({ ...settings, resolutionW: rw, resolutionH: rh });
           if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, rw, rh)) {
-            window.alert('⚠️ アスペクト比と解像度のずれ\n\n選択した解像度がアスペクト比と一致しません（5px以上のずれ）。');
+            window.alert('選択した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
           }
         }
         break;
@@ -516,7 +516,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               options={volumeOptions} selected={settings.volume}
               onSelect={v => handleSelect('volume', v)}
               destructiveValue={volumeIsDestructive}
-              onLongPress={() => window.alert('⚠️ 音声トラックの削除\n\n音量を変更すると、元の音声トラックが上書きされます。この操作は元に戻せません。')}
+              onLongPress={() => window.alert('音量を変更すると、元の音声トラックが上書きされます。この操作は元に戻せません。')}
               pickerHeader="音量" />
           </>
         )}
@@ -546,7 +546,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               const h = parseInt(customResH) || settings.resolutionH;
               onChange({ ...settings, resolutionW: w, resolutionH: h });
               if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, w, h))
-                window.alert('⚠️ アスペクト比と解像度のずれ\n\n入力した解像度がアスペクト比と一致しません（5px以上のずれ）。');
+                window.alert('入力した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
               setShowCustomRes(false);
               setCustomResW('');
               setCustomResH('');
@@ -608,15 +608,28 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const playSheetSound = () => {
+    // Always play: use a fresh element each time so overlapping/interrupted
+    // playback never blocks a later trigger, and retry once muted-unlock fails.
     try {
-      if (!audioRef.current) {
-        audioRef.current = new Audio(sheetSound.url);
-        audioRef.current.preload = 'auto';
+      const el = new Audio(sheetSound.url);
+      el.preload = 'auto';
+      el.volume = 1;
+      const p = el.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          try {
+            if (!audioRef.current) {
+              audioRef.current = new Audio(sheetSound.url);
+              audioRef.current.preload = 'auto';
+            }
+            audioRef.current.currentTime = 0;
+            void audioRef.current.play();
+          } catch {}
+        });
       }
-      audioRef.current.currentTime = 0;
-      void audioRef.current.play();
     } catch {}
   };
+
 
   useEffect(() => {
     if (open) {
