@@ -7,7 +7,7 @@ import {
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { convertWithFFmpeg, requestAbort, resetFFmpeg } from '@/services/ffmpegConverter';
+import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog } from '@/services/ffmpegConverter';
 
 
 
@@ -468,6 +468,21 @@ const Index: React.FC = () => {
 
     const ffmpegLogs: string[] = [];
     const results: { url: string; filename: string }[] = [];
+    const warnedLogs = new Set<string>();
+    let warningsMuted = false;
+
+    // Show FFmpeg warnings in a native Safari confirm dialog; OK continues the conversion
+    const handleLog = (msg: string) => {
+      ffmpegLogs.push(msg);
+      if (warningsMuted || !isFfmpegWarningLog(msg)) return;
+      const key = msg.trim();
+      if (warnedLogs.has(key)) return;
+      warnedLogs.add(key);
+      const ok = window.confirm(`変換中に警告が発生しました。\n\n${key}\n\n「OK」を押すと変換を続けます。`);
+      if (!ok) {
+        warningsMuted = true;
+      }
+    };
 
     try {
       for (let i = 0; i < files.length; i++) {
@@ -485,7 +500,7 @@ const Index: React.FC = () => {
           settings,
           fileIsVideo,
           (pct) => setProgress(((i + pct / 100) / files.length) * 100),
-          (msg) => ffmpegLogs.push(msg),
+          handleLog,
           (status) => setStatusMessage(status),
           (cmd) => setFfmpegCommand(cmd),
         );
@@ -781,7 +796,7 @@ const Index: React.FC = () => {
                   handleFormatSelect(v);
                   setPerFileFormats({ 0: v });
                   setDetailContext('all');
-                  setTimeout(() => setShowDetailSettings(true), 200);
+                  setTimeout(() => setShowDetailSettings(true), 500);
                 }}
                 pickerHeader="形式"
                 groups={singleGroups}
@@ -819,7 +834,7 @@ const Index: React.FC = () => {
           files.length === 1 ? (
             <button
               type="button"
-              onClick={() => { setDetailContext('all'); setShowDetailSettings(true); }}
+              onClick={() => { setDetailContext('all'); setTimeout(() => setShowDetailSettings(true), 500); }}
               aria-label="詳細設定"
               className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
               style={{ borderRadius: 0, minHeight: 52 }}
@@ -836,7 +851,7 @@ const Index: React.FC = () => {
                 const idx = parseInt(v, 10);
                 if (isNaN(idx)) return;
                 setDetailContext(`file:${idx}` as const);
-                setTimeout(() => setShowDetailSettings(true), 100);
+                setTimeout(() => setShowDetailSettings(true), 500);
               }}
               pickerHeader="詳細設定するファイル"
               groups={[{
