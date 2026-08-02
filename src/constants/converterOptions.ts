@@ -234,6 +234,7 @@ export const FORMAT_MIME: Record<string, string> = {
 
 export interface ConvertSettings {
   videoCodec: string;
+  pixelFormat: string;
   aspectRatio: string;
   scanType: string;
   resolutionW: number;
@@ -255,11 +256,13 @@ export interface ConvertSettings {
 
 export const defaultSettings: ConvertSettings = {
   videoCodec: 'H.264',
+  pixelFormat: 'auto',
   aspectRatio: '16:9',
   scanType: 'プログレッシブ方式',
   resolutionW: 1920,
   resolutionH: 1080,
   videoBitrate: '5120KBPS',
+
   framerate: '30FPS',
   startTime: 0,
   endTime: 0,

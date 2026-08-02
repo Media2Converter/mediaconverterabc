@@ -89,9 +89,15 @@ export function buildFFmpegArgs(
         vFilters.push(`scale='trunc(${w}/2)*2:trunc(${h}/2)*2'`);
       }
 
+      // Pixel format
+      if (settings.pixelFormat && settings.pixelFormat !== 'auto') {
+        args.push('-pix_fmt', settings.pixelFormat);
+      }
+
       // Video bitrate
       const vBitrate = settings.videoBitrate.replace('KBPS', 'k');
       args.push('-b:v', vBitrate);
+
 
       // Framerate — force CFR to fix VFR issues from iPhone
       const fps = settings.framerate.replace('FPS', '');
