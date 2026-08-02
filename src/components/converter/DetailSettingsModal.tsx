@@ -446,7 +446,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
 
 
-            <NativePickerRow label="ピクセル形式" displayValue={settings.pixelFormat === 'auto' ? '自動' : settings.pixelFormat}
+            <NativePickerRow label="ピクセル形式" displayValue={settings.pixelFormat === 'auto' ? '自動' : settings.pixelFormat.toUpperCase()}
               options={pixelFormatOptions} selected={settings.pixelFormat}
               onSelect={v => handleSelect('pixelFormat', v)} pickerHeader="ピクセル形式" />
 
