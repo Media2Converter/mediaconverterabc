@@ -311,6 +311,11 @@ export const CODEC_PIXEL_FORMATS: Record<string, string[]> = {
   'MJPEG': ['yuvj420p', 'yuvj422p', 'yuvj444p', 'yuv420p', 'yuv422p', 'yuv444p'],
 };
 
+/** Pixel formats deprecated in FFmpeg — never offered to the user */
+export const DEPRECATED_PIXEL_FORMATS = ['yuvj420p', 'yuvj422p', 'yuvj444p', 'yuvj440p'];
+
 export function getCompatiblePixelFormats(codec: string): string[] {
-  return CODEC_PIXEL_FORMATS[codec] || ['yuv420p'];
+  const list = CODEC_PIXEL_FORMATS[codec] || ['yuv420p'];
+  const filtered = list.filter(p => !DEPRECATED_PIXEL_FORMATS.includes(p));
+  return filtered.length > 0 ? filtered : list;
 }
