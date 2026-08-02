@@ -279,7 +279,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const scanTypeOptions = SCAN_TYPES.map(s => ({ label: s, value: s }));
   const pixelFormatOptions = [
     { label: '自動', value: 'auto' },
-    ...getCompatiblePixelFormats(settings.videoCodec).map(p => ({ label: p, value: p })),
+    ...getCompatiblePixelFormats(settings.videoCodec).map(p => ({ label: p.toUpperCase(), value: p })),
   ];
   const framerateOptions = [{ label: '打ち込む（カスタム）', value: 'custom' }, ...FRAMERATES.map(f => ({ label: f, value: f }))];
   const speedOptions = SPEEDS.map(s => ({ label: `${s}×`, value: s }));
