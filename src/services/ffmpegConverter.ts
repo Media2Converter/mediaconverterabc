@@ -42,6 +42,14 @@ export function isFfmpegErrorLog(msg: string): boolean {
   return /error|invalid|failed|unable|not supported|no such file|unknown encoder|conversion failed|out of memory/i.test(msg);
 }
 
+/** True when the log line is a real FFmpeg warning (not info noise, not an error) */
+export function isFfmpegWarningLog(msg: string): boolean {
+  if (!msg || !msg.trim()) return false;
+  if (BENIGN_LOG_PATTERNS.some(p => msg.includes(p))) return false;
+  if (isFfmpegErrorLog(msg)) return false;
+  return /warning|deprecated|non-monotonous|not enough|mismatch|overflow|dropping|misaligned|could not|ignoring|unsupported/i.test(msg);
+}
+
 
 /** Reset FFmpeg instance completely */
 export function resetFFmpeg() {
