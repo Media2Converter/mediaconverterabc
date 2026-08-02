@@ -9,7 +9,7 @@ import {
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
   VOLUME_OPTIONS, AMR_NB_BITRATES, AMR_WB_BITRATES, AMR_NB_FREQUENCIES, AMR_WB_FREQUENCIES,
   ADPCM_BITRATES,
-  getCompatibleVideoCodecs, getCompatibleAudioCodecs,
+  getCompatibleVideoCodecs, getCompatibleAudioCodecs, getCompatiblePixelFormats,
   isAdpcmCodec,
   type ConvertSettings, checkAspectResolutionMatch, isVideoFormat,
 } from '@/constants/converterOptions';
@@ -277,6 +277,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const videoBitrateOptions = [{ label: '打ち込む（カスタム）', value: 'custom' }, ...VIDEO_BITRATES.map(b => ({ label: b, value: b }))];
   const scanTypeOptions = SCAN_TYPES.map(s => ({ label: s, value: s }));
+  const pixelFormatOptions = [
+    { label: '自動', value: 'auto' },
+    ...getCompatiblePixelFormats(settings.videoCodec).map(p => ({ label: p, value: p })),
+  ];
   const framerateOptions = [{ label: '打ち込む（カスタム）', value: 'custom' }, ...FRAMERATES.map(f => ({ label: f, value: f }))];
   const speedOptions = SPEEDS.map(s => ({ label: `${s}×`, value: s }));
   const frequencyOptions = getFrequencies().map(f => ({ label: f, value: f }));
@@ -358,6 +362,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         if (value === 'custom') { setShowCustomBitrate('audio'); return; }
         onChange({ ...settings, audioBitrate: value }); break;
       case 'scanType': onChange({ ...settings, scanType: value }); break;
+      case 'pixelFormat': onChange({ ...settings, pixelFormat: value }); break;
       case 'framerate':
         if (value === 'custom') { setShowCustomFramerate(true); return; }
         onChange({ ...settings, framerate: value }); break;
@@ -440,6 +445,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
               onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
 
+
+            <NativePickerRow label="ピクセル形式" displayValue={settings.pixelFormat === 'auto' ? '自動' : settings.pixelFormat}
+              options={pixelFormatOptions} selected={settings.pixelFormat}
+              onSelect={v => handleSelect('pixelFormat', v)} pickerHeader="ピクセル形式" />
 
             <NativePickerRow label="縦横比" displayValue={settings.aspectRatio}
               options={aspectRatioOptions} selected={settings.aspectRatio}

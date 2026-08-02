@@ -234,6 +234,7 @@ export const FORMAT_MIME: Record<string, string> = {
 
 export interface ConvertSettings {
   videoCodec: string;
+  pixelFormat: string;
   aspectRatio: string;
   scanType: string;
   resolutionW: number;
@@ -255,11 +256,13 @@ export interface ConvertSettings {
 
 export const defaultSettings: ConvertSettings = {
   videoCodec: 'H.264',
+  pixelFormat: 'auto',
   aspectRatio: '16:9',
   scanType: 'プログレッシブ方式',
   resolutionW: 1920,
   resolutionH: 1080,
   videoBitrate: '5120KBPS',
+
   framerate: '30FPS',
   startTime: 0,
   endTime: 0,
@@ -293,4 +296,21 @@ export function checkAspectResolutionMatch(ratio: string, w: number, h: number):
   const [rw, rh] = ratio.split(':').map(Number);
   const expectedH = Math.round((w / rw) * rh);
   return Math.abs(expectedH - h) <= 5;
+}
+
+/** Pixel formats supported per video codec (ffmpeg.wasm) */
+export const CODEC_PIXEL_FORMATS: Record<string, string[]> = {
+  'H.264': ['yuv420p', 'yuvj420p', 'yuv422p', 'yuvj422p', 'yuv444p', 'yuvj444p', 'nv12', 'nv16', 'nv21', 'gray', 'yuv420p10le', 'yuv422p10le', 'yuv444p10le'],
+  'H.265': ['yuv420p', 'yuvj420p', 'yuv422p', 'yuv444p', 'gray', 'gray10le', 'yuv420p10le', 'yuv422p10le', 'yuv444p10le', 'yuv420p12le', 'yuv422p12le', 'yuv444p12le'],
+  'AV1': ['yuv420p', 'yuv422p', 'yuv444p', 'gray', 'yuv420p10le', 'yuv422p10le', 'yuv444p10le', 'yuv420p12le', 'yuv422p12le', 'yuv444p12le'],
+  'MPEG-4': ['yuv420p'],
+  'DIVX': ['yuv420p'],
+  'H.263': ['yuv420p'],
+  'H.261': ['yuv420p'],
+  'H.320': ['yuv420p'],
+  'MJPEG': ['yuvj420p', 'yuvj422p', 'yuvj444p', 'yuv420p', 'yuv422p', 'yuv444p'],
+};
+
+export function getCompatiblePixelFormats(codec: string): string[] {
+  return CODEC_PIXEL_FORMATS[codec] || ['yuv420p'];
 }
