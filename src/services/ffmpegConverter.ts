@@ -12,6 +12,37 @@ export function requestAbort() {
   abortRequested = true;
 }
 
+/** Log lines that FFmpeg writes to stderr as normal info/warnings — never errors */
+const BENIGN_LOG_PATTERNS = [
+  '[swscaler]',
+  'swscaler',
+  'deprecated pixel format',
+  'Stream #',
+  'Stream mapping',
+  'Input #',
+  'Output #',
+  'Metadata:',
+  'encoder ',
+  'built with',
+  'configuration:',
+  'lib',
+  'frame=',
+  'size=',
+  'video:',
+  'Press [q]',
+  'Guessed Channel Layout',
+  'Last message repeated',
+  'No accelerated colorspace conversion',
+];
+
+/** True only when the log line looks like a real error (not info/warning noise) */
+export function isFfmpegErrorLog(msg: string): boolean {
+  if (!msg || !msg.trim()) return false;
+  if (BENIGN_LOG_PATTERNS.some(p => msg.includes(p))) return false;
+  return /error|invalid|failed|unable|not supported|no such file|unknown encoder|conversion failed|out of memory/i.test(msg);
+}
+
+
 /** Reset FFmpeg instance completely */
 export function resetFFmpeg() {
   if (ffmpeg) {
@@ -248,11 +279,15 @@ export async function convertWithFFmpeg(
   });
 
   try {
+    // Only a thrown exception from exec() counts as a failure.
+    // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
+    // are normal FFmpeg output and are never treated as errors.
     await ff.exec(args);
   } catch (err: any) {
-    const lastLogs = logs.slice(-3).join('\n');
+    const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
     throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
   }
+
 
   if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
 
