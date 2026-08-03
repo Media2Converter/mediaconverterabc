@@ -1,9 +1,12 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
+import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
   CODEC_MAP, AAC_HE_PROFILE, FORMAT_EXT, FORMAT_MIME, isVideoFormat,
   type ConvertSettings,
 } from '@/constants/converterOptions';
+
 
 let ffmpeg: FFmpeg | null = null;
 let abortRequested = false;
@@ -59,15 +62,59 @@ export function resetFFmpeg() {
   ffmpeg = null;
 }
 
-async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
+let coreUrls: { coreURL: string; wasmURL: string } | null = null;
+
+const CDN_CORE_JS = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js';
+const CDN_CORE_WASM = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm';
+
+async function loadBundledCore(): Promise<{ coreURL: string; wasmURL: string }> {
+  // Verify the bundled core files really are the core files (an SPA fallback
+  // would return HTML) before trusting them.
+  const [jsRes, wasmRes] = await Promise.all([
+    fetch(coreJsAsset.url),
+    fetch(coreWasmAsset.url),
+  ]);
+  if (!jsRes.ok || !wasmRes.ok) throw new Error('core assets unavailable');
+  const jsText = await jsRes.text();
+  if (!jsText.includes('createFFmpegCore')) throw new Error('core js invalid');
+  const wasmBuf = await wasmRes.arrayBuffer();
+  const magic = new Uint8Array(wasmBuf.slice(0, 4));
+  if (!(magic[0] === 0x00 && magic[1] === 0x61 && magic[2] === 0x73 && magic[3] === 0x6d)) {
+    throw new Error('core wasm invalid');
+  }
+  return {
+    coreURL: URL.createObjectURL(new Blob([jsText], { type: 'text/javascript' })),
+    wasmURL: URL.createObjectURL(new Blob([wasmBuf], { type: 'application/wasm' })),
+  };
+}
+
+/** Prefer the app-bundled ffmpeg-core files, fall back to the CDN copy */
+async function getCoreUrls() {
+  if (coreUrls) return coreUrls;
+  try {
+    coreUrls = await loadBundledCore();
+  } catch {
+    const [coreURL, wasmURL] = await Promise.all([
+      toBlobURL(CDN_CORE_JS, 'text/javascript'),
+      toBlobURL(CDN_CORE_WASM, 'application/wasm'),
+    ]);
+    coreUrls = { coreURL, wasmURL };
+  }
+  return coreUrls;
+}
+
+export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   if (ffmpeg && ffmpeg.loaded) return ffmpeg;
   ffmpeg = new FFmpeg();
   if (onLog) {
     ffmpeg.on('log', ({ message }) => onLog(message));
   }
-  await ffmpeg.load();
+  const { coreURL, wasmURL } = await getCoreUrls();
+  await ffmpeg.load({ coreURL, wasmURL });
   return ffmpeg;
 }
+
+
 
 /** Build FFmpeg arguments from settings — "safety-first" logic */
 export function buildFFmpegArgs(

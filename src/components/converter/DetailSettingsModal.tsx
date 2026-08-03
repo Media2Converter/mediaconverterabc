@@ -3,7 +3,7 @@ import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
 import { IOSConfirmDialog } from './IOSComponents';
-import sheetSound from '@/assets/shinki-rokuon.m4a.asset.json';
+import sheetSound from '@/assets/shinki-rokuon-3.m4a.asset.json';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
