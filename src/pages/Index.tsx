@@ -796,7 +796,6 @@ const Index: React.FC = () => {
                   handleFormatSelect(v);
                   setPerFileFormats({ 0: v });
                   setDetailContext('all');
-                  setTimeout(() => setShowDetailSettings(true), 500);
                 }}
                 pickerHeader="形式"
                 groups={singleGroups}
