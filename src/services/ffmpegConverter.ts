@@ -62,15 +62,30 @@ export function resetFFmpeg() {
   ffmpeg = null;
 }
 
-async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
+let coreUrls: { coreURL: string; wasmURL: string } | null = null;
+
+/** Load the ffmpeg-core files that ship with the app (no external CDN) */
+async function getCoreUrls() {
+  if (coreUrls) return coreUrls;
+  const [coreURL, wasmURL] = await Promise.all([
+    toBlobURL(coreJsAsset.url, 'text/javascript'),
+    toBlobURL(coreWasmAsset.url, 'application/wasm'),
+  ]);
+  coreUrls = { coreURL, wasmURL };
+  return coreUrls;
+}
+
+export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   if (ffmpeg && ffmpeg.loaded) return ffmpeg;
   ffmpeg = new FFmpeg();
   if (onLog) {
     ffmpeg.on('log', ({ message }) => onLog(message));
   }
-  await ffmpeg.load();
+  const { coreURL, wasmURL } = await getCoreUrls();
+  await ffmpeg.load({ coreURL, wasmURL });
   return ffmpeg;
 }
+
 
 /** Build FFmpeg arguments from settings — "safety-first" logic */
 export function buildFFmpegArgs(
