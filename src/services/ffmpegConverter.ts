@@ -1,9 +1,12 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
+import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
   CODEC_MAP, AAC_HE_PROFILE, FORMAT_EXT, FORMAT_MIME, isVideoFormat,
   type ConvertSettings,
 } from '@/constants/converterOptions';
+
 
 let ffmpeg: FFmpeg | null = null;
 let abortRequested = false;
