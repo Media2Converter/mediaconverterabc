@@ -64,14 +64,42 @@ export function resetFFmpeg() {
 
 let coreUrls: { coreURL: string; wasmURL: string } | null = null;
 
-/** Load the ffmpeg-core files that ship with the app (no external CDN) */
+const CDN_CORE_JS = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js';
+const CDN_CORE_WASM = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm';
+
+async function loadBundledCore(): Promise<{ coreURL: string; wasmURL: string }> {
+  // Verify the bundled core files really are the core files (an SPA fallback
+  // would return HTML) before trusting them.
+  const [jsRes, wasmRes] = await Promise.all([
+    fetch(coreJsAsset.url),
+    fetch(coreWasmAsset.url),
+  ]);
+  if (!jsRes.ok || !wasmRes.ok) throw new Error('core assets unavailable');
+  const jsText = await jsRes.text();
+  if (!jsText.includes('createFFmpegCore')) throw new Error('core js invalid');
+  const wasmBuf = await wasmRes.arrayBuffer();
+  const magic = new Uint8Array(wasmBuf.slice(0, 4));
+  if (!(magic[0] === 0x00 && magic[1] === 0x61 && magic[2] === 0x73 && magic[3] === 0x6d)) {
+    throw new Error('core wasm invalid');
+  }
+  return {
+    coreURL: URL.createObjectURL(new Blob([jsText], { type: 'text/javascript' })),
+    wasmURL: URL.createObjectURL(new Blob([wasmBuf], { type: 'application/wasm' })),
+  };
+}
+
+/** Prefer the app-bundled ffmpeg-core files, fall back to the CDN copy */
 async function getCoreUrls() {
   if (coreUrls) return coreUrls;
-  const [coreURL, wasmURL] = await Promise.all([
-    toBlobURL(coreJsAsset.url, 'text/javascript'),
-    toBlobURL(coreWasmAsset.url, 'application/wasm'),
-  ]);
-  coreUrls = { coreURL, wasmURL };
+  try {
+    coreUrls = await loadBundledCore();
+  } catch {
+    const [coreURL, wasmURL] = await Promise.all([
+      toBlobURL(CDN_CORE_JS, 'text/javascript'),
+      toBlobURL(CDN_CORE_WASM, 'application/wasm'),
+    ]);
+    coreUrls = { coreURL, wasmURL };
+  }
   return coreUrls;
 }
 
@@ -85,6 +113,7 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
   await ffmpeg.load({ coreURL, wasmURL });
   return ffmpeg;
 }
+
 
 
 /** Build FFmpeg arguments from settings — "safety-first" logic */
