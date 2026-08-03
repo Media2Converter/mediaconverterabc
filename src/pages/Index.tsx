@@ -7,7 +7,38 @@ import {
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog } from '@/services/ffmpegConverter';
+import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog, isFfmpegErrorLog } from '@/services/ffmpegConverter';
+
+/** Plain-Japanese sentence describing what failed */
+const describeFailure = (errorMsg: string, errorLines: string[]): string => {
+  const all = `${errorMsg}\n${errorLines.join('\n')}`;
+  if (/out of memory|memory access out of bounds|abort/i.test(all)) return 'ファイルの処理に必要なメモリが足りず、変換処理を完了できませんでした。';
+  if (/unknown encoder|unknown decoder|not supported|Unsupported codec/i.test(all)) return '選択したコーデックまたは形式がこの変換エンジンで扱えず、出力ファイルを作成できませんでした。';
+  if (/Invalid data|moov atom not found|could not find codec parameters/i.test(all)) return '入力ファイルのデータが壊れているか一部が欠けているため、読み込みに失敗しました。';
+  if (/No such file/i.test(all)) return '出力ファイルが作成されず、書き出しに失敗しました。';
+  if (/Invalid argument|Error while filtering|option not found/i.test(all)) return '設定した値の組み合わせがこの形式では使えず、変換の準備に失敗しました。';
+  return '変換処理の途中で問題が発生し、出力ファイルを作成できませんでした。';
+};
+
+/** Rough Japanese translation of the raw FFmpeg error text */
+const translateFfmpegError = (raw: string): string => {
+  const map: [RegExp, string][] = [
+    [/out of memory|memory access out of bounds/i, 'メモリが不足しています。'],
+    [/unknown encoder/i, '指定されたエンコーダーが見つかりません。'],
+    [/unknown decoder/i, '指定されたデコーダーが見つかりません。'],
+    [/Invalid data found when processing input/i, '入力データが不正です。'],
+    [/moov atom not found/i, '動画のヘッダー情報（moov）が見つかりません。'],
+    [/could not find codec parameters/i, 'コーデック情報を判別できません。'],
+    [/No such file or directory/i, 'ファイルが見つかりません。'],
+    [/Invalid argument/i, '指定された引数が不正です。'],
+    [/not supported|Unsupported/i, 'この形式または設定はサポートされていません。'],
+    [/Conversion failed/i, '変換に失敗しました。'],
+    [/Error while filtering/i, 'フィルター処理中にエラーが発生しました。'],
+    [/Permission denied/i, 'アクセスが拒否されました。'],
+  ];
+  const hits = map.filter(([re]) => re.test(raw)).map(([, ja]) => ja);
+  return hits.length > 0 ? hits.join('\n') : 'エラー内容を日本語に変換できませんでした。原文を確認してください。';
+};
 
 
 
