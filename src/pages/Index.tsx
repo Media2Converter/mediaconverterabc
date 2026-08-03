@@ -530,15 +530,24 @@ const Index: React.FC = () => {
 
       setStatusMessage('エラーを解析中...');
       const analysis = await analyzeError(errorMsg, ffmpegLogs);
+      const errorLines = ffmpegLogs.filter(isFfmpegErrorLog).slice(-3);
+      const errorCode = errorLines.length > 0 ? errorLines.join('\n') : errorMsg;
 
-      if (analysis) {
-        const deviceStatus = analysis.deviceStatus ? `\n\nデバイスの状態は次のとおりです。${analysis.deviceStatus}` : '';
-        const ffLogs = analysis.ffmpegLogs ? `\n\nFFmpegのログには次の内容が記録されています。\n${analysis.ffmpegLogs}` : '';
-        window.alert(`変換を完了できませんでした。${analysis.status}\n\n何が壊れているか、何が足りないか、何がおかしいかは次のとおりです。${analysis.cause}${deviceStatus}${ffLogs}`);
-      } else {
-        const lastLogs = ffmpegLogs.slice(-3).join('\n');
-        window.alert(`変換を完了できませんでした。処理の途中で次のエラーが発生し、出力ファイルを作成できませんでした。\n\n${errorMsg}${lastLogs ? `\n\nFFmpegのログには次の内容が記録されています。\n${lastLogs}` : ''}`);
-      }
+      window.alert(
+        [
+          'エラーが発生しました。',
+          '',
+          describeFailure(errorMsg, errorLines),
+          '',
+          'デバイス状態',
+          analysis?.deviceStatus || '取得できませんでした',
+          '',
+          translateFfmpegError(errorCode),
+          '',
+          errorCode,
+        ].join('\n')
+      );
+
 
     } finally {
       setConverting(false);
