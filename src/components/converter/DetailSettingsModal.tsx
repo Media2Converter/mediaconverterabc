@@ -614,25 +614,26 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const sheetRef = useRef<HTMLDivElement>(null);
   const [closing, setClosing] = useState(false);
   const [rendered, setRendered] = useState(open);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioPool = useRef<HTMLAudioElement[]>([]);
 
   const playSheetSound = () => {
-    // Always play: use a fresh element each time so overlapping/interrupted
-    // playback never blocks a later trigger, and retry once muted-unlock fails.
+    // Always play: fresh element each time, kept alive in a pool so the browser
+    // never garbage-collects it mid-playback (which silently dropped the sound
+    // after settings changes).
     try {
       const el = new Audio(sheetSound.url);
       el.preload = 'auto';
       el.volume = 1;
+      audioPool.current.push(el);
+      el.onended = () => {
+        audioPool.current = audioPool.current.filter(a => a !== el);
+      };
       const p = el.play();
       if (p && typeof p.catch === 'function') {
         p.catch(() => {
           try {
-            if (!audioRef.current) {
-              audioRef.current = new Audio(sheetSound.url);
-              audioRef.current.preload = 'auto';
-            }
-            audioRef.current.currentTime = 0;
-            void audioRef.current.play();
+            el.currentTime = 0;
+            void el.play();
           } catch {}
         });
       }

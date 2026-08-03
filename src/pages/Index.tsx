@@ -7,7 +7,38 @@ import {
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog } from '@/services/ffmpegConverter';
+import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog, isFfmpegErrorLog } from '@/services/ffmpegConverter';
+
+/** Plain-Japanese sentence describing what failed */
+const describeFailure = (errorMsg: string, errorLines: string[]): string => {
+  const all = `${errorMsg}\n${errorLines.join('\n')}`;
+  if (/out of memory|memory access out of bounds|abort/i.test(all)) return 'ファイルの処理に必要なメモリが足りず、変換処理を完了できませんでした。';
+  if (/unknown encoder|unknown decoder|not supported|Unsupported codec/i.test(all)) return '選択したコーデックまたは形式がこの変換エンジンで扱えず、出力ファイルを作成できませんでした。';
+  if (/Invalid data|moov atom not found|could not find codec parameters/i.test(all)) return '入力ファイルのデータが壊れているか一部が欠けているため、読み込みに失敗しました。';
+  if (/No such file/i.test(all)) return '出力ファイルが作成されず、書き出しに失敗しました。';
+  if (/Invalid argument|Error while filtering|option not found/i.test(all)) return '設定した値の組み合わせがこの形式では使えず、変換の準備に失敗しました。';
+  return '変換処理の途中で問題が発生し、出力ファイルを作成できませんでした。';
+};
+
+/** Rough Japanese translation of the raw FFmpeg error text */
+const translateFfmpegError = (raw: string): string => {
+  const map: [RegExp, string][] = [
+    [/out of memory|memory access out of bounds/i, 'メモリが不足しています。'],
+    [/unknown encoder/i, '指定されたエンコーダーが見つかりません。'],
+    [/unknown decoder/i, '指定されたデコーダーが見つかりません。'],
+    [/Invalid data found when processing input/i, '入力データが不正です。'],
+    [/moov atom not found/i, '動画のヘッダー情報（moov）が見つかりません。'],
+    [/could not find codec parameters/i, 'コーデック情報を判別できません。'],
+    [/No such file or directory/i, 'ファイルが見つかりません。'],
+    [/Invalid argument/i, '指定された引数が不正です。'],
+    [/not supported|Unsupported/i, 'この形式または設定はサポートされていません。'],
+    [/Conversion failed/i, '変換に失敗しました。'],
+    [/Error while filtering/i, 'フィルター処理中にエラーが発生しました。'],
+    [/Permission denied/i, 'アクセスが拒否されました。'],
+  ];
+  const hits = map.filter(([re]) => re.test(raw)).map(([, ja]) => ja);
+  return hits.length > 0 ? hits.join('\n') : 'エラー内容を日本語に変換できませんでした。原文を確認してください。';
+};
 
 
 
@@ -530,15 +561,24 @@ const Index: React.FC = () => {
 
       setStatusMessage('エラーを解析中...');
       const analysis = await analyzeError(errorMsg, ffmpegLogs);
+      const errorLines = ffmpegLogs.filter(isFfmpegErrorLog).slice(-3);
+      const errorCode = errorLines.length > 0 ? errorLines.join('\n') : errorMsg;
 
-      if (analysis) {
-        const deviceStatus = analysis.deviceStatus ? `\n\nデバイスの状態は次のとおりです。${analysis.deviceStatus}` : '';
-        const ffLogs = analysis.ffmpegLogs ? `\n\nFFmpegのログには次の内容が記録されています。\n${analysis.ffmpegLogs}` : '';
-        window.alert(`変換を完了できませんでした。${analysis.status}\n\n何が壊れているか、何が足りないか、何がおかしいかは次のとおりです。${analysis.cause}${deviceStatus}${ffLogs}`);
-      } else {
-        const lastLogs = ffmpegLogs.slice(-3).join('\n');
-        window.alert(`変換を完了できませんでした。処理の途中で次のエラーが発生し、出力ファイルを作成できませんでした。\n\n${errorMsg}${lastLogs ? `\n\nFFmpegのログには次の内容が記録されています。\n${lastLogs}` : ''}`);
-      }
+      window.alert(
+        [
+          'エラーが発生しました。',
+          '',
+          describeFailure(errorMsg, errorLines),
+          '',
+          'デバイス状態',
+          analysis?.deviceStatus || '取得できませんでした',
+          '',
+          translateFfmpegError(errorCode),
+          '',
+          errorCode,
+        ].join('\n')
+      );
+
 
     } finally {
       setConverting(false);
@@ -796,7 +836,6 @@ const Index: React.FC = () => {
                   handleFormatSelect(v);
                   setPerFileFormats({ 0: v });
                   setDetailContext('all');
-                  setTimeout(() => setShowDetailSettings(true), 500);
                 }}
                 pickerHeader="形式"
                 groups={singleGroups}
