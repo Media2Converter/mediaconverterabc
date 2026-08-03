@@ -148,8 +148,8 @@ export function buildFFmpegArgs(
         args.push('-flags', '+ilme+ildct');
       }
 
-      // Force CFR to prevent VFR corruption
-      args.push('-vsync', 'cfr');
+      // Force CFR to prevent VFR corruption (modern replacement for -vsync)
+      args.push('-fps_mode', 'cfr');
     }
   } else if (!outputIsVideo) {
     args.push('-vn');
