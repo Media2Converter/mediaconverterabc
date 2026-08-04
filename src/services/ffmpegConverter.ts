@@ -357,8 +357,9 @@ export async function convertWithFFmpeg(
     // are normal FFmpeg output and are never treated as errors.
     await ff.exec(args);
   } catch (err: any) {
-    const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
-    throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
+    const errLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
+    const tail = logs.slice(-6).join('\n');
+    throw new Error(`FFmpegエラー:\n${errLogs || err?.message || ''}\n${tail}`.trim());
   }
 
 
