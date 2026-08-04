@@ -560,24 +560,25 @@ const Index: React.FC = () => {
       }
 
       setStatusMessage('エラーを解析中...');
-      const analysis = await analyzeError(errorMsg, ffmpegLogs);
-      const errorLines = ffmpegLogs.filter(isFfmpegErrorLog).slice(-3);
+      const errorLines = ffmpegLogs.filter(isFfmpegErrorLog).slice(-5);
       const errorCode = errorLines.length > 0 ? errorLines.join('\n') : errorMsg;
 
       window.alert(
         [
           'エラーが発生しました。',
           '',
+          'エラー内容',
+          translateFfmpegError(errorCode),
           describeFailure(errorMsg, errorLines),
           '',
-          'デバイス状態',
-          analysis?.deviceStatus || '取得できませんでした',
-          '',
-          translateFfmpegError(errorCode),
-          '',
+          'エラーコード',
           errorCode,
+          '',
+          '原因',
+          inferErrorCause(errorCode),
         ].join('\n')
       );
+
 
 
     } finally {
