@@ -67,39 +67,51 @@ let coreUrls: { coreURL: string; wasmURL: string } | null = null;
 const CDN_CORE_JS = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js';
 const CDN_CORE_WASM = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm';
 
-async function loadBundledCore(): Promise<{ coreURL: string; wasmURL: string }> {
-  // Verify the bundled core files really are the core files (an SPA fallback
-  // would return HTML) before trusting them.
-  const [jsRes, wasmRes] = await Promise.all([
-    fetch(coreJsAsset.url),
-    fetch(coreWasmAsset.url),
-  ]);
-  if (!jsRes.ok || !wasmRes.ok) throw new Error('core assets unavailable');
-  const jsText = await jsRes.text();
-  if (!jsText.includes('createFFmpegCore')) throw new Error('core js invalid');
-  const wasmBuf = await wasmRes.arrayBuffer();
-  const magic = new Uint8Array(wasmBuf.slice(0, 4));
-  if (!(magic[0] === 0x00 && magic[1] === 0x61 && magic[2] === 0x73 && magic[3] === 0x6d)) {
-    throw new Error('core wasm invalid');
+/** core.js is served from the app itself (public/ffmpeg), asset, then CDN */
+const CORE_JS_SOURCES = ['/ffmpeg/ffmpeg-core.js', coreJsAsset.url, CDN_CORE_JS];
+const CORE_WASM_SOURCES = [coreWasmAsset.url, CDN_CORE_WASM];
+
+async function fetchCoreJs(): Promise<string> {
+  const errors: string[] = [];
+  for (const url of CORE_JS_SOURCES) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      // An SPA HTML fallback would silently pass as text — validate the content.
+      if (!text.includes('createFFmpegCore')) throw new Error('内容が ffmpeg-core.js ではありません');
+      return URL.createObjectURL(new Blob([text], { type: 'text/javascript' }));
+    } catch (e: any) {
+      errors.push(`${url}: ${e?.message || e}`);
+    }
   }
-  return {
-    coreURL: URL.createObjectURL(new Blob([jsText], { type: 'text/javascript' })),
-    wasmURL: URL.createObjectURL(new Blob([wasmBuf], { type: 'application/wasm' })),
-  };
+  throw new Error(`FFmpeg.wasm の ffmpeg-core.js を読み込めませんでした。\n${errors.join('\n')}`);
 }
 
-/** Prefer the app-bundled ffmpeg-core files, fall back to the CDN copy */
+async function fetchCoreWasm(): Promise<string> {
+  const errors: string[] = [];
+  for (const url of CORE_WASM_SOURCES) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = await res.arrayBuffer();
+      const m = new Uint8Array(buf.slice(0, 4));
+      if (!(m[0] === 0x00 && m[1] === 0x61 && m[2] === 0x73 && m[3] === 0x6d)) {
+        throw new Error('内容が WebAssembly ファイルではありません');
+      }
+      return URL.createObjectURL(new Blob([buf], { type: 'application/wasm' }));
+    } catch (e: any) {
+      errors.push(`${url}: ${e?.message || e}`);
+    }
+  }
+  throw new Error(`FFmpeg.wasm の ffmpeg-core.wasm を読み込めませんでした。\n${errors.join('\n')}`);
+}
+
+/** Prefer the app-hosted ffmpeg-core files, fall back to the CDN copy */
 async function getCoreUrls() {
   if (coreUrls) return coreUrls;
-  try {
-    coreUrls = await loadBundledCore();
-  } catch {
-    const [coreURL, wasmURL] = await Promise.all([
-      toBlobURL(CDN_CORE_JS, 'text/javascript'),
-      toBlobURL(CDN_CORE_WASM, 'application/wasm'),
-    ]);
-    coreUrls = { coreURL, wasmURL };
-  }
+  const [coreURL, wasmURL] = await Promise.all([fetchCoreJs(), fetchCoreWasm()]);
+  coreUrls = { coreURL, wasmURL };
   return coreUrls;
 }
 
@@ -110,7 +122,13 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
     ffmpeg.on('log', ({ message }) => onLog(message));
   }
   const { coreURL, wasmURL } = await getCoreUrls();
-  await ffmpeg.load({ coreURL, wasmURL });
+  try {
+    await ffmpeg.load({ coreURL, wasmURL });
+  } catch (e: any) {
+    ffmpeg = null;
+    coreUrls = null;
+    throw new Error(`FFmpeg.wasm エンジンの初期化に失敗しました: ${e?.message || e}`);
+  }
   return ffmpeg;
 }
 
