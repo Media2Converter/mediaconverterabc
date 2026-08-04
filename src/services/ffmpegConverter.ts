@@ -175,22 +175,22 @@ export function buildFFmpegArgs(
       const vCodec = CODEC_MAP[settings.videoCodec] || 'libx264';
       args.push('-c:v', vCodec);
 
-      // Resolution - always force even numbers via scale filter with trunc
-      const w = settings.resolutionW;
-      const h = settings.resolutionH;
+      // Resolution — force even numbers in JS (args are NOT shell-parsed,
+      // so quotes/expressions would be passed literally to the filter graph)
+      const even = (v: number) => Math.max(2, Math.trunc(Number(v) / 2) * 2);
+      const w = even(settings.resolutionW);
+      const h = even(settings.resolutionH);
 
       // Aspect ratio: force letterbox (scale + pad with black bars)
       if (settings.aspectRatio !== '自由') {
-        // Compute target W:H from aspect ratio, then fit-and-pad with black
-        // scale=w:h:force_original_aspect_ratio=decrease ensures contents fit, then pad to target with black
         vFilters.push(
-          `scale=w='trunc(${w}/2)*2':h='trunc(${h}/2)*2':force_original_aspect_ratio=decrease`,
-          `pad=w='trunc(${w}/2)*2':h='trunc(${h}/2)*2':x='(ow-iw)/2':y='(oh-ih)/2':color=black`,
+          `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
+          `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black`,
           `setsar=1`
         );
         args.push('-aspect', settings.aspectRatio);
       } else {
-        vFilters.push(`scale='trunc(${w}/2)*2:trunc(${h}/2)*2'`);
+        vFilters.push(`scale=${w}:${h}`);
       }
 
       // Pixel format
