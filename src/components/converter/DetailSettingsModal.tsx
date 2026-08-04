@@ -224,7 +224,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return c;
   };
 
-  const compatAudioCodecs = getCompatibleAudioCodecs(selectedFormat);
+  const compatAudioCodecs = getCompatibleAudioCodecs(selectedFormat)
+    // PCM_U4 is only offered for AVI when configuring a video output
+    .filter(c => c !== 'PCM_U4' || !isVideo || selectedFormat === 'AVI');
+
   const audioCodecGroups = [
     { label: 'その他のアクション', options: [
       { label: 'コピー', value: 'copy' },

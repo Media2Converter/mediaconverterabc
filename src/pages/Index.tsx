@@ -40,6 +40,22 @@ const translateFfmpegError = (raw: string): string => {
   return hits.length > 0 ? hits.join('\n') : 'エラー内容を日本語に変換できませんでした。原文を確認してください。';
 };
 
+/** Explain the likely cause of the error in Japanese */
+const inferErrorCause = (raw: string): string => {
+  const map: [RegExp, string][] = [
+    [/out of memory|memory access out of bounds/i, '端末の使用可能メモリを超えました。ファイルサイズ・解像度・ビットレートが大きすぎることが原因です。'],
+    [/unknown encoder|unknown decoder/i, '選択したコーデックがこの変換エンジンに含まれていないことが原因です。'],
+    [/Invalid data found|moov atom not found|could not find codec parameters/i, '入力ファイルのデータが壊れている、または途中で切れていることが原因です。'],
+    [/No such file or directory/i, '入力ファイルの読み込みに失敗したことが原因です。'],
+    [/not supported|Unsupported|Invalid argument/i, '出力形式とコーデック・解像度・サンプルレートなどの設定の組み合わせが対応していないことが原因です。'],
+    [/Error while filtering|filter/i, '縦横比・速度・音量などのフィルター設定が入力と合っていないことが原因です。'],
+    [/bitrate|sample rate|channel/i, 'ビットレート・サンプルレート・チャンネル数の指定が対応範囲外であることが原因です。'],
+  ];
+  const hits = map.filter(([re]) => re.test(raw)).map(([, ja]) => ja);
+  return hits.length > 0 ? hits.join('\n') : '入力ファイルと選択した出力設定の組み合わせが原因と考えられます。設定を変えて再試行してください。';
+};
+
+
 
 
 /** Gather device info for analysis AI */
@@ -560,24 +576,25 @@ const Index: React.FC = () => {
       }
 
       setStatusMessage('エラーを解析中...');
-      const analysis = await analyzeError(errorMsg, ffmpegLogs);
-      const errorLines = ffmpegLogs.filter(isFfmpegErrorLog).slice(-3);
+      const errorLines = ffmpegLogs.filter(isFfmpegErrorLog).slice(-5);
       const errorCode = errorLines.length > 0 ? errorLines.join('\n') : errorMsg;
 
       window.alert(
         [
           'エラーが発生しました。',
           '',
+          'エラー内容',
+          translateFfmpegError(errorCode),
           describeFailure(errorMsg, errorLines),
           '',
-          'デバイス状態',
-          analysis?.deviceStatus || '取得できませんでした',
-          '',
-          translateFfmpegError(errorCode),
-          '',
+          'エラーコード',
           errorCode,
+          '',
+          '原因',
+          inferErrorCause(errorCode),
         ].join('\n')
       );
+
 
 
     } finally {
