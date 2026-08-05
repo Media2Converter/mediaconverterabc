@@ -18,6 +18,30 @@ export interface ServerConvertResult {
 }
 
 /**
+ * iPhone (QuickTime / 写真アプリ) で確実に読み取れるメタデータ設定。
+ * サーバー側の FFmpeg に渡してもらうためのパラメータ。
+ */
+export const IPHONE_COMPAT_OPTIONS: Record<string, string> = {
+  // 映像: H.264 High/Main まで、8bit 4:2:0
+  vcodec: 'libx264',
+  profile: 'high',
+  level: '4.1',
+  pix_fmt: 'yuv420p',
+  // 音声: AAC-LC / 48kHz / ステレオ
+  acodec: 'aac',
+  ar: '48000',
+  ac: '2',
+  // メタデータ: moov atom を先頭へ（iPhoneの読み取り必須条件）
+  movflags: '+faststart',
+  // 回転情報などを正しく書き出す
+  map_metadata: '0',
+  brand: 'mp42',
+  // iPhone向け互換モード（サーバー実装が参照できる汎用フラグ）
+  target: 'iphone',
+  ios_compatible: 'true',
+};
+
+/**
  * POST the file (plus the requested output format) to the conversion API.
  * The returned blob is named with the requested format's extension.
  */
@@ -38,6 +62,13 @@ export async function convertOnServer(
   form.append('output_format', ext);
   form.append('ext', ext);
   form.append('label', format);
+
+  // iPhoneで再生・読み取りできるメタデータ／コーデック指定
+  for (const [k, v] of Object.entries(IPHONE_COMPAT_OPTIONS)) {
+    form.append(k, v);
+  }
+  form.append('options', JSON.stringify(IPHONE_COMPAT_OPTIONS));
+
 
   let res: Response;
   try {
