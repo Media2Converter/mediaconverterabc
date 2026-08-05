@@ -514,22 +514,28 @@ const Index: React.FC = () => {
     setStatusMessage('サーバーで変換中...');
 
     const results: { url: string; filename: string }[] = [];
+    let mismatchedFormat = '';
 
     try {
       for (let i = 0; i < files.length; i++) {
         const inputFile = files[i];
+        const formatForFile = perFileFormats[i] || selectedFormat;
+        const ext = FORMAT_EXT[formatForFile] || 'mp4';
+        const mime = FORMAT_MIME[formatForFile] || '';
 
         if (files.length > 1) {
           setStatusMessage(`(${i + 1}/${files.length}) ${inputFile.name} をサーバーで変換中...`);
         }
         setProgress(((i + 0.5) / files.length) * 100);
 
-        const result = await convertOnServer(inputFile, (status) => {
+        const result = await convertOnServer(inputFile, formatForFile, ext, mime, (status) => {
           if (files.length === 1) setStatusMessage(status);
         });
 
-        results.push({ url: result.url, filename: 'output.avi' });
+        if (result.formatMismatch) mismatchedFormat = result.actualExt;
+        results.push({ url: result.url, filename: result.filename });
       }
+
 
       setConvertedResults(results);
       setConvertedUrl(results[0].url);
