@@ -7,7 +7,7 @@ import {
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog, isFfmpegErrorLog } from '@/services/ffmpegConverter';
+import { convertOnServer, requestAbort } from '@/services/serverConverter';
 
 /** Plain-Japanese sentence describing what failed */
 const describeFailure = (errorMsg: string, errorLines: string[]): string => {
