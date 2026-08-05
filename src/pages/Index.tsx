@@ -543,6 +543,18 @@ const Index: React.FC = () => {
 
       setProgress(100);
       setStatusMessage('変換完了！ダウンロードできます');
+
+      if (mismatchedFormat) {
+        window.alert(
+          [
+            '選択した形式で変換されませんでした。',
+            '',
+            `変換サーバーは ${mismatchedFormat.toUpperCase()} 形式のファイルを返しました。`,
+            'サーバー側が出力形式の指定（format）に対応していないため、',
+            'サーバーの実装で受け取った format を FFmpeg の出力に反映させる必要があります。',
+          ].join('\n')
+        );
+      }
     } catch (err: any) {
       console.error('Server conversion error:', err);
       const errorMsg = err?.message || '不明なエラー';
