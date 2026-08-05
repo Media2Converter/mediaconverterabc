@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
-  FORMAT_EXT, isVideoFormat,
+  FORMAT_EXT, FORMAT_MIME, isVideoFormat,
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
@@ -514,22 +514,28 @@ const Index: React.FC = () => {
     setStatusMessage('サーバーで変換中...');
 
     const results: { url: string; filename: string }[] = [];
+    let mismatchedFormat = '';
 
     try {
       for (let i = 0; i < files.length; i++) {
         const inputFile = files[i];
+        const formatForFile = perFileFormats[i] || selectedFormat;
+        const ext = FORMAT_EXT[formatForFile] || 'mp4';
+        const mime = FORMAT_MIME[formatForFile] || '';
 
         if (files.length > 1) {
           setStatusMessage(`(${i + 1}/${files.length}) ${inputFile.name} をサーバーで変換中...`);
         }
         setProgress(((i + 0.5) / files.length) * 100);
 
-        const result = await convertOnServer(inputFile, (status) => {
+        const result = await convertOnServer(inputFile, formatForFile, ext, mime, (status) => {
           if (files.length === 1) setStatusMessage(status);
         });
 
-        results.push({ url: result.url, filename: 'output.avi' });
+        if (result.formatMismatch) mismatchedFormat = result.actualExt;
+        results.push({ url: result.url, filename: result.filename });
       }
+
 
       setConvertedResults(results);
       setConvertedUrl(results[0].url);
@@ -537,6 +543,18 @@ const Index: React.FC = () => {
 
       setProgress(100);
       setStatusMessage('変換完了！ダウンロードできます');
+
+      if (mismatchedFormat) {
+        window.alert(
+          [
+            '選択した形式で変換されませんでした。',
+            '',
+            `変換サーバーは ${mismatchedFormat.toUpperCase()} 形式のファイルを返しました。`,
+            'サーバー側が出力形式の指定（format）に対応していないため、',
+            'サーバーの実装で受け取った format を FFmpeg の出力に反映させる必要があります。',
+          ].join('\n')
+        );
+      }
     } catch (err: any) {
       console.error('Server conversion error:', err);
       const errorMsg = err?.message || '不明なエラー';
