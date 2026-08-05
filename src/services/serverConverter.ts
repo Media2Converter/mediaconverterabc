@@ -72,7 +72,8 @@ export async function convertOnServer(
 
   let res: Response;
   try {
-    res = await fetch(`${CONVERT_ENDPOINT}?format=${encodeURIComponent(ext)}`, {
+    const query = new URLSearchParams({ format: ext, ...IPHONE_COMPAT_OPTIONS });
+    res = await fetch(`${CONVERT_ENDPOINT}?${query.toString()}`, {
       method: 'POST',
       body: form,
       signal: controller.signal,
