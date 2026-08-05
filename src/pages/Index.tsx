@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
-  FORMAT_EXT, isVideoFormat,
+  FORMAT_EXT, FORMAT_MIME, isVideoFormat,
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
