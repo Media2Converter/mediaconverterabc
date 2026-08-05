@@ -660,10 +660,6 @@ const Index: React.FC = () => {
           window.location.reload();
         }
         break;
-      case 'reset_ffmpeg':
-        resetFFmpeg();
-        window.alert('FFmpegが初期化されました。');
-        break;
     }
   };
 
