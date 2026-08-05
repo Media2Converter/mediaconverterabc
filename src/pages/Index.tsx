@@ -634,7 +634,7 @@ const Index: React.FC = () => {
         { label: '再読み込み', value: 'reload' },
         { label: '再試行', value: 'retry' },
         { label: '初期化', value: 'reset', colorClass: 'text-destructive' },
-        { label: 'FFmpegを初期化', value: 'reset_ffmpeg' },
+        
       ],
     },
   ];
