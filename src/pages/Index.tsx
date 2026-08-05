@@ -7,7 +7,7 @@ import {
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog, isFfmpegErrorLog } from '@/services/ffmpegConverter';
+import { convertOnServer, requestAbort } from '@/services/serverConverter';
 
 /** Plain-Japanese sentence describing what failed */
 const describeFailure = (errorMsg: string, errorLines: string[]): string => {
@@ -511,52 +511,24 @@ const Index: React.FC = () => {
     setProgress(0);
     setConvertedUrl(null);
     setConvertedResults([]);
-    setStatusMessage('FFmpeg WASM エンジンを初期化中...');
+    setStatusMessage('サーバーで変換中...');
 
-    const ffmpegLogs: string[] = [];
     const results: { url: string; filename: string }[] = [];
-    const warnedLogs = new Set<string>();
-    let warningsMuted = false;
-
-    // Show FFmpeg warnings in a native Safari confirm dialog; OK continues the conversion
-    const handleLog = (msg: string) => {
-      ffmpegLogs.push(msg);
-      if (warningsMuted || !isFfmpegWarningLog(msg)) return;
-      const key = msg.trim();
-      if (warnedLogs.has(key)) return;
-      warnedLogs.add(key);
-      const ok = window.confirm(`変換中に警告が発生しました。\n\n${key}\n\n「OK」を押すと変換を続けます。`);
-      if (!ok) {
-        warningsMuted = true;
-      }
-    };
 
     try {
       for (let i = 0; i < files.length; i++) {
         const inputFile = files[i];
-        const formatForFile = perFileFormats[i] || selectedFormat;
-        const fileIsVideo = inputFile.type.startsWith('video/');
 
         if (files.length > 1) {
-          setStatusMessage(`(${i + 1}/${files.length}) ${inputFile.name} を変換中...`);
+          setStatusMessage(`(${i + 1}/${files.length}) ${inputFile.name} をサーバーで変換中...`);
         }
+        setProgress(((i + 0.5) / files.length) * 100);
 
-        const result = await convertWithFFmpeg(
-          inputFile,
-          formatForFile,
-          settings,
-          fileIsVideo,
-          (pct) => setProgress(((i + pct / 100) / files.length) * 100),
-          handleLog,
-          (status) => setStatusMessage(status),
-          (cmd) => setFfmpegCommand(cmd),
-        );
+        const result = await convertOnServer(inputFile, (status) => {
+          if (files.length === 1) setStatusMessage(status);
+        });
 
-        const cdfNum = String(cdfCounter).padStart(4, '0');
-        const ext = result.filename.split('.').pop() || 'mp4';
-        const filename = `CDF_${cdfNum}.${ext}`;
-        cdfCounter++;
-        results.push({ url: result.url, filename });
+        results.push({ url: result.url, filename: 'output.avi' });
       }
 
       setConvertedResults(results);
@@ -566,7 +538,7 @@ const Index: React.FC = () => {
       setProgress(100);
       setStatusMessage('変換完了！ダウンロードできます');
     } catch (err: any) {
-      console.error('FFmpeg conversion error:', err);
+      console.error('Server conversion error:', err);
       const errorMsg = err?.message || '不明なエラー';
 
       if (errorMsg.includes('キャンセル')) {
@@ -575,23 +547,19 @@ const Index: React.FC = () => {
         return;
       }
 
-      setStatusMessage('エラーを解析中...');
-      const errorLines = ffmpegLogs.filter(isFfmpegErrorLog).slice(-5);
-      const errorCode = errorLines.length > 0 ? errorLines.join('\n') : errorMsg;
-
+      setStatusMessage('エラーが発生しました');
       window.alert(
         [
           'エラーが発生しました。',
           '',
           'エラー内容',
-          translateFfmpegError(errorCode),
-          describeFailure(errorMsg, errorLines),
+          describeFailure(errorMsg, []),
           '',
           'エラーコード',
-          errorCode,
+          errorMsg,
           '',
           '原因',
-          inferErrorCause(errorCode),
+          inferErrorCause(errorMsg),
         ].join('\n')
       );
 
@@ -666,7 +634,7 @@ const Index: React.FC = () => {
         { label: '再読み込み', value: 'reload' },
         { label: '再試行', value: 'retry' },
         { label: '初期化', value: 'reset', colorClass: 'text-destructive' },
-        { label: 'FFmpegを初期化', value: 'reset_ffmpeg' },
+        
       ],
     },
   ];
@@ -691,10 +659,6 @@ const Index: React.FC = () => {
           document.documentElement.style.removeProperty('--app-text-color');
           window.location.reload();
         }
-        break;
-      case 'reset_ffmpeg':
-        resetFFmpeg();
-        window.alert('FFmpegが初期化されました。');
         break;
     }
   };
