@@ -72,7 +72,7 @@
         align-items: center;
         gap: 6px;
         font-size: 12px;
-        padding: 4px 10px;
+        padding: 4px 12px;
         border-radius: 20px;
         margin-top: 10px;
         background: #f0f0f5;
@@ -89,9 +89,7 @@
       .dot.online { background: #34c759; }
       .dot.offline { background: #ff3b30; }
 
-      .form-section {
-        margin-bottom: 20px;
-      }
+      .form-section { margin-bottom: 20px; }
 
       .label-title {
         font-size: 13px;
@@ -200,7 +198,7 @@
           <p>無料でビデオ・オーディオファイルを変換します。</p>
           <div class="server-badge">
             <span id="serverDot" class="dot"></span>
-            <span id="serverStatusText">サーバー準備確認中...</span>
+            <span id="serverStatusText">サーバー接続確認中...</span>
           </div>
         </div>
 
@@ -284,10 +282,10 @@
     <script type="module" src="/src/main.tsx"></script>
 
     <script>
-      const BASE_URL = 'https://ffmpeg-api-kn47.onrender.com';
-      const API_URL = `${BASE_URL}/api/convert`;
+      const SERVER_BASE = 'https://ffmpeg-api-kn47.onrender.com';
+      const CONVERT_API = `${SERVER_BASE}/api/convert`;
 
-      // ページ読み込み時にRenderサーバーを起こす（コールドスタート対策）
+      // ページ読み込み時にRenderサーバーを自動起爆（ウォームアップ）
       window.addEventListener('DOMContentLoaded', () => {
         pingServer();
       });
@@ -295,19 +293,19 @@
       async function pingServer() {
         const dot = document.getElementById('serverDot');
         const text = document.getElementById('serverStatusText');
-        
+
         try {
-          const res = await fetch(BASE_URL, { method: 'GET' });
+          const res = await fetch(SERVER_BASE, { method: 'GET' });
           if (res.ok) {
             dot.className = 'dot online';
-            text.innerText = 'サーバー接続完了（準備OK）';
+            text.innerText = 'サーバー接続完了 (準備完了)';
           } else {
             throw new Error();
           }
         } catch {
           dot.className = 'dot';
-          text.innerText = 'サーバー起動中... (約30秒)';
-          setTimeout(pingServer, 5000); // 起動するまで5秒周期で自動再確認
+          text.innerText = 'サーバー起爆中... (約30秒かかります)';
+          setTimeout(pingServer, 4000);
         }
       }
 
@@ -355,17 +353,17 @@
         formData.append('framerate', document.getElementById('framerate').value);
 
         btn.disabled = true;
-        setStatus('変換処理中... (初回や重い動画は1分程度かかります)', 'info');
+        setStatus('変換処理中... (初回や大きなファイルは1〜2分程度かかる場合があります)', 'info');
 
         try {
-          const response = await fetch(API_URL, {
+          const response = await fetch(CONVERT_API, {
             method: 'POST',
             body: formData
           });
 
           if (!response.ok) {
             const errJson = await response.json().catch(() => ({}));
-            throw new Error(errJson.details || errJson.error || `HTTPエラー ${response.status}`);
+            throw new Error(errJson.details || errJson.error || `エラー (${response.status})`);
           }
 
           const blob = await response.blob();
@@ -379,15 +377,15 @@
           a.remove();
           window.URL.revokeObjectURL(downloadUrl);
 
-          setStatus('変換完了！ファイルが保存されます。', 'success');
+          setStatus('変換完了！ファイルがダウンロードされます。', 'success');
         } catch (err) {
-          // 休止中による接続エラーの場合、最大2回自動リトライ
-          if (retryCount < 2 && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
-            setStatus('サーバー起動を待って自動再試行中...', 'info');
-            setTimeout(() => submitConversion(retryCount + 1), 6000);
+          // 休止状態による接続タイムアウト時、最大3回自動リトライ
+          if (retryCount < 3) {
+            setStatus(`サーバー起動待ちのため再接続中 (${retryCount + 1}/3回)...`, 'info');
+            setTimeout(() => submitConversion(retryCount + 1), 5000);
           } else {
             console.error('Fetch error:', err);
-            setStatus('エラー: ' + err.message, 'error');
+            setStatus('接続失敗: ' + err.message, 'error');
           }
         } finally {
           btn.disabled = false;
