@@ -119,3 +119,40 @@ export async function convertOnServer(
     formatMismatch: actualExt !== ext.toLowerCase(),
   };
 }
+
+/**
+ * FFmpeg.WASM APIサーバの初期化（ウォームアップ）。
+ * Render の無料インスタンスはスリープするため、起動を待ちながら進捗を報告する。
+ */
+export async function initializeServer(
+  onStatus?: (status: string) => void,
+  onProgress?: (percent: number) => void,
+): Promise<void> {
+  controller = new AbortController();
+  const started = Date.now();
+  const TIMEOUT = 90_000;
+  let attempt = 0;
+
+  while (Date.now() - started < TIMEOUT) {
+    attempt++;
+    const elapsed = Date.now() - started;
+    onProgress?.(Math.min(95, (elapsed / TIMEOUT) * 100));
+    onStatus?.(`FFmpeg.WASM APIサーバを初期化中...\n(${attempt}回目の接続を試行中)`);
+    try {
+      const res = await fetch(`${CONVERT_API_URL}/`, {
+        method: 'GET',
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      if (res.ok || res.status === 404 || res.status === 405) {
+        onProgress?.(100);
+        onStatus?.('FFmpeg.WASM APIサーバの初期化が完了しました');
+        return;
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw new Error('ユーザーによりキャンセルされました');
+    }
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  throw new Error('FFmpeg.WASM APIサーバの初期化がタイムアウトしました');
+}
