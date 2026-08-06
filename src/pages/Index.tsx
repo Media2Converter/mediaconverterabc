@@ -7,7 +7,8 @@ import {
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { convertOnServer, requestAbort } from '@/services/serverConverter';
+import { convertOnServer, requestAbort, initializeServer } from '@/services/serverConverter';
+import { buildInstructionScript } from '@/services/instructionScript';
 
 /** Plain-Japanese sentence describing what failed */
 const describeFailure = (errorMsg: string, errorLines: string[]): string => {
@@ -498,6 +499,23 @@ const Index: React.FC = () => {
     setStatusMessage('キャンセルしました');
   };
 
+  const handleInitializeServer = async () => {
+    setConverting(true);
+    setProgress(0);
+    setStatusMessage('FFmpeg.WASM APIサーバを初期化中...');
+    try {
+      await initializeServer(setStatusMessage, setProgress);
+      setProgress(100);
+      setStatusMessage('FFmpeg.WASM APIサーバの初期化が完了しました');
+      setTimeout(() => setConverting(false), 800);
+    } catch (err: any) {
+      setConverting(false);
+      setProgress(0);
+      setStatusMessage('');
+      window.alert(['エラーが発生しました。', '', err?.message || '不明なエラー'].join('\n'));
+    }
+  };
+
   const handleConvert = async () => {
     const everyFileHasFormat = files.length > 0 && files.every((_, i) => perFileFormats[i]);
     if (files.length === 0) return;
@@ -528,9 +546,11 @@ const Index: React.FC = () => {
         }
         setProgress(((i + 0.5) / files.length) * 100);
 
+        const instructions = buildInstructionScript(inputFile, formatForFile, settings);
+        setFfmpegCommand(instructions.js);
         const result = await convertOnServer(inputFile, formatForFile, ext, mime, (status) => {
           if (files.length === 1) setStatusMessage(status);
-        });
+        }, instructions);
 
         if (result.formatMismatch) mismatchedFormat = result.actualExt;
         results.push({ url: result.url, filename: result.filename });
@@ -651,7 +671,7 @@ const Index: React.FC = () => {
       options: [
         { label: '再読み込み', value: 'reload' },
         { label: '再試行', value: 'retry' },
-        { label: '初期化', value: 'reset', colorClass: 'text-destructive' },
+        { label: 'FFmpeg.WASM APIサーバを初期化', value: 'init-server' },
         
       ],
     },
@@ -669,14 +689,8 @@ const Index: React.FC = () => {
         setStatusMessage('');
         setTimeout(() => handleConvert(), 100);
         break;
-      case 'reset':
-        if (window.confirm('⚠️ 初期化\n\nサイトのデザインや言語を初期化しますか？この操作は元に戻せません。')) {
-          document.documentElement.style.removeProperty('--app-font-size');
-          document.documentElement.style.removeProperty('--app-bg-color');
-          document.documentElement.style.removeProperty('--app-btn-color');
-          document.documentElement.style.removeProperty('--app-text-color');
-          window.location.reload();
-        }
+      case 'init-server':
+        handleInitializeServer();
         break;
     }
   };
@@ -776,10 +790,9 @@ const Index: React.FC = () => {
 
       {/* Header: title (long-press → code download) */}
       <div className="w-full flex items-center justify-start mb-8">
-        <TitleWithCodeDownload
-          jsonContent={jsomInstructions}
-          ffmpegContent={ffmpegCommand || 'コマンドはまだ生成されていません。'}
-        />
+        <h1 className="font-bold tracking-tight leading-[1.1]" style={{ fontSize: '35px' }}>
+          メディアコンバータ
+        </h1>
       </div>
 
       {files.length > 0 && (
@@ -951,14 +964,6 @@ const Index: React.FC = () => {
             </svg>
             <p className="text-foreground text-[31px] text-center whitespace-pre-line mt-4 max-w-md">{statusMessage}</p>
             <div className="w-full mt-4 flex flex-col gap-2">
-              <button
-                onClick={() => setPreviewView('ffmpeg')}
-                aria-label="プレビューを表示"
-                className="active:opacity-80 transition-opacity w-full text-[31px] font-semibold"
-                style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', borderRadius: 0, height: 56 }}
-              >
-                プレビューを表示
-              </button>
               <button
                 onClick={handleCancel}
                 className="w-full bg-destructive text-destructive-foreground text-[31px] font-semibold active:opacity-80 transition-opacity"
