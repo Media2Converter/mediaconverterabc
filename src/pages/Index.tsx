@@ -9,6 +9,21 @@ import {
 } from '@/constants/converterOptions';
 import { convertOnServer, requestAbort, initializeServer } from '@/services/serverConverter';
 import { buildInstructionScript } from '@/services/instructionScript';
+import detailTapSound from '@/assets/shinki-rokuon-4.m4a.asset.json';
+
+/** 詳細設定ボタンを押した瞬間に必ず音声を再生する */
+const playDetailTapSound = () => {
+  try {
+    const el = new Audio(detailTapSound.url);
+    el.preload = 'auto';
+    el.volume = 1;
+    el.play().catch(() => {
+      const retry = new Audio(detailTapSound.url);
+      retry.play().catch(() => {});
+    });
+  } catch {}
+};
+
 
 /** Plain-Japanese sentence describing what failed */
 const describeFailure = (errorMsg: string, errorLines: string[]): string => {
