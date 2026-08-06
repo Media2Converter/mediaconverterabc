@@ -51,6 +51,7 @@ export async function convertOnServer(
   ext: string,
   mime: string,
   onStatus?: (status: string) => void,
+  instructions?: { js: string; params: Record<string, string> },
 ): Promise<ServerConvertResult> {
   controller = new AbortController();
   onStatus?.('サーバーで変換中...');
@@ -68,6 +69,20 @@ export async function convertOnServer(
     form.append(k, v);
   }
   form.append('options', JSON.stringify(IPHONE_COMPAT_OPTIONS));
+
+  // 指示書（解像度・ビットレートなど）は JavaScript で送信
+  if (instructions) {
+    form.append('instructions_language', 'javascript');
+    form.append('instructions_js', instructions.js);
+    form.append(
+      'instructions_file',
+      new File([instructions.js], 'instructions.js', { type: 'text/javascript' }),
+      'instructions.js',
+    );
+    for (const [k, v] of Object.entries(instructions.params)) form.append(k, v);
+  }
+
+
 
 
   let res: Response;
