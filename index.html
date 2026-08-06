@@ -1,30 +1,385 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
-    <title>メディアコンバータ</title>
-    <meta name="description" content="無料でビデオ・オーディオファイルを変換します。">
-    <meta name="author" content="Lovable" />
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Media Converter - 無料動画・音声変換</title>
+  <style>
+    :root {
+      --primary-color: #007aff;
+      --primary-hover: #0056b3;
+      --bg-color: #f2f2f7;
+      --card-bg: #ffffff;
+      --text-color: #1c1c1e;
+      --sub-text: #8e8e93;
+      --border-color: #d1d1d6;
+    }
 
-    <!-- TODO: Update og:title to match your application name -->
-    
-    
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/38bfe783-95b2-4192-8370-dbd2f0247263/id-preview-37fcec33--1d6cdcc3-4e4a-42b3-9504-fc113ba89f02.lovable.app-1783839767224.png">
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
-    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/38bfe783-95b2-4192-8370-dbd2f0247263/id-preview-37fcec33--1d6cdcc3-4e4a-42b3-9504-fc113ba89f02.lovable.app-1783839767224.png">
-    <meta property="og:title" content="メディアコンバータ">
-  <meta name="twitter:title" content="メディアコンバータ">
-  <meta property="og:description" content="無料でビデオ・オーディオファイルを変換します。">
-  <meta name="twitter:description" content="無料でビデオ・オーディオファイルを変換します。">
+    .card {
+      width: 100%;
+      max-width: 520px;
+      background-color: var(--card-bg);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      margin: 0 0 8px 0;
+    }
+
+    p.subtitle {
+      font-size: 13px;
+      color: var(--sub-text);
+      text-align: center;
+      margin: 0 0 24px 0;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--sub-text);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    select, input[type="file"] {
+      width: 100%;
+      padding: 12px;
+      font-size: 15px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      background-color: #fff;
+      box-sizing: border-box;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%8e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 16px;
+    }
+
+    .file-drop-area {
+      border: 2px dashed var(--primary-color);
+      border-radius: 14px;
+      padding: 24px 16px;
+      text-align: center;
+      background-color: rgba(0, 122, 255, 0.04);
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .file-drop-area:active {
+      background-color: rgba(0, 122, 255, 0.1);
+    }
+
+    .file-drop-area input {
+      display: none;
+    }
+
+    .file-drop-text {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--primary-color);
+    }
+
+    .file-name {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--text-color);
+      word-break: break-all;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 16px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      background-color: var(--primary-color);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-top: 12px;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn:disabled {
+      background-color: #aeaeb2;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .status-box {
+      margin-top: 20px;
+      padding: 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.4;
+      text-align: center;
+      display: none;
+      word-break: break-word;
+    }
+
+    .status-info { background-color: #e5f1ff; color: #004085; border: 1px solid #b8daff; }
+    .status-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+    @media (max-width: 480px) {
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
+<body>
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+  <div class="card">
+    <h1>メディアコンバーター</h1>
+    <p class="subtitle">動画・音声の各種フォーマット・詳細スペック変換ツール</p>
+
+    <!-- ファイル選択セクション -->
+    <div class="form-group">
+      <div class="section-title">1. 入力ファイル</div>
+      <div class="file-drop-area" onclick="document.getElementById('fileInput').click()">
+        <div class="file-drop-text">タップして動画/音声を選択</div>
+        <div id="fileNameDisplay" class="file-name">ファイル未選択</div>
+        <input type="file" id="fileInput" accept="video/*,audio/*" onchange="handleFileChange()">
+      </div>
+    </div>
+
+    <!-- コンテナフォーマット設定 -->
+    <div class="form-group">
+      <div class="section-title">2. 出力フォーマット</div>
+      <select id="formatSelect" onchange="autoPresetCodecs()">
+        <option value="mp4" selected>MP4 (標準 / iPhone対応)</option>
+        <option value="mov">MOV (QuickTime)</option>
+        <option value="avi">AVI (クラシック/レトロ)</option>
+        <option value="webm">WebM (Web動画)</option>
+      </select>
+    </div>
+
+    <!-- コーデック設定 -->
+    <div class="form-group">
+      <div class="section-title">3. コーデック設定</div>
+      <div class="grid-2">
+        <div>
+          <label for="vcodecSelect">映像コーデック</label>
+          <select id="vcodecSelect">
+            <option value="" selected>自動 (推奨)</option>
+            <option value="h264">H.264 (AVC)</option>
+            <option value="hevc">H.265 (HEVC)</option>
+            <option value="mjpeg">MJPEG</option>
+            <option value="libvpx-vp9">VP9</option>
+          </select>
+        </div>
+        <div>
+          <label for="acodecSelect">音声コーデック</label>
+          <select id="acodecSelect">
+            <option value="" selected>自動 (推奨)</option>
+            <option value="aac">AAC</option>
+            <option value="pcm_s16le">PCM 16-bit</option>
+            <option value="mp3">MP3</option>
+            <option value="libopus">Opus</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 画質・フレームレート設定 -->
+    <div class="form-group">
+      <div class="section-title">4. 映像詳細スペック</div>
+      <div class="grid-2">
+        <div>
+          <label for="resolutionSelect">解像度</label>
+          <select id="resolutionSelect">
+            <option value="original" selected>元のサイズ維持</option>
+            <option value="1080p">1080p (Full HD)</option>
+            <option value="720p">720p (HD)</option>
+            <option value="480p">480p (SD)</option>
+            <option value="320x240">320×240 (クラシック)</option>
+          </select>
+        </div>
+        <div>
+          <label for="framerateSelect">フレームレート</label>
+          <select id="framerateSelect">
+            <option value="original" selected>元のFPS維持</option>
+            <option value="60">60 fps</option>
+            <option value="30">30 fps</option>
+            <option value="24">24 fps</option>
+            <option value="12">12 fps (レトロ)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ビットレート・サンプリングレート設定 -->
+    <div class="form-group">
+      <div class="section-title">5. ビットレート・サンプリング</div>
+      <div class="grid-2">
+        <div>
+          <label for="videoBitrateSelect">映像ビットレート</label>
+          <select id="videoBitrateSelect">
+            <option value="" selected>標準 (自動)</option>
+            <option value="8M">8 Mbps (高画質)</option>
+            <option value="4M">4 Mbps (標準)</option>
+            <option value="2M">2 Mbps (低容量)</option>
+            <option value="640k">640 kbps (レトロ)</option>
+          </select>
+        </div>
+        <div>
+          <label for="sampleRateSelect">音声サンプリング</label>
+          <select id="sampleRateSelect">
+            <option value="" selected>標準 (自動)</option>
+            <option value="48000">48000 Hz</option>
+            <option value="44100">44100 Hz</option>
+            <option value="22050">22050 Hz</option>
+            <option value="8000">8000 Hz (電話音質)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <button id="convertBtn" class="btn" onclick="executeConversion()">変換を開始する</button>
+
+    <div id="statusBox" class="status-box"></div>
+  </div>
+
+  <script>
+    // デプロイした Render 変換 API のエンドポイント
+    const API_ENDPOINT = 'https://ffmpeg-api-kn47.onrender.com/api/convert';
+
+    function handleFileChange() {
+      const input = document.getElementById('fileInput');
+      const display = document.getElementById('fileNameDisplay');
+      if (input.files.length > 0) {
+        display.innerText = input.files[0].name;
+      } else {
+        display.innerText = 'ファイル未選択';
+      }
+    }
+
+    // 選択されたフォーマットに応じて最適なコーデックをプリセット設定
+    function autoPresetCodecs() {
+      const format = document.getElementById('formatSelect').value;
+      const vcodec = document.getElementById('vcodecSelect');
+      const acodec = document.getElementById('acodecSelect');
+
+      if (format === 'avi') {
+        vcodec.value = 'mjpeg';
+        acodec.value = 'pcm_s16le';
+      } else if (format === 'webm') {
+        vcodec.value = 'libvpx-vp9';
+        acodec.value = 'libopus';
+      } else {
+        vcodec.value = '';
+        acodec.value = '';
+      }
+    }
+
+    async function executeConversion() {
+      const fileInput = document.getElementById('fileInput');
+      const statusBox = document.getElementById('statusBox');
+      const btn = document.getElementById('convertBtn');
+
+      if (!fileInput.files.length) {
+        displayStatus('ファイルを選択してください。', 'error');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const formData = new FormData();
+
+      // パラメータを安全に単一の文字列として設定
+      formData.append('file', file);
+      formData.append('format', document.getElementById('formatSelect').value.split(',')[0]);
+      formData.append('vcodec', document.getElementById('vcodecSelect').value);
+      formData.append('acodec', document.getElementById('acodecSelect').value);
+      formData.append('resolution', document.getElementById('resolutionSelect').value);
+      formData.append('framerate', document.getElementById('framerateSelect').value);
+      formData.append('videoBitrate', document.getElementById('videoBitrateSelect').value);
+      formData.append('sampleRate', document.getElementById('sampleRateSelect').value);
+
+      btn.disabled = true;
+      displayStatus('サーバーへ送信し変換中です。少々お待ちください... (約30秒〜2分)', 'info');
+
+      try {
+        const response = await fetch(API_ENDPOINT, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorJson = await response.json().catch(() => ({}));
+          throw new Error(errorJson.details || errorJson.error || `HTTPエラー (${response.status})`);
+        }
+
+        const blob = await response.blob();
+        const outputFormat = document.getElementById('formatSelect').value;
+        const objectUrl = window.URL.createObjectURL(blob);
+
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.href = objectUrl;
+        downloadAnchor.download = `converted_${Date.now()}.${outputFormat}`;
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+        window.URL.revokeObjectURL(objectUrl);
+
+        displayStatus('変換が正常に完了しました！ファイルが保存されます。', 'success');
+      } catch (err) {
+        console.error('Conversion Failed:', err);
+        displayStatus('変換失敗: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function displayStatus(message, type) {
+      const statusBox = document.getElementById('statusBox');
+      statusBox.style.display = 'block';
+      statusBox.innerText = message;
+      statusBox.className = 'status-box status-' + type;
+    }
+  </script>
+</body>
 </html>
+
