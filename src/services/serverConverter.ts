@@ -3,10 +3,13 @@ export const CONVERT_API_URL = 'https://ffmpeg-api-kn47.onrender.com';
 export const CONVERT_ENDPOINT = `${CONVERT_API_URL}/api/convert`;
 
 let controller: AbortController | null = null;
+let xhrRef: XMLHttpRequest | null = null;
 
 export function requestAbort() {
   controller?.abort();
+  try { xhrRef?.abort(); } catch {}
 }
+
 
 export interface ServerConvertResult {
   url: string;
@@ -44,6 +47,8 @@ export const IPHONE_COMPAT_OPTIONS: Record<string, string> = {
 /**
  * POST the file (plus the requested output format) to the conversion API.
  * The returned blob is named with the requested format's extension.
+ * NOTE: サーバー(multer)は "file" 以外のファイルフィールドを拒否する (MulterError: Unexpected field)
+ * ため、ファイルフィールドは "file" のみ送信し、指示書はテキストフィールドで送る。
  */
 export async function convertOnServer(
   file: File,
@@ -52,73 +57,89 @@ export async function convertOnServer(
   mime: string,
   onStatus?: (status: string) => void,
   instructions?: { js: string; params: Record<string, string> },
+  onProgress?: (percent: number) => void,
 ): Promise<ServerConvertResult> {
-  controller = new AbortController();
   onStatus?.('サーバーで変換中...');
 
   const form = new FormData();
+  // 唯一のファイルフィールド
   form.append('file', file);
-  // Send the requested format under several common key names so the API can pick it up
   form.append('format', ext);
   form.append('output_format', ext);
   form.append('ext', ext);
   form.append('label', format);
 
-  // iPhoneで再生・読み取りできるメタデータ／コーデック指定
   for (const [k, v] of Object.entries(IPHONE_COMPAT_OPTIONS)) {
     form.append(k, v);
   }
   form.append('options', JSON.stringify(IPHONE_COMPAT_OPTIONS));
 
-  // 指示書（解像度・ビットレートなど）は JavaScript で送信
+  // 指示書はテキストとして送信（ファイル添付にはしない）
   if (instructions) {
     form.append('instructions_language', 'javascript');
     form.append('instructions_js', instructions.js);
-    form.append(
-      'instructions_file',
-      new File([instructions.js], 'instructions.js', { type: 'text/javascript' }),
-      'instructions.js',
-    );
     for (const [k, v] of Object.entries(instructions.params)) form.append(k, v);
   }
 
+  const query = new URLSearchParams({ format: ext, ...IPHONE_COMPAT_OPTIONS, ...(instructions?.params || {}) });
+  const url = `${CONVERT_ENDPOINT}?${query.toString()}`;
 
+  // XHR を使い、アップロード／ダウンロード進捗をリアルタイムに通知する
+  const { blob, serverName } = await new Promise<{ blob: Blob; serverName: string }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhrRef = xhr;
+    xhr.open('POST', url);
+    xhr.responseType = 'blob';
 
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = (e.loaded / e.total) * 45;
+        onProgress?.(pct);
+        onStatus?.(`アップロード中... ${Math.round((e.loaded / e.total) * 100)}%`);
+      }
+    };
+    xhr.upload.onload = () => {
+      onProgress?.(50);
+      onStatus?.('サーバーで変換中...');
+    };
+    xhr.onprogress = (e) => {
+      if (e.lengthComputable) {
+        onProgress?.(50 + (e.loaded / e.total) * 50);
+        onStatus?.(`変換結果を受信中... ${Math.round((e.loaded / e.total) * 100)}%`);
+      } else {
+        onProgress?.(75);
+      }
+    };
+    xhr.onerror = () => reject(new Error('変換サーバーに接続できませんでした'));
+    xhr.onabort = () => reject(new Error('ユーザーによりキャンセルされました'));
+    xhr.onload = async () => {
+      const disposition = xhr.getResponseHeader('content-disposition') || '';
+      const nameMatch = disposition.match(/filename="?([^";]+)"?/i);
+      if (xhr.status < 200 || xhr.status >= 300) {
+        let text = '';
+        try { text = await (xhr.response as Blob).text(); } catch {}
+        const plain = text.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
+        reject(new Error(`変換サーバーがエラーを返しました (HTTP ${xhr.status})\n${plain}`.trim()));
+        return;
+      }
+      resolve({ blob: xhr.response as Blob, serverName: nameMatch?.[1] || '' });
+    };
+    xhr.send(form);
+  });
 
-  let res: Response;
-  try {
-    const query = new URLSearchParams({ format: ext, ...IPHONE_COMPAT_OPTIONS, ...(instructions?.params || {}) });
-    res = await fetch(`${CONVERT_ENDPOINT}?${query.toString()}`, {
-      method: 'POST',
-      body: form,
-      signal: controller.signal,
-    });
-  } catch (e: any) {
-    if (e?.name === 'AbortError') throw new Error('ユーザーによりキャンセルされました');
-    throw new Error(`変換サーバーに接続できませんでした: ${e?.message || e}`);
-  }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`変換サーバーがエラーを返しました (HTTP ${res.status})\n${text}`.trim());
-  }
-
-  const disposition = res.headers.get('content-disposition') || '';
-  const nameMatch = disposition.match(/filename="?([^";]+)"?/i);
-  const serverName = nameMatch?.[1] || '';
-  const actualExt = (serverName.split('.').pop() || ext).toLowerCase();
-
-  const blob = await res.blob();
   if (blob.size === 0) throw new Error('変換サーバーから空のファイルが返されました');
+  onProgress?.(100);
 
-  const url = URL.createObjectURL(new Blob([blob], { type: mime || blob.type }));
+  const actualExt = (serverName.split('.').pop() || ext).toLowerCase();
+  const objectUrl = URL.createObjectURL(new Blob([blob], { type: mime || blob.type }));
   return {
-    url,
+    url: objectUrl,
     filename: `output.${ext}`,
     actualExt,
     formatMismatch: actualExt !== ext.toLowerCase(),
   };
 }
+
 
 /**
  * FFmpeg.WASM APIサーバの初期化（ウォームアップ）。

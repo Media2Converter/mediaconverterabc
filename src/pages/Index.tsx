@@ -9,6 +9,21 @@ import {
 } from '@/constants/converterOptions';
 import { convertOnServer, requestAbort, initializeServer } from '@/services/serverConverter';
 import { buildInstructionScript } from '@/services/instructionScript';
+import detailTapSound from '@/assets/shinki-rokuon-4.m4a.asset.json';
+
+/** 詳細設定ボタンを押した瞬間に必ず音声を再生する */
+const playDetailTapSound = () => {
+  try {
+    const el = new Audio(detailTapSound.url);
+    el.preload = 'auto';
+    el.volume = 1;
+    el.play().catch(() => {
+      const retry = new Audio(detailTapSound.url);
+      retry.play().catch(() => {});
+    });
+  } catch {}
+};
+
 
 /** Plain-Japanese sentence describing what failed */
 const describeFailure = (errorMsg: string, errorLines: string[]): string => {
@@ -473,13 +488,16 @@ const Index: React.FC = () => {
         if (files.length > 1) {
           setStatusMessage(`(${i + 1}/${files.length}) ${inputFile.name} をサーバーで変換中...`);
         }
-        setProgress(((i + 0.5) / files.length) * 100);
+        setProgress((i / files.length) * 100);
 
         const instructions = buildInstructionScript(inputFile, formatForFile, settings);
         setFfmpegCommand(instructions.js);
         const result = await convertOnServer(inputFile, formatForFile, ext, mime, (status) => {
           if (files.length === 1) setStatusMessage(status);
-        }, instructions);
+        }, instructions, (pct) => {
+          setProgress(((i + pct / 100) / files.length) * 100);
+        });
+
 
         if (result.formatMismatch) mismatchedFormat = result.actualExt;
         results.push({ url: result.url, filename: result.filename });
@@ -814,7 +832,7 @@ const Index: React.FC = () => {
           files.length === 1 ? (
             <button
               type="button"
-              onClick={() => { setDetailContext('all'); setTimeout(() => setShowDetailSettings(true), 500); }}
+              onClick={() => { playDetailTapSound(); setDetailContext('all'); setTimeout(() => setShowDetailSettings(true), 500); }}
               aria-label="詳細設定"
               className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
               style={{ borderRadius: 0, minHeight: 52 }}
@@ -830,6 +848,7 @@ const Index: React.FC = () => {
               onSelect={(v) => {
                 const idx = parseInt(v, 10);
                 if (isNaN(idx)) return;
+                playDetailTapSound();
                 setDetailContext(`file:${idx}` as const);
                 setTimeout(() => setShowDetailSettings(true), 500);
               }}
@@ -885,7 +904,7 @@ const Index: React.FC = () => {
                 strokeDashoffset={2 * Math.PI * 50 - (progress / 100) * 2 * Math.PI * 50}
                 strokeLinecap="round"
                 transform="rotate(-90 60 60)"
-                className="transition-all duration-300"
+                className="transition-all duration-100"
               />
               <text x="60" y="60" textAnchor="middle" dominantBaseline="central" fill="white" fontSize="20" fontWeight="700">
                 {Math.round(progress)}%
