@@ -3,10 +3,13 @@ export const CONVERT_API_URL = 'https://ffmpeg-api-kn47.onrender.com';
 export const CONVERT_ENDPOINT = `${CONVERT_API_URL}/api/convert`;
 
 let controller: AbortController | null = null;
+let xhrRef: XMLHttpRequest | null = null;
 
 export function requestAbort() {
   controller?.abort();
+  try { xhrRef?.abort(); } catch {}
 }
+
 
 export interface ServerConvertResult {
   url: string;
