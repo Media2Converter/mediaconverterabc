@@ -832,7 +832,7 @@ const Index: React.FC = () => {
           files.length === 1 ? (
             <button
               type="button"
-              onClick={() => { setDetailContext('all'); setTimeout(() => setShowDetailSettings(true), 500); }}
+              onClick={() => { playDetailTapSound(); setDetailContext('all'); setTimeout(() => setShowDetailSettings(true), 500); }}
               aria-label="詳細設定"
               className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
               style={{ borderRadius: 0, minHeight: 52 }}
@@ -848,6 +848,7 @@ const Index: React.FC = () => {
               onSelect={(v) => {
                 const idx = parseInt(v, 10);
                 if (isNaN(idx)) return;
+                playDetailTapSound();
                 setDetailContext(`file:${idx}` as const);
                 setTimeout(() => setShowDetailSettings(true), 500);
               }}
@@ -903,7 +904,7 @@ const Index: React.FC = () => {
                 strokeDashoffset={2 * Math.PI * 50 - (progress / 100) * 2 * Math.PI * 50}
                 strokeLinecap="round"
                 transform="rotate(-90 60 60)"
-                className="transition-all duration-300"
+                className="transition-all duration-100"
               />
               <text x="60" y="60" textAnchor="middle" dominantBaseline="central" fill="white" fontSize="20" fontWeight="700">
                 {Math.round(progress)}%
