@@ -87,7 +87,7 @@ export async function convertOnServer(
 
   let res: Response;
   try {
-    const query = new URLSearchParams({ format: ext, ...IPHONE_COMPAT_OPTIONS });
+    const query = new URLSearchParams({ format: ext, ...IPHONE_COMPAT_OPTIONS, ...(instructions?.params || {}) });
     res = await fetch(`${CONVERT_ENDPOINT}?${query.toString()}`, {
       method: 'POST',
       body: form,
