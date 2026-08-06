@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>メディアコンバータ</title>
+    <title>メディアコンバータ - 弾薬モード</title>
     <meta name="description" content="無料でビデオ・オーディオファイルを変換します。">
     <meta name="author" content="Lovable" />
 
@@ -18,36 +18,61 @@
     <meta property="og:description" content="無料でビデオ・オーディオファイルを変換します。">
     <meta name="twitter:description" content="無料でビデオ・オーディオファイルを変換します。">
 
+    <!-- 弾薬モード (Ammo / Tactical Dark Mode) テーマスタイル -->
     <style>
       :root {
-        --primary: #007aff;
-        --bg-color: #f2f2f7;
-        --card-bg: #ffffff;
-        --text-main: #1c1c1e;
-        --text-sub: #8e8e93;
-        --border: #d1d1d6;
-        --radius: 16px;
+        --ammo-gold: #d4af37;
+        --ammo-brass: #e5a93c;
+        --ammo-dark: #121411;
+        --ammo-card: #1c201a;
+        --ammo-panel: #262c24;
+        --text-main: #f0f2ee;
+        --text-sub: #8c9688;
+        --border-color: #3b4438;
+        --hazard-stripe: repeating-linear-gradient(
+          -45deg,
+          #d4af37,
+          #d4af37 10px,
+          #121411 10px,
+          #121411 20px
+        );
+        --radius: 12px;
       }
 
       * { box-sizing: border-box; }
 
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background-color: var(--bg-color);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background-color: var(--ammo-dark);
         color: var(--text-main);
         margin: 0;
         padding: 20px 16px;
         display: flex;
         justify-content: center;
+        min-height: 100vh;
       }
 
       .app-container {
         width: 100%;
         max-width: 520px;
-        background: var(--card-bg);
+        background: var(--ammo-card);
         border-radius: var(--radius);
         padding: 28px 24px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
+        border: 2px solid var(--border-color);
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* 上部の弾薬装飾ライン */
+      .app-container::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        background: var(--ammo-gold);
       }
 
       .header {
@@ -57,12 +82,18 @@
 
       .header h1 {
         font-size: 24px;
-        font-weight: 700;
+        font-weight: 800;
         margin: 0 0 6px 0;
+        color: var(--ammo-gold);
+        letter-spacing: 1px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
       }
 
       .header p {
-        font-size: 14px;
+        font-size: 13px;
         color: var(--text-sub);
         margin: 0;
       }
@@ -70,56 +101,65 @@
       .server-badge {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         font-size: 12px;
-        padding: 4px 12px;
-        border-radius: 20px;
-        margin-top: 10px;
-        background: #f0f0f5;
-        color: #555;
+        padding: 6px 14px;
+        border-radius: 6px;
+        margin-top: 12px;
+        background: var(--ammo-panel);
+        color: #e0e0e0;
+        border: 1px solid var(--border-color);
+        font-weight: 600;
       }
 
       .dot {
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: #ff9500;
+        background: #e5a93c;
       }
 
-      .dot.online { background: #34c759; }
-      .dot.offline { background: #ff3b30; }
+      .dot.online { background: #30d158; box-shadow: 0 0 8px #30d158; }
+      .dot.closed { background: #ff453a; box-shadow: 0 0 8px #ff453a; }
 
       .form-section { margin-bottom: 20px; }
 
       .label-title {
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--text-sub);
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--ammo-brass);
         text-transform: uppercase;
+        letter-spacing: 1px;
         margin-bottom: 8px;
         display: block;
       }
 
       .file-picker {
-        border: 2px dashed var(--primary);
-        border-radius: 12px;
+        border: 2px dashed var(--ammo-gold);
+        border-radius: 10px;
         padding: 24px;
         text-align: center;
-        background: rgba(0, 122, 255, 0.03);
+        background: rgba(212, 175, 55, 0.05);
         cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .file-picker:hover {
+        background: rgba(212, 175, 55, 0.12);
+        border-color: var(--ammo-brass);
       }
 
       .file-picker input { display: none; }
 
       .file-picker-text {
-        color: var(--primary);
-        font-weight: 600;
+        color: var(--ammo-gold);
+        font-weight: 700;
         font-size: 15px;
       }
 
       .file-name-info {
         font-size: 13px;
-        color: var(--text-main);
+        color: #ffffff;
         margin-top: 6px;
         word-break: break-all;
       }
@@ -128,15 +168,21 @@
         width: 100%;
         padding: 12px;
         font-size: 15px;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background-color: #fff;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background-color: var(--ammo-panel);
+        color: #ffffff;
         appearance: none;
         -webkit-appearance: none;
-        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
         background-repeat: no-repeat;
         background-position: right 12px center;
         background-size: 16px;
+      }
+
+      select:focus {
+        outline: none;
+        border-color: var(--ammo-gold);
       }
 
       .grid-2 {
@@ -147,42 +193,53 @@
 
       label {
         display: block;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
         margin-bottom: 6px;
+        color: var(--text-sub);
       }
 
       .submit-btn {
         width: 100%;
         padding: 16px;
         font-size: 16px;
-        font-weight: 700;
-        color: #fff;
-        background-color: var(--primary);
+        font-weight: 800;
+        color: #121411;
+        background: linear-gradient(135deg, var(--ammo-gold), var(--ammo-brass));
         border: none;
-        border-radius: 12px;
+        border-radius: 8px;
         cursor: pointer;
         margin-top: 10px;
+        letter-spacing: 1px;
+        box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+        transition: all 0.2s;
+      }
+
+      .submit-btn:active {
+        transform: scale(0.98);
       }
 
       .submit-btn:disabled {
-        background-color: #aeaeb2;
+        background: #3a3f38;
+        color: #666c64;
+        box-shadow: none;
         cursor: not-allowed;
       }
 
       .status-card {
         margin-top: 20px;
         padding: 14px;
-        border-radius: 10px;
+        border-radius: 8px;
         font-size: 14px;
+        font-weight: 600;
         text-align: center;
         display: none;
         word-break: break-word;
       }
 
-      .status-info { background: #e5f1ff; color: #004085; }
-      .status-success { background: #d4edda; color: #155724; }
-      .status-error { background: #f8d7da; color: #721c24; }
+      .status-info { background: #1a2a38; color: #82b1ff; border: 1px solid #2c4a6f; }
+      .status-success { background: #193822; color: #81c784; border: 1px solid #2e5c38; }
+      .status-error { background: #3d1c1d; color: #e57373; border: 1px solid #6b2d2f; }
 
       @media (max-width: 480px) {
         .grid-2 { grid-template-columns: 1fr; }
@@ -194,25 +251,28 @@
     <div id="root">
       <div class="app-container">
         <div class="header">
-          <h1>メディアコンバータ</h1>
-          <p>無料でビデオ・オーディオファイルを変換します。</p>
+          <h1>
+            <span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L9 8h6l-3-6zm-3 8v12h6V10H9z"/></svg></span>
+            弾薬モード コンバータ
+          </h1>
+          <p>高精度メディアフォーマット変換システム</p>
           <div class="server-badge">
             <span id="serverDot" class="dot"></span>
-            <span id="serverStatusText">サーバー接続確認中...</span>
+            <span id="serverStatusText">ステータス確認中... (06:00〜23:00)</span>
           </div>
         </div>
 
         <div class="form-section">
-          <span class="label-title">1. 入力ファイル</span>
+          <span class="label-title">1. 対象ファイルロード</span>
           <div class="file-picker" onclick="document.getElementById('fileInput').click()">
-            <div class="file-picker-text">タップして動画または音声を選択</div>
-            <div id="fileDisplay" class="file-name-info">ファイル未選択</div>
+            <div class="file-picker-text">タップして動画または音声を装填</div>
+            <div id="fileDisplay" class="file-name-info">ファイル未装填</div>
             <input type="file" id="fileInput" accept="video/*,audio/*" onchange="onFileSelected()" />
           </div>
         </div>
 
         <div class="form-section">
-          <span class="label-title">2. 出力フォーマット</span>
+          <span class="label-title">2. ターゲットフォーマット</span>
           <select id="format" onchange="onFormatChange()">
             <option value="mp4" selected>MP4 (標準 / iPhone対応)</option>
             <option value="mov">MOV (QuickTime)</option>
@@ -222,7 +282,7 @@
         </div>
 
         <div class="form-section">
-          <span class="label-title">3. コーデック設定</span>
+          <span class="label-title">3. コーデック・パラメータ</span>
           <div class="grid-2">
             <div>
               <label for="vcodec">映像コーデック</label>
@@ -248,12 +308,12 @@
         </div>
 
         <div class="form-section">
-          <span class="label-title">4. 詳細スペック</span>
+          <span class="label-title">4. 出力解像度＆FPS</span>
           <div class="grid-2">
             <div>
               <label for="resolution">解像度</label>
               <select id="resolution">
-                <option value="original" selected>元のサイズ維持</option>
+                <option value="original" selected>原寸サイズ維持</option>
                 <option value="1080p">1080p (Full HD)</option>
                 <option value="720p">720p (HD)</option>
                 <option value="480p">480p (SD)</option>
@@ -263,7 +323,7 @@
             <div>
               <label for="framerate">フレームレート</label>
               <select id="framerate">
-                <option value="original" selected>元のFPS維持</option>
+                <option value="original" selected>原寸FPS維持</option>
                 <option value="60">60 fps</option>
                 <option value="30">30 fps</option>
                 <option value="24">24 fps</option>
@@ -273,7 +333,7 @@
           </div>
         </div>
 
-        <button id="convertBtn" class="submit-btn" onclick="submitConversion()">変換を開始</button>
+        <button id="convertBtn" class="submit-btn" onclick="submitConversion()">変換プロセス実行</button>
 
         <div id="statusCard" class="status-card"></div>
       </div>
@@ -285,34 +345,38 @@
       const SERVER_BASE = 'https://ffmpeg-api-kn47.onrender.com';
       const CONVERT_API = `${SERVER_BASE}/api/convert`;
 
-      // ページ読み込み時にRenderサーバーを自動起爆（ウォームアップ）
       window.addEventListener('DOMContentLoaded', () => {
-        pingServer();
+        checkBusinessHours();
       });
 
-      async function pingServer() {
+      function checkBusinessHours() {
         const dot = document.getElementById('serverDot');
         const text = document.getElementById('serverStatusText');
+        const btn = document.getElementById('convertBtn');
 
-        try {
-          const res = await fetch(SERVER_BASE, { method: 'GET' });
-          if (res.ok) {
-            dot.className = 'dot online';
-            text.innerText = 'サーバー接続完了 (準備完了)';
-          } else {
-            throw new Error();
-          }
-        } catch {
-          dot.className = 'dot';
-          text.innerText = 'サーバー起爆中... (約30秒かかります)';
-          setTimeout(pingServer, 4000);
+        // 日本時間 (JST) の現在時刻取得
+        const nowJST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+        const hour = nowJST.getHours();
+
+        // 営業時間: 06:00 ～ 23:00 (23時未満)
+        const isWorking = (hour >= 6 && hour < 23);
+
+        if (!isWorking) {
+          dot.className = 'dot closed';
+          text.innerText = 'サーバの営業時間が終了しました。(06:00〜23:00)';
+          btn.disabled = true;
+          setStatus('サーバの営業時間が終了しました。', 'error');
+        } else {
+          dot.className = 'dot online';
+          text.innerText = '作戦稼働中 (06:00〜23:00)';
+          btn.disabled = false;
         }
       }
 
       function onFileSelected() {
         const input = document.getElementById('fileInput');
         const display = document.getElementById('fileDisplay');
-        display.innerText = input.files.length ? input.files[0].name : 'ファイル未選択';
+        display.innerText = input.files.length ? input.files[0].name : 'ファイル未装填';
       }
 
       function onFormatChange() {
@@ -332,9 +396,16 @@
         }
       }
 
-      async function submitConversion(retryCount = 0) {
+      async function submitConversion() {
         const fileInput = document.getElementById('fileInput');
         const btn = document.getElementById('convertBtn');
+
+        const nowJST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+        const hour = nowJST.getHours();
+        if (hour < 6 || hour >= 23) {
+          setStatus('サーバの営業時間が終了しました。', 'error');
+          return;
+        }
 
         if (!fileInput.files.length) {
           setStatus('ファイルを選択してください。', 'error');
@@ -353,7 +424,7 @@
         formData.append('framerate', document.getElementById('framerate').value);
 
         btn.disabled = true;
-        setStatus('変換処理中... (初回や大きなファイルは1〜2分程度かかる場合があります)', 'info');
+        setStatus('変換プロセスを実行中...', 'info');
 
         try {
           const response = await fetch(CONVERT_API, {
@@ -363,7 +434,7 @@
 
           if (!response.ok) {
             const errJson = await response.json().catch(() => ({}));
-            throw new Error(errJson.details || errJson.error || `エラー (${response.status})`);
+            throw new Error(errJson.error || errJson.details || `エラー (${response.status})`);
           }
 
           const blob = await response.blob();
@@ -377,16 +448,10 @@
           a.remove();
           window.URL.revokeObjectURL(downloadUrl);
 
-          setStatus('変換完了！ファイルがダウンロードされます。', 'success');
+          setStatus('変換完了！ファイルを出力保存しました。', 'success');
         } catch (err) {
-          // 休止状態による接続タイムアウト時、最大3回自動リトライ
-          if (retryCount < 3) {
-            setStatus(`サーバー起動待ちのため再接続中 (${retryCount + 1}/3回)...`, 'info');
-            setTimeout(() => submitConversion(retryCount + 1), 5000);
-          } else {
-            console.error('Fetch error:', err);
-            setStatus('接続失敗: ' + err.message, 'error');
-          }
+          console.error('Fetch error:', err);
+          setStatus(err.message, 'error');
         } finally {
           btn.disabled = false;
         }
