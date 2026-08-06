@@ -473,13 +473,16 @@ const Index: React.FC = () => {
         if (files.length > 1) {
           setStatusMessage(`(${i + 1}/${files.length}) ${inputFile.name} をサーバーで変換中...`);
         }
-        setProgress(((i + 0.5) / files.length) * 100);
+        setProgress((i / files.length) * 100);
 
         const instructions = buildInstructionScript(inputFile, formatForFile, settings);
         setFfmpegCommand(instructions.js);
         const result = await convertOnServer(inputFile, formatForFile, ext, mime, (status) => {
           if (files.length === 1) setStatusMessage(status);
-        }, instructions);
+        }, instructions, (pct) => {
+          setProgress(((i + pct / 100) / files.length) * 100);
+        });
+
 
         if (result.formatMismatch) mismatchedFormat = result.actualExt;
         results.push({ url: result.url, filename: result.filename });
