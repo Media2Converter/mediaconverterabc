@@ -3,92 +3,174 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>メディアコンバータ (Lovable)</title>
-    <meta name="description" content="Lovableで作成された、無料でビデオ・オーディオファイルを変換できるツールです。">
-    <meta name="author" content="Lovable" />
+    <title>MediaConverter PRO (Lovable Equivalent)</title>
+    <meta name="description" content="Lovableで作成された高機能メディアコンバータ" />
 
     <style>
       :root {
-        --ammo-gold: #d4af37;
-        --ammo-brass: #e5a93c;
-        --ammo-dark: #121411;
-        --ammo-card: #1c201a;
-        --ammo-panel: #262c24;
-        --text-main: #f0f2ee;
-        --text-sub: #8c9688;
-        --border-color: #3b4438;
-        --radius: 12px;
+        --bg-dark: #0d0f0d;
+        --card-bg: #161a15;
+        --card-border: #2e362b;
+        --gold-primary: #d4af37;
+        --gold-light: #f3e5ab;
+        --gold-brass: #e5a93c;
+        --text-main: #e8ebe6;
+        --text-sub: #828e7e;
+        --panel-bg: #1f251d;
+        --panel-border: #343e31;
+        --status-online: #30d158;
+        --status-offline: #ff453a;
+        --radius: 16px;
       }
 
       * { box-sizing: border-box; }
 
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        background-color: var(--ammo-dark);
+        background-color: var(--bg-dark);
         color: var(--text-main);
         margin: 0;
-        padding: 20px 16px;
+        padding: 24px 16px;
         display: flex;
+        flex-direction: column;
+        align-items: center;
         justify-content: center;
         min-height: 100vh;
       }
 
       .app-container {
         width: 100%;
-        max-width: 520px;
-        background: var(--ammo-card);
+        max-width: 560px;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
         border-radius: var(--radius);
         padding: 28px 24px;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
-        border: 2px solid var(--border-color);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
         position: relative;
         overflow: hidden;
       }
 
-      .app-container::before {
-        content: "";
+      .gold-top-bar {
         position: absolute;
         top: 0;
         left: 0;
         right: 0;
         height: 6px;
-        background: var(--ammo-gold);
+        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-brass));
       }
 
       .header {
-        text-align: center;
-        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        padding-top: 4px;
       }
 
-      .header h1 {
-        font-size: 24px;
-        font-weight: 800;
-        margin: 0 0 6px 0;
-        color: var(--ammo-gold);
-        letter-spacing: 1px;
+      .header-title-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .icon-badge {
+        padding: 8px;
+        background: #242b22;
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        border-radius: 12px;
+        color: var(--gold-primary);
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+      }
+
+      .header h1 {
+        font-size: 20px;
+        font-weight: 900;
+        margin: 0;
+        color: var(--gold-light);
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .badge-pro {
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 6px;
+        background: rgba(212, 175, 55, 0.1);
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        border-radius: 4px;
+        color: var(--gold-primary);
       }
 
       .header p {
-        font-size: 13px;
+        font-size: 12px;
         color: var(--text-sub);
-        margin: 0;
+        margin: 2px 0 0 0;
       }
 
-      .server-badge {
-        display: inline-flex;
+      .server-toggle-btn {
+        padding: 8px;
+        background: #222820;
+        border: 1px solid var(--panel-border);
+        color: var(--text-sub);
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
         align-items: center;
-        gap: 8px;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+
+      .server-toggle-btn:hover {
+        color: var(--gold-primary);
+        background: #2c3429;
+      }
+
+      .server-config-panel {
+        margin-bottom: 20px;
+        padding: 14px;
+        background: var(--panel-bg);
+        border: 1px solid var(--panel-border);
+        border-radius: 12px;
+        display: none;
+      }
+
+      .server-config-panel.active { display: block; }
+
+      .server-config-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         font-size: 12px;
-        padding: 6px 14px;
-        border-radius: 6px;
-        margin-top: 12px;
-        background: var(--ammo-panel);
-        color: #e0e0e0;
-        border: 1px solid var(--border-color);
+        font-weight: 700;
+        color: var(--gold-primary);
+        margin-bottom: 8px;
+      }
+
+      .server-input {
+        width: 100%;
+        padding: 10px;
+        background: #141813;
+        border: 1px solid var(--panel-border);
+        color: #ffffff;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 11px;
+      }
+
+      .business-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: var(--panel-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        padding: 10px 16px;
+        margin-bottom: 20px;
+        font-size: 12px;
         font-weight: 600;
       }
 
@@ -96,203 +178,427 @@
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: #e5a93c;
+        display: inline-block;
       }
 
-      .dot.online { background: #30d158; box-shadow: 0 0 8px #30d158; }
-      .dot.closed { background: #ff453a; box-shadow: 0 0 8px #ff453a; }
+      .dot.online { background: var(--status-online); box-shadow: 0 0 10px var(--status-online); }
+      .dot.offline { background: var(--status-offline); box-shadow: 0 0 10px var(--status-offline); }
 
-      .form-section { margin-bottom: 20px; }
-
-      .label-title {
-        font-size: 12px;
-        font-weight: 700;
-        color: var(--ammo-brass);
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 8px;
-        display: block;
-      }
-
-      .file-picker {
-        border: 2px dashed var(--ammo-gold);
-        border-radius: 10px;
-        padding: 24px;
-        text-align: center;
+      .file-dropzone {
+        border: 2px dashed rgba(212, 175, 55, 0.6);
         background: rgba(212, 175, 55, 0.05);
+        border-radius: 16px;
+        padding: 28px 16px;
+        text-align: center;
         cursor: pointer;
         transition: all 0.2s ease;
+        margin-bottom: 20px;
       }
 
-      .file-picker:hover {
-        background: rgba(212, 175, 55, 0.12);
-        border-color: var(--ammo-brass);
+      .file-dropzone:hover {
+        border-color: var(--gold-primary);
+        background: rgba(212, 175, 55, 0.1);
       }
 
-      .file-picker input { display: none; }
+      .file-dropzone.has-file {
+        border-color: var(--status-online);
+        background: rgba(48, 209, 88, 0.05);
+      }
 
-      .file-picker-text {
-        color: var(--ammo-gold);
+      .file-dropzone input { display: none; }
+
+      .dropzone-icon {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 10px;
+        background: rgba(212, 175, 55, 0.1);
+        color: var(--gold-primary);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .dropzone-title {
+        font-size: 14px;
         font-weight: 700;
-        font-size: 15px;
+        color: var(--gold-light);
       }
 
-      .file-name-info {
-        font-size: 13px;
-        color: #ffffff;
-        margin-top: 6px;
-        word-break: break-all;
+      .dropzone-sub {
+        font-size: 12px;
+        color: var(--text-sub);
+        margin-top: 4px;
+      }
+
+      .tabs-nav {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 6px;
+        padding: 4px;
+        background: #121612;
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        margin-bottom: 20px;
+      }
+
+      .tab-btn {
+        padding: 10px;
+        font-size: 12px;
+        font-weight: 700;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-sub);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
+
+      .tab-btn.active {
+        background: var(--gold-primary);
+        color: var(--bg-dark);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      }
+
+      .preset-card {
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid #2c3529;
+        background: #1a1f19;
+        margin-bottom: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: all 0.2s;
+      }
+
+      .preset-card.active {
+        background: #282f25;
+        border-color: var(--gold-primary);
+      }
+
+      .preset-card-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .preset-icon { font-size: 20px; }
+
+      .preset-title {
+        font-size: 12px;
+        font-weight: 800;
+        color: var(--gold-light);
+      }
+
+      .preset-desc {
+        font-size: 11px;
+        color: var(--text-sub);
+      }
+
+      .radio-circle {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 1px solid #4a5646;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .preset-card.active .radio-circle {
+        border-color: var(--gold-primary);
+        background: var(--gold-primary);
+      }
+
+      .radio-inner {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--bg-dark);
+      }
+
+      .tab-content { display: none; }
+      .tab-content.active { display: block; }
+
+      .advanced-box {
+        background: #1a1f19;
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid #2c3529;
+        margin-bottom: 20px;
+      }
+
+      .field-group { margin-bottom: 12px; }
+
+      .field-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-sub);
+        margin-bottom: 4px;
       }
 
       select {
         width: 100%;
-        padding: 12px;
-        font-size: 15px;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        background-color: var(--ammo-panel);
+        padding: 10px;
+        background: #121612;
+        border: 1px solid var(--panel-border);
         color: #ffffff;
+        border-radius: 8px;
+        font-size: 12px;
         appearance: none;
-        -webkit-appearance: none;
         background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
         background-repeat: no-repeat;
-        background-position: right 12px center;
-        background-size: 16px;
+        background-position: right 10px center;
+        background-size: 14px;
       }
 
       .grid-2 {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 12px;
+        gap: 10px;
       }
 
-      label {
-        display: block;
-        font-size: 12px;
-        font-weight: 600;
-        margin-bottom: 6px;
+      .audio-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .audio-btn {
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--panel-border);
+        background: #121612;
         color: var(--text-sub);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
       }
 
-      .submit-btn, .download-btn {
+      .audio-btn.active {
+        background: var(--gold-primary);
+        color: var(--bg-dark);
+        border-color: var(--gold-primary);
+      }
+
+      .submit-btn {
         width: 100%;
         padding: 16px;
-        font-size: 16px;
-        font-weight: 800;
-        color: #121411;
-        background: linear-gradient(135deg, var(--ammo-gold), var(--ammo-brass));
+        font-size: 14px;
+        font-weight: 900;
+        color: var(--bg-dark);
+        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-brass));
         border: none;
-        border-radius: 8px;
+        border-radius: 12px;
         cursor: pointer;
-        margin-top: 10px;
-        letter-spacing: 1px;
-        box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+        box-shadow: 0 10px 25px rgba(212, 175, 55, 0.25);
         transition: all 0.2s;
-        text-align: center;
-        text-decoration: none;
-        display: block;
+        margin-top: 10px;
       }
 
       .submit-btn:disabled {
-        background: #3a3f38;
-        color: #666c64;
-        box-shadow: none;
+        opacity: 0.3;
         cursor: not-allowed;
+        box-shadow: none;
       }
 
-      .status-card {
-        margin-top: 20px;
+      .status-box {
+        margin-top: 16px;
         padding: 14px;
-        border-radius: 8px;
-        font-size: 14px;
+        border-radius: 12px;
+        font-size: 12px;
         font-weight: 600;
         text-align: center;
         display: none;
-        word-break: break-word;
+        word-break: break-all;
       }
 
-      .status-info { background: #1a2a38; color: #82b1ff; border: 1px solid #2c4a6f; }
-      .status-success { background: #193822; color: #81c784; border: 1px solid #2e5c38; }
-      .status-error { background: #3d1c1d; color: #e57373; border: 1px solid #6b2d2f; }
+      .status-info { background: #132332; color: #82b1ff; border: 1px solid #224263; }
+      .status-success { background: #132819; color: #81c784; border: 1px solid #224d2b; }
+      .status-error { background: #2d1718; color: #f48fb1; border: 1px solid #592629; }
 
-      #downloadArea {
+      .download-area {
         margin-top: 16px;
+        padding: 16px;
+        background: #1f291e;
+        border: 2px solid var(--status-online);
+        border-radius: 12px;
+        text-align: center;
         display: none;
       }
 
-      .lovable-footer {
-        margin-top: 28px;
-        text-align: center;
-        padding-top: 16px;
-        border-top: 1px solid var(--border-color);
+      .download-btn {
+        display: block;
+        width: 100%;
+        padding: 14px;
+        margin-top: 8px;
+        font-size: 14px;
+        font-weight: 900;
+        color: var(--bg-dark);
+        background: linear-gradient(90deg, #30d158, #81c784);
+        border-radius: 8px;
+        text-decoration: none;
+        box-shadow: 0 4px 15px rgba(48, 209, 88, 0.3);
       }
 
-      .lovable-badge-link {
+      .footer-badge {
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid #262e24;
+        text-align: center;
+      }
+
+      .badge-link {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        color: var(--ammo-brass);
+        gap: 6px;
         font-size: 12px;
         font-weight: 700;
-        text-decoration: none;
-        background: var(--ammo-panel);
+        color: var(--gold-brass);
+        background: #1a2019;
         padding: 8px 16px;
         border-radius: 20px;
-        border: 1px solid var(--ammo-gold);
+        border: 1px solid rgba(212, 175, 55, 0.5);
+        text-decoration: none;
         transition: all 0.2s;
       }
 
-      .lovable-badge-link:hover {
-        background: var(--ammo-gold);
-        color: var(--ammo-dark);
-      }
-
-      @media (max-width: 480px) {
-        .grid-2 { grid-template-columns: 1fr; }
+      .badge-link:hover {
+        background: var(--gold-primary);
+        color: var(--bg-dark);
       }
     </style>
   </head>
 
   <body>
-    <div id="root">
-      <div class="app-container">
-        <div class="header">
-          <h1>
-            <span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L9 8h6l-3-6zm-3 8v12h6V10H9z"/></svg></span>
-            弾薬モード コンバータ
-          </h1>
-          <p>Lovable プロジェクト連動</p>
-          <div class="server-badge">
-            <span id="serverDot" class="dot"></span>
-            <span id="serverStatusText">ステータス確認中... (06:00〜23:00)</span>
+    <div class="app-container">
+      <div class="gold-top-bar"></div>
+
+      <!-- ヘッダー -->
+      <div class="header">
+        <div class="header-title-box">
+          <div class="icon-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.934a.5.5 0 0 0-.777-.416L16 11"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>
+          </div>
+          <div>
+            <h1>MediaConverter <span class="badge-pro">PRO</span></h1>
+            <p>Lovable × GitHub Codespaces 統合環境</p>
           </div>
         </div>
+        <button class="server-toggle-btn" onclick="toggleServerConfig()" title="サーバー接続設定">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+        </button>
+      </div>
 
-        <div class="form-section">
-          <span class="label-title">1. 対象ファイルロード</span>
-          <div class="file-picker" onclick="document.getElementById('fileInput').click()">
-            <div class="file-picker-text">タップして動画または音声を装填</div>
-            <div id="fileDisplay" class="file-name-info">ファイル未装填</div>
-            <input type="file" id="fileInput" accept="video/*,audio/*" onchange="onFileSelected()" />
-          </div>
+      <!-- サーバー設定パネル -->
+      <div id="serverPanel" class="server-config-panel">
+        <div class="server-config-header">
+          <span>バックエンドAPIアドレス設定</span>
+          <span style="cursor:pointer;" onclick="toggleServerConfig()">✕</span>
         </div>
+        <input type="text" id="serverBaseInput" class="server-input" value="https://sturdy-space-train-pg5w5cx49r-3000.app.github.dev" />
+      </div>
 
-        <div class="form-section">
-          <span class="label-title">2. ターゲットフォーマット</span>
-          <select id="format">
-            <option value="mp4" selected>MP4 (標準 / iPhone対応)</option>
-            <option value="mov">MOV (QuickTime)</option>
-            <option value="avi">AVI (クラシック/レトロ)</option>
-            <option value="webm">WebM (Web動画)</option>
-          </select>
+      <!-- 営業時間状況 -->
+      <div class="business-status">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="statusDot" class="dot online"></span>
+          <span id="statusText">変換エンジン作戦稼働中</span>
         </div>
+        <span style="color:var(--text-sub);">06:00〜23:00 JST</span>
+      </div>
 
-        <div class="form-section">
-          <span class="label-title">3. コーデック・パラメータ</span>
-          <div class="grid-2">
+      <!-- ドロップゾーン -->
+      <div class="file-dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+        <div class="dropzone-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+        </div>
+        <div id="fileNameDisplay" class="dropzone-title">タップしてメディアを装填</div>
+        <div id="fileSubDisplay" class="dropzone-sub">動画 (MP4, MOV, AVI) / 音声 (MP3, WAV, AAC)</div>
+        <input type="file" id="fileInput" accept="video/*,audio/*" onchange="onFileSelected()" />
+      </div>
+
+      <!-- タブナビゲーション -->
+      <div class="tabs-nav">
+        <button id="tabQuick" class="tab-btn active" onclick="switchTab('quick')">⚡ クイック</button>
+        <button id="tabAdvanced" class="tab-btn" onclick="switchTab('advanced')">⚙️ カスタム</button>
+        <button id="tabAudio" class="tab-btn" onclick="switchTab('audio')">🎵 音声抽出</button>
+      </div>
+
+      <!-- タブ1: クイック -->
+      <div id="contentQuick" class="tab-content active">
+        <div class="preset-card active" onclick="selectPreset('iphone', 'mp4', 'h264', 'aac', this)">
+          <div class="preset-card-left">
+            <span class="preset-icon">📱</span>
             <div>
-              <label for="vcodec">映像コーデック</label>
-              <select id="vcodec">
+              <div class="preset-title">iPhone / iPad 最適化</div>
+              <div class="preset-desc">iOS標準再生・互換性No.1 (MP4)</div>
+            </div>
+          </div>
+          <div class="radio-circle"><div class="radio-inner"></div></div>
+        </div>
+
+        <div class="preset-card" onclick="selectPreset('audio_mp3', 'mp3', '', 'mp3', this)">
+          <div class="preset-card-left">
+            <span class="preset-icon">🎵</span>
+            <div>
+              <div class="preset-title">MP3 音声抽出</div>
+              <div class="preset-desc">動画から音声トラックのみ保存 (MP3)</div>
+            </div>
+          </div>
+          <div class="radio-circle"><div class="radio-inner"></div></div>
+        </div>
+
+        <div class="preset-card" onclick="selectPreset('high_quality', 'mov', 'h264', 'aac', this)">
+          <div class="preset-card-left">
+            <span class="preset-icon">🎬</span>
+            <div>
+              <div class="preset-title">高画質 MOV</div>
+              <div class="preset-desc">QuickTime・編集用高品質 (MOV)</div>
+            </div>
+          </div>
+          <div class="radio-circle"><div class="radio-inner"></div></div>
+        </div>
+
+        <div class="preset-card" onclick="selectPreset('webm_web', 'webm', 'libvpx-vp9', 'libopus', this)">
+          <div class="preset-card-left">
+            <span class="preset-icon">🌐</span>
+            <div>
+              <div class="preset-title">WebM 高圧縮</div>
+              <div class="preset-desc">Web掲載・軽量フォーマット (WebM)</div>
+            </div>
+          </div>
+          <div class="radio-circle"><div class="radio-inner"></div></div>
+        </div>
+      </div>
+
+      <!-- タブ2: カスタム -->
+      <div id="contentAdvanced" class="tab-content">
+        <div class="advanced-box">
+          <div class="field-group">
+            <label class="field-label">出力フォーマット</label>
+            <select id="formatSelect">
+              <option value="mp4" selected>MP4 (汎用動画)</option>
+              <option value="mov">MOV (QuickTime)</option>
+              <option value="avi">AVI (Windows/レトロ)</option>
+              <option value="webm">WebM (Web動画)</option>
+              <option value="mp3">MP3 (音声のみ)</option>
+              <option value="wav">WAV (無圧縮音声)</option>
+            </select>
+          </div>
+
+          <div class="grid-2 field-group">
+            <div>
+              <label class="field-label">映像コーデック</label>
+              <select id="vcodecSelect">
                 <option value="" selected>自動 (推奨)</option>
                 <option value="h264">H.264 (AVC)</option>
                 <option value="hevc">H.265 (HEVC)</option>
@@ -301,134 +607,192 @@
               </select>
             </div>
             <div>
-              <label for="acodec">音声コーデック</label>
-              <select id="acodec">
+              <label class="field-label">音声コーデック</label>
+              <select id="acodecSelect">
                 <option value="" selected>自動 (推奨)</option>
                 <option value="aac">AAC</option>
-                <option value="pcm_s16le">PCM 16-bit</option>
                 <option value="mp3">MP3</option>
+                <option value="pcm_s16le">PCM 16-bit</option>
                 <option value="libopus">Opus</option>
               </select>
             </div>
           </div>
-        </div>
 
-        <div class="form-section">
-          <span class="label-title">4. 出力解像度＆FPS</span>
           <div class="grid-2">
             <div>
-              <label for="resolution">解像度</label>
-              <select id="resolution">
-                <option value="original" selected>原寸サイズ維持</option>
+              <label class="field-label">解像度</label>
+              <select id="resolutionSelect">
+                <option value="original" selected>元サイズ維持</option>
                 <option value="1080p">1080p (Full HD)</option>
                 <option value="720p">720p (HD)</option>
                 <option value="480p">480p (SD)</option>
-                <option value="320x240">320×240 (クラシック)</option>
+                <option value="320x240">320×240 (小型)</option>
               </select>
             </div>
             <div>
-              <label for="framerate">フレームレート</label>
-              <select id="framerate">
-                <option value="original" selected>原寸FPS維持</option>
+              <label class="field-label">フレームレート</label>
+              <select id="framerateSelect">
+                <option value="original" selected>元FPS維持</option>
                 <option value="60">60 fps</option>
                 <option value="30">30 fps</option>
                 <option value="24">24 fps</option>
-                <option value="12">12 fps (レトロ)</option>
+                <option value="12">12 fps (アニメ風)</option>
               </select>
             </div>
           </div>
         </div>
+      </div>
 
-        <button id="convertBtn" class="submit-btn" onclick="submitConversion()">変換プロセス実行</button>
-
-        <div id="statusCard" class="status-card"></div>
-
-        <div id="downloadArea">
-          <a id="downloadBtn" class="download-btn" href="#" download>変換済みファイルを保存</a>
+      <!-- タブ3: 音声抽出 -->
+      <div id="contentAudio" class="tab-content">
+        <div class="advanced-box">
+          <span class="field-label" style="margin-bottom:8px;">専用音声フォーマット</span>
+          <div class="audio-grid">
+            <button class="audio-btn active" onclick="selectAudioOption('mp3', 'mp3', this)">MP3 (標準)</button>
+            <button class="audio-btn" onclick="selectAudioOption('aac', 'aac', this)">AAC (高音質)</button>
+            <button class="audio-btn" onclick="selectAudioOption('wav', 'pcm_s16le', this)">WAV (高解像度)</button>
+            <button class="audio-btn" onclick="selectAudioOption('ogg', 'libopus', this)">OGG (Web用)</button>
+          </div>
         </div>
+      </div>
 
-        <div class="lovable-footer">
-          <a class="lovable-badge-link" href="https://lovable.dev/projects/1d6cdcc3-4e4a-42b3-9504-fc113ba89f02?utm_source=lovable-badge" target="_blank" rel="noopener noreferrer">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-            Edit with Lovable Project
-          </a>
-        </div>
+      <!-- 実行ボタン -->
+      <button id="submitBtn" class="submit-btn" onclick="startConversion()">✨ 変換プロセスを実行</button>
+
+      <!-- ステータス表示 -->
+      <div id="statusBox" class="status-box"></div>
+
+      <!-- ダウンロードエリア -->
+      <div id="downloadArea" class="download-area">
+        <span style="color:var(--status-online); font-weight:700; font-size:12px;">✨ ファイルの変換が正常に完了しました！</span>
+        <a id="downloadLink" class="download-btn" href="#" download>変換済みファイルを保存する</a>
+      </div>
+
+      <!-- フッターバッジ -->
+      <div class="footer-badge">
+        <a class="badge-link" href="https://lovable.dev/projects/1d6cdcc3-4e4a-42b3-9504-fc113ba89f02?utm_source=lovable-badge" target="_blank" rel="noopener noreferrer">
+          ✨ Edit with Lovable Project
+        </a>
       </div>
     </div>
 
-    <script type="module" src="/src/main.tsx"></script>
-
     <script>
-      const SERVER_BASE = 'https://sturdy-space-train-pg5w5cx49r-3000.app.github.dev';
-      const CONVERT_API = `${SERVER_BASE}/api/convert`;
+      let currentFormat = 'mp4';
+      let currentVcodec = 'h264';
+      let currentAcodec = 'aac';
 
       window.addEventListener('DOMContentLoaded', () => {
         checkBusinessHours();
       });
 
       function checkBusinessHours() {
-        const dot = document.getElementById('serverDot');
-        const text = document.getElementById('serverStatusText');
-        const btn = document.getElementById('convertBtn');
+        const dot = document.getElementById('statusDot');
+        const text = document.getElementById('statusText');
+        const btn = document.getElementById('submitBtn');
 
         const nowJST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
         const hour = nowJST.getHours();
+        const working = (hour >= 6 && hour < 23);
 
-        const isWorking = (hour >= 6 && hour < 23);
-
-        if (!isWorking) {
-          dot.className = 'dot closed';
-          text.innerText = 'サーバの営業時間が終了しました。(06:00〜23:00)';
+        if (!working) {
+          dot.className = 'dot offline';
+          text.innerText = '営業時間外 (受付停止)';
           btn.disabled = true;
-          setStatus('サーバの営業時間が終了しました。', 'error');
         } else {
           dot.className = 'dot online';
-          text.innerText = '作戦稼働中 (06:00〜23:00)';
+          text.innerText = '変換エンジン作戦稼働中';
           btn.disabled = false;
         }
       }
 
-      function onFileSelected() {
-        const input = document.getElementById('fileInput');
-        const display = document.getElementById('fileDisplay');
-        display.innerText = input.files.length ? input.files[0].name : 'ファイル未装填';
+      function toggleServerConfig() {
+        const panel = document.getElementById('serverPanel');
+        panel.classList.toggle('active');
       }
 
-      async function submitConversion() {
+      function onFileSelected() {
+        const input = document.getElementById('fileInput');
+        const title = document.getElementById('fileNameDisplay');
+        const sub = document.getElementById('fileSubDisplay');
+        const zone = document.getElementById('dropzone');
+
+        if (input.files.length) {
+          const file = input.files[0];
+          title.innerText = file.name;
+          sub.innerText = `サイズ: ${(file.size / (1024*1024)).toFixed(2)} MB`;
+          zone.classList.add('has-file');
+        }
+      }
+
+      function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+        if (tabName === 'quick') {
+          document.getElementById('tabQuick').classList.add('active');
+          document.getElementById('contentQuick').classList.add('active');
+        } else if (tabName === 'advanced') {
+          document.getElementById('tabAdvanced').classList.add('active');
+          document.getElementById('contentAdvanced').classList.add('active');
+        } else if (tabName === 'audio') {
+          document.getElementById('tabAudio').classList.add('active');
+          document.getElementById('contentAudio').classList.add('active');
+        }
+      }
+
+      function selectPreset(id, fmt, vcd, acd, el) {
+        document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        currentFormat = fmt;
+        currentVcodec = vcd;
+        currentAcodec = acd;
+      }
+
+      function selectAudioOption(fmt, acd, el) {
+        document.querySelectorAll('.audio-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        currentFormat = fmt;
+        currentVcodec = '';
+        currentAcodec = acd;
+      }
+
+      async function startConversion() {
         const fileInput = document.getElementById('fileInput');
-        const btn = document.getElementById('convertBtn');
+        const serverBase = document.getElementById('serverBaseInput').value.replace(/\/$/, '');
+        const btn = document.getElementById('submitBtn');
         const downloadArea = document.getElementById('downloadArea');
 
         downloadArea.style.display = 'none';
 
-        const nowJST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
-        const hour = nowJST.getHours();
-        if (hour < 6 || hour >= 23) {
-          setStatus('サーバの営業時間が終了しました。', 'error');
+        if (!fileInput.files.length) {
+          setStatus('ファイルを選択（装填）してください。', 'error');
           return;
         }
 
-        if (!fileInput.files.length) {
-          setStatus('ファイルを選択してください。', 'error');
-          return;
+        const activeTab = document.querySelector('.tab-btn.active').id;
+        let finalFormat = currentFormat;
+        let finalVcodec = currentVcodec;
+        let finalAcodec = currentAcodec;
+
+        if (activeTab === 'tabAdvanced') {
+          finalFormat = document.getElementById('formatSelect').value;
+          finalVcodec = document.getElementById('vcodecSelect').value;
+          finalAcodec = document.getElementById('acodecSelect').value;
         }
 
         const formData = new FormData();
-        const rawFormat = document.getElementById('format').value;
-        const cleanFormat = rawFormat.split(',')[0].trim();
-
         formData.append('file', fileInput.files[0]);
-        formData.append('format', cleanFormat);
-        formData.append('vcodec', document.getElementById('vcodec').value);
-        formData.append('acodec', document.getElementById('acodec').value);
-        formData.append('resolution', document.getElementById('resolution').value);
-        formData.append('framerate', document.getElementById('framerate').value);
+        formData.append('format', finalFormat);
+        formData.append('vcodec', finalVcodec);
+        formData.append('acodec', finalAcodec);
+        formData.append('resolution', document.getElementById('resolutionSelect').value);
+        formData.append('framerate', document.getElementById('framerateSelect').value);
 
         btn.disabled = true;
         setStatus('変換プロセスを実行中... (完了までお待ちください)', 'info');
 
         try {
-          const response = await fetch(CONVERT_API, {
+          const response = await fetch(`${serverBase}/api/convert`, {
             method: 'POST',
             body: formData
           });
@@ -440,13 +804,14 @@
 
           const blob = await response.blob();
           const downloadUrl = window.URL.createObjectURL(blob);
-          const fileName = `converted_${Date.now()}.${cleanFormat}`;
+          const fileName = `converted_${Date.now()}.${finalFormat}`;
 
-          const downloadLink = document.getElementById('downloadBtn');
-          downloadLink.href = downloadUrl;
-          downloadLink.download = fileName;
+          const link = document.getElementById('downloadLink');
+          link.href = downloadUrl;
+          link.download = fileName;
           downloadArea.style.display = 'block';
 
+          // iOS/Safari用自動クリック試行
           const a = document.createElement('a');
           a.href = downloadUrl;
           a.download = fileName;
@@ -454,20 +819,20 @@
           a.click();
           a.remove();
 
-          setStatus('変換完了！「変換済みファイルを保存」を押してください。', 'success');
+          setStatus('変換完了！下の「変換済みファイルを保存する」を押してください。', 'success');
         } catch (err) {
-          console.error('Fetch error:', err);
-          setStatus('通信または処理エラー: ' + err.message, 'error');
+          console.error(err);
+          setStatus(err.message || '通信エラーが発生しました。', 'error');
         } finally {
           btn.disabled = false;
         }
       }
 
       function setStatus(text, type) {
-        const box = document.getElementById('statusCard');
+        const box = document.getElementById('statusBox');
         box.style.display = 'block';
         box.innerText = text;
-        box.className = 'status-card status-' + type;
+        box.className = 'status-box status-' + type;
       }
     </script>
   </body>
