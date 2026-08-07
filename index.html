@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>メディアコンバータ - 弾薬モード</title>
-    <meta name="description" content="無料でビデオ・オーディオファイルを変換します。">
+    <title>メディアコンバータ (Lovable)</title>
+    <meta name="description" content="Lovableで作成された、無料でビデオ・オーディオファイルを変換できるツールです。">
     <meta name="author" content="Lovable" />
 
     <style>
@@ -220,6 +220,33 @@
         display: none;
       }
 
+      .lovable-footer {
+        margin-top: 28px;
+        text-align: center;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-color);
+      }
+
+      .lovable-badge-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--ammo-brass);
+        font-size: 12px;
+        font-weight: 700;
+        text-decoration: none;
+        background: var(--ammo-panel);
+        padding: 8px 16px;
+        border-radius: 20px;
+        border: 1px solid var(--ammo-gold);
+        transition: all 0.2s;
+      }
+
+      .lovable-badge-link:hover {
+        background: var(--ammo-gold);
+        color: var(--ammo-dark);
+      }
+
       @media (max-width: 480px) {
         .grid-2 { grid-template-columns: 1fr; }
       }
@@ -234,7 +261,7 @@
             <span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L9 8h6l-3-6zm-3 8v12h6V10H9z"/></svg></span>
             弾薬モード コンバータ
           </h1>
-          <p>GitHub API エンジン連動</p>
+          <p>Lovable プロジェクト連動</p>
           <div class="server-badge">
             <span id="serverDot" class="dot"></span>
             <span id="serverStatusText">ステータス確認中... (06:00〜23:00)</span>
@@ -316,9 +343,15 @@
 
         <div id="statusCard" class="status-card"></div>
 
-        <!-- 変換完了後に明示的に出現するダウンロードボタンエリア -->
         <div id="downloadArea">
           <a id="downloadBtn" class="download-btn" href="#" download>変換済みファイルを保存</a>
+        </div>
+
+        <div class="lovable-footer">
+          <a class="lovable-badge-link" href="https://lovable.dev/projects/1d6cdcc3-4e4a-42b3-9504-fc113ba89f02?utm_source=lovable-badge" target="_blank" rel="noopener noreferrer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            Edit with Lovable Project
+          </a>
         </div>
       </div>
     </div>
@@ -409,13 +442,11 @@
           const downloadUrl = window.URL.createObjectURL(blob);
           const fileName = `converted_${Date.now()}.${cleanFormat}`;
 
-          // 手動で押せるダウンロードボタンを表示 (iOS Safari対策)
           const downloadLink = document.getElementById('downloadBtn');
           downloadLink.href = downloadUrl;
           downloadLink.download = fileName;
           downloadArea.style.display = 'block';
 
-          // 自動発火（ダイアログが出る場合あり）
           const a = document.createElement('a');
           a.href = downloadUrl;
           a.download = fileName;
