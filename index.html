@@ -18,7 +18,10 @@
     <meta property="og:description" content="無料でビデオ・オーディオファイルを変換します。">
     <meta name="twitter:description" content="無料でビデオ・オーディオファイルを変換します。">
 
-    <!-- 弾薬モード (Ammo / Tactical Dark Mode) テーマスタイル -->
+    <!-- FFmpeg WASM Standalone Engine -->
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+
+    <!-- 弾薬モード (Tactical Dark Ammo) テーマスタイル -->
     <style>
       :root {
         --ammo-gold: #d4af37;
@@ -29,13 +32,6 @@
         --text-main: #f0f2ee;
         --text-sub: #8c9688;
         --border-color: #3b4438;
-        --hazard-stripe: repeating-linear-gradient(
-          -45deg,
-          #d4af37,
-          #d4af37 10px,
-          #121411 10px,
-          #121411 20px
-        );
         --radius: 12px;
       }
 
@@ -64,7 +60,6 @@
         overflow: hidden;
       }
 
-      /* 上部の弾薬装飾ライン */
       .app-container::before {
         content: "";
         position: absolute;
@@ -185,20 +180,6 @@
         border-color: var(--ammo-gold);
       }
 
-      .grid-2 {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-      }
-
-      label {
-        display: block;
-        font-size: 12px;
-        font-weight: 600;
-        margin-bottom: 6px;
-        color: var(--text-sub);
-      }
-
       .submit-btn {
         width: 100%;
         padding: 16px;
@@ -240,10 +221,6 @@
       .status-info { background: #1a2a38; color: #82b1ff; border: 1px solid #2c4a6f; }
       .status-success { background: #193822; color: #81c784; border: 1px solid #2e5c38; }
       .status-error { background: #3d1c1d; color: #e57373; border: 1px solid #6b2d2f; }
-
-      @media (max-width: 480px) {
-        .grid-2 { grid-template-columns: 1fr; }
-      }
     </style>
   </head>
 
@@ -255,7 +232,7 @@
             <span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L9 8h6l-3-6zm-3 8v12h6V10H9z"/></svg></span>
             弾薬モード コンバータ
           </h1>
-          <p>高精度メディアフォーマット変換システム</p>
+          <p>スタンドアロン高速メディア変換エンジン</p>
           <div class="server-badge">
             <span id="serverDot" class="dot"></span>
             <span id="serverStatusText">ステータス確認中... (06:00〜23:00)</span>
@@ -273,64 +250,13 @@
 
         <div class="form-section">
           <span class="label-title">2. ターゲットフォーマット</span>
-          <select id="format" onchange="onFormatChange()">
+          <select id="format">
             <option value="mp4" selected>MP4 (標準 / iPhone対応)</option>
             <option value="mov">MOV (QuickTime)</option>
             <option value="avi">AVI (クラシック/レトロ)</option>
             <option value="webm">WebM (Web動画)</option>
+            <option value="mp3">MP3 (音声のみ抽出)</option>
           </select>
-        </div>
-
-        <div class="form-section">
-          <span class="label-title">3. コーデック・パラメータ</span>
-          <div class="grid-2">
-            <div>
-              <label for="vcodec">映像コーデック</label>
-              <select id="vcodec">
-                <option value="" selected>自動 (推奨)</option>
-                <option value="h264">H.264 (AVC)</option>
-                <option value="hevc">H.265 (HEVC)</option>
-                <option value="mjpeg">MJPEG</option>
-                <option value="libvpx-vp9">VP9</option>
-              </select>
-            </div>
-            <div>
-              <label for="acodec">音声コーデック</label>
-              <select id="acodec">
-                <option value="" selected>自動 (推奨)</option>
-                <option value="aac">AAC</option>
-                <option value="pcm_s16le">PCM 16-bit</option>
-                <option value="mp3">MP3</option>
-                <option value="libopus">Opus</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <span class="label-title">4. 出力解像度＆FPS</span>
-          <div class="grid-2">
-            <div>
-              <label for="resolution">解像度</label>
-              <select id="resolution">
-                <option value="original" selected>原寸サイズ維持</option>
-                <option value="1080p">1080p (Full HD)</option>
-                <option value="720p">720p (HD)</option>
-                <option value="480p">480p (SD)</option>
-                <option value="320x240">320×240 (クラシック)</option>
-              </select>
-            </div>
-            <div>
-              <label for="framerate">フレームレート</label>
-              <select id="framerate">
-                <option value="original" selected>原寸FPS維持</option>
-                <option value="60">60 fps</option>
-                <option value="30">30 fps</option>
-                <option value="24">24 fps</option>
-                <option value="12">12 fps (レトロ)</option>
-              </select>
-            </div>
-          </div>
         </div>
 
         <button id="convertBtn" class="submit-btn" onclick="submitConversion()">変換プロセス実行</button>
@@ -342,8 +268,7 @@
     <script type="module" src="/src/main.tsx"></script>
 
     <script>
-      const SERVER_BASE = 'https://ffmpeg-api-kn47.onrender.com';
-      const CONVERT_API = `${SERVER_BASE}/api/convert`;
+      let ffmpegEngine = null;
 
       window.addEventListener('DOMContentLoaded', () => {
         checkBusinessHours();
@@ -354,11 +279,9 @@
         const text = document.getElementById('serverStatusText');
         const btn = document.getElementById('convertBtn');
 
-        // 日本時間 (JST) の現在時刻取得
         const nowJST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
         const hour = nowJST.getHours();
 
-        // 営業時間: 06:00 ～ 23:00 (23時未満)
         const isWorking = (hour >= 6 && hour < 23);
 
         if (!isWorking) {
@@ -379,23 +302,6 @@
         display.innerText = input.files.length ? input.files[0].name : 'ファイル未装填';
       }
 
-      function onFormatChange() {
-        const format = document.getElementById('format').value;
-        const vcodec = document.getElementById('vcodec');
-        const acodec = document.getElementById('acodec');
-
-        if (format === 'avi') {
-          vcodec.value = 'mjpeg';
-          acodec.value = 'pcm_s16le';
-        } else if (format === 'webm') {
-          vcodec.value = 'libvpx-vp9';
-          acodec.value = 'libopus';
-        } else {
-          vcodec.value = '';
-          acodec.value = '';
-        }
-      }
-
       async function submitConversion() {
         const fileInput = document.getElementById('fileInput');
         const btn = document.getElementById('convertBtn');
@@ -412,46 +318,51 @@
           return;
         }
 
-        const formData = new FormData();
-        const rawFormat = document.getElementById('format').value;
-        const cleanFormat = rawFormat.split(',')[0].trim();
-
-        formData.append('file', fileInput.files[0]);
-        formData.append('format', cleanFormat);
-        formData.append('vcodec', document.getElementById('vcodec').value);
-        formData.append('acodec', document.getElementById('acodec').value);
-        formData.append('resolution', document.getElementById('resolution').value);
-        formData.append('framerate', document.getElementById('framerate').value);
+        const file = fileInput.files[0];
+        const targetFormat = document.getElementById('format').value;
+        const outputFileName = `converted_${Date.now()}.${targetFormat}`;
 
         btn.disabled = true;
-        setStatus('変換プロセスを実行中...', 'info');
+        setStatus('変換エンジン初期化中...', 'info');
 
         try {
-          const response = await fetch(CONVERT_API, {
-            method: 'POST',
-            body: formData
-          });
-
-          if (!response.ok) {
-            const errJson = await response.json().catch(() => ({}));
-            throw new Error(errJson.error || errJson.details || `エラー (${response.status})`);
+          if (!ffmpegEngine) {
+            const { createFFmpeg } = FFmpeg;
+            ffmpegEngine = createFFmpeg({ log: false });
           }
 
-          const blob = await response.blob();
-          const downloadUrl = window.URL.createObjectURL(blob);
+          if (!ffmpegEngine.isLoaded()) {
+            await ffmpegEngine.load();
+          }
+
+          setStatus('ファイルをメモリに読み込み中...', 'info');
+          const { fetchFile } = FFmpeg;
+          ffmpegEngine.FS('writeFile', 'input_file', await fetchFile(file));
+
+          setStatus('変換実行中... (端末のローカル処理)', 'info');
+
+          if (targetFormat === 'mp3') {
+            await ffmpegEngine.run('-i', 'input_file', '-vn', '-acodec', 'libmp3lame', outputFileName);
+          } else {
+            await ffmpegEngine.run('-i', 'input_file', outputFileName);
+          }
+
+          const data = ffmpegEngine.FS('readFile', outputFileName);
+          const blob = new Blob([data.buffer], { type: `video/${targetFormat}` });
+          const downloadUrl = URL.createObjectURL(blob);
 
           const a = document.createElement('a');
           a.href = downloadUrl;
-          a.download = `converted_${Date.now()}.${cleanFormat}`;
+          a.download = outputFileName;
           document.body.appendChild(a);
           a.click();
           a.remove();
-          window.URL.revokeObjectURL(downloadUrl);
+          URL.revokeObjectURL(downloadUrl);
 
           setStatus('変換完了！ファイルを出力保存しました。', 'success');
         } catch (err) {
-          console.error('Fetch error:', err);
-          setStatus(err.message, 'error');
+          console.error('Conversion error:', err);
+          setStatus('変換処理エラー: ' + err.message, 'error');
         } finally {
           btn.disabled = false;
         }
