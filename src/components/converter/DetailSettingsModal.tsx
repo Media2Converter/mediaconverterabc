@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
 import { IOSConfirmDialog } from './IOSComponents';
-import sheetSound from '@/assets/shinki-rokuon-3.m4a.asset.json';
+import sheetSound from '@/assets/shinki-rokuon.m4a.asset.json';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
@@ -24,7 +23,6 @@ interface Props {
   isVideo: boolean;
   selectedFormat: string | null;
 }
-
 
 /** A settings row showing label + sub-text of current value, with native picker */
 const NativePickerRow: React.FC<{
@@ -47,7 +45,7 @@ const NativePickerRow: React.FC<{
     delayRef.current = setTimeout(() => {
       selectRef.current?.focus();
       selectRef.current?.click();
-    }, 1000);
+    }, 100);
   };
 
   const handleTouchStart = () => {
@@ -128,8 +126,7 @@ const NativePickerRow: React.FC<{
   );
 };
 
-
-/** Boxed (non-clickable) section heading — matches iOS rounded outline label */
+/** Boxed section heading */
 const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="px-5 pt-5 pb-2" role="heading" aria-level={3}>
     <div
@@ -144,23 +141,6 @@ const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) =
     </div>
   </div>
 );
-
-/** Accordion section for "Other Actions" like copy/mute */
-const AccordionSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="border-b border-border">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-5 py-3 active:bg-accent transition-colors"
-      >
-        <span className="text-foreground text-[31px]">{title}</span>
-        <span className="text-muted-foreground text-[29px]">{expanded ? '▲' : '▼'}</span>
-      </button>
-      {expanded && <div>{children}</div>}
-    </div>
-  );
-};
 
 export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, onChange, videoDuration, videoPreviewUrl, isVideo, selectedFormat }) => {
   const isMobile = useIsMobile();
@@ -200,13 +180,12 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       requestClose();
     }
   };
+
   const confirmDiscard = () => {
     onChange(savedSettings);
     setShowDiscardConfirm(false);
     requestClose();
   };
-
-
 
   const resolutionLabel = (tag?: string) => {
     if (!tag) return '';
@@ -215,7 +194,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const compatVideoCodecs = getCompatibleVideoCodecs(selectedFormat);
   const videoCodecGroups = [
-    { label: 'その他のアクション', options: [{ label: 'コピー', value: 'copy' }] },
+    { label: 'その他のアクション', options: [{ label: 'コピー (100%自動構造補修)', value: 'copy' }] },
     { label: 'コーデック', options: compatVideoCodecs.map(c => ({ label: c, value: c })) },
   ];
 
@@ -224,10 +203,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return c;
   };
 
-  const compatAudioCodecs = getCompatibleAudioCodecs(selectedFormat)
-    // PCM_U4 is only offered for AVI when configuring a video output
-    .filter(c => c !== 'PCM_U4' || !isVideo || selectedFormat === 'AVI');
-
+  const compatAudioCodecs = getCompatibleAudioCodecs(selectedFormat);
   const audioCodecGroups = [
     { label: 'その他のアクション', options: [
       { label: 'コピー', value: 'copy' },
@@ -397,7 +373,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     }
   }, [open]);
 
-  // Handle Escape / 2-finger scrub
+  // Handle Escape
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -415,7 +391,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       {/* VoiceOver announcement */}
       <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
 
-      {/* iOS popup header: キャンセル (left) + 完了 (right) — flex layout so title never overlaps */}
+      {/* Header Bar */}
       <div className="px-4 py-3 flex items-center justify-between gap-2 flex-shrink-0" style={{ minHeight: '56px' }}>
         <button
           onClick={handleCancel}
@@ -437,17 +413,14 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         </button>
       </div>
 
-
       <div className="overflow-y-auto overscroll-contain flex-1 -webkit-overflow-scrolling-touch">
         {showVideoSection && (
           <>
-            {/* Section heading (not a disabled button) */}
             <SectionHeading>ビデオ</SectionHeading>
 
-            <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
+            <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー (自動構造修復)' : settings.videoCodec}
               options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
               onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
-
 
             <NativePickerRow label="ピクセル形式" displayValue={settings.pixelFormat === 'auto' ? '自動' : settings.pixelFormat.toUpperCase()}
               options={pixelFormatOptions} selected={settings.pixelFormat}
@@ -492,7 +465,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           options={[]} groups={audioCodecGroups} selected={settings.audioCodec}
           onSelect={v => handleSelect('audioCodec', v)} pickerHeader="オーディオコーデック" />
 
-
         {!audioIsNone && settings.audioCodec !== 'copy' && (
           <>
             {outputIsAudioOnly && (
@@ -536,7 +508,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     </>
   );
 
-  // Custom input dialogs
+  // Custom dialogs
   const customDialogs = (
     <>
       {showCustomRes && (
@@ -620,9 +592,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const audioPool = useRef<HTMLAudioElement[]>([]);
 
   const playSheetSound = () => {
-    // Always play: fresh element each time, kept alive in a pool so the browser
-    // never garbage-collects it mid-playback (which silently dropped the sound
-    // after settings changes).
     try {
       const el = new Audio(sheetSound.url);
       el.preload = 'auto';
@@ -642,7 +611,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       }
     } catch {}
   };
-
 
   useEffect(() => {
     if (open) {
@@ -667,7 +635,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!rendered) return null;
 
-  // iOS-style half-modal bottom sheet
   return (
     <>
       <VOOverlayCloseButton onClose={() => requestClose()} />
@@ -676,7 +643,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <div
           ref={sheetRef}
           aria-label="詳細設定 ダイアログ"
-          // @ts-ignore - popover is a valid HTML attribute
+          // @ts-ignore
           popover="auto"
           className={`relative z-10 flex flex-col outline-none pointer-events-auto ${closing ? 'ios-slide-down' : 'ios-slide-up'}`}
           style={{
