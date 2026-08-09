@@ -198,7 +198,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const compatVideoCodecs = getCompatibleVideoCodecs(selectedFormat);
   const videoCodecGroups = [
-    { label: 'その他のアクション', options: [{ label: 'コピー (100%自動構造補修)', value: 'copy' }] },
+    { label: 'その他のアクション', options: [{ label: 'コピー (Careful判定・自動構造補修)', value: 'copy' }] },
     { label: 'コーデック', options: compatVideoCodecs.map(c => ({ label: c, value: c })) },
   ];
 
@@ -420,7 +420,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           <>
             <SectionHeading>ビデオ</SectionHeading>
 
-            <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー (自動構造修復)' : settings.videoCodec}
+            <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー (Careful判定・自動構造補修)' : settings.videoCodec}
               options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
               onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
 
