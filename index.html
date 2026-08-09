@@ -1,433 +1,676 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Media2Converter - Pure WebAssembly Mode</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- FFmpeg WASM Core & Utilities -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
-    <!-- ExifReader (Pure Client Exif Parser) -->
-    <script src="https://cdn.jsdelivr.net/npm/exifreader@4.21.1/dist/exif-reader.min.js"></script>
+import React, { useState, useEffect, useRef } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
+import { IOSConfirmDialog } from './IOSComponents';
+import sheetSound from '@/assets/shinki-rokuon.m4a.asset.json';
+import {
+  ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
+  VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
+  VOLUME_OPTIONS, AMR_NB_BITRATES, AMR_WB_BITRATES, AMR_NB_FREQUENCIES, AMR_WB_FREQUENCIES,
+  ADPCM_BITRATES,
+  getCompatibleVideoCodecs, getCompatibleAudioCodecs, getCompatiblePixelFormats,
+  isAdpcmCodec,
+  type ConvertSettings, checkAspectResolutionMatch, isVideoFormat,
+} from '@/constants/converterOptions';
 
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#f0f3ff',
-                            100: '#e1e7fe',
-                            500: '#6366f1',
-                            600: '#4f46e5',
-                            700: '#4338ca',
-                            900: '#1e1b4b',
-                            950: '#0f172a'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #0f172a;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 3px;
-        }
-    </style>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  settings: ConvertSettings;
+  onChange: (s: ConvertSettings) => void;
+  videoDuration: number;
+  videoPreviewUrl?: string;
+  isVideo: boolean;
+  selectedFormat: string | null;
+}
 
-    <!-- Header Navigation -->
-    <header class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-0.5 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                    <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                        <i class="fa-solid fa-wand-magic-sparkles text-indigo-400 text-lg"></i>
-                    </div>
-                </div>
-                <div>
-                    <h1 class="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-                        Media2Converter
-                    </h1>
-                    <p class="text-[11px] text-emerald-400 font-medium">✨ 100% スタンドアロン・WASMクライアントモード (サーバー通信なし)</p>
-                </div>
-            </div>
+/** A settings row showing label + sub-text of current value, with native picker */
+const NativePickerRow: React.FC<{
+  label: string;
+  displayValue: string;
+  options: { label: string; value: string; disabled?: boolean; separator?: boolean }[];
+  groups?: { label: string; options: { label: string; value: string; disabled?: boolean }[] }[];
+  selected: string;
+  onSelect: (v: string) => void;
+  warning?: boolean;
+  destructiveValue?: boolean;
+  onLongPress?: () => void;
+  pickerHeader?: string;
+}> = ({ label, displayValue, options, groups, selected, onSelect, warning, destructiveValue, onLongPress, pickerHeader }) => {
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const delayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-            <!-- WASM System Status Badge -->
-            <div id="statusBadge" class="flex items-center space-x-2 text-xs px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-slate-300 shadow-inner">
-                <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                <span id="statusText" class="font-medium">ブラウザ内エンジン初期化中...</span>
-            </div>
+  const openPicker = () => {
+    delayRef.current = setTimeout(() => {
+      selectRef.current?.focus();
+      selectRef.current?.click();
+    }, 100);
+  };
+
+  const handleTouchStart = () => {
+    if (onLongPress) {
+      timerRef.current = setTimeout(() => { onLongPress(); timerRef.current = null; }, 600);
+    }
+  };
+  const handleTouchEnd = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+      openPicker();
+    } else if (!onLongPress) {
+      openPicker();
+    }
+  };
+
+  const handleClick = () => {
+    if (!onLongPress) {
+      openPicker();
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (delayRef.current) clearTimeout(delayRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const renderOptions = options.map(o => {
+    if ((o as any).separator) {
+      return <option key={o.value} value={o.value} disabled style={{ fontSize: '13px' }}>{o.label}</option>;
+    }
+    return <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>;
+  });
+
+  return (
+    <div className="relative w-full">
+      <button
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onClick={handleClick}
+        aria-hidden="true"
+        tabIndex={-1}
+        className="w-full flex items-center justify-between px-5 py-3 border-b border-border active:bg-accent transition-colors"
+      >
+        <div className="flex flex-col items-start">
+          <span className="text-foreground text-[31px]">{label}</span>
+          <span className={`text-[29px] ${destructiveValue ? 'text-destructive' : warning ? 'text-destructive' : 'text-muted-foreground'}`}>{displayValue}</span>
         </div>
-    </header>
+        <ContextMenuChevron size={26} />
+      </button>
+      <select
+        ref={selectRef}
+        value={selected}
+        aria-label={label}
+        onChange={e => {
+          const val = e.target.value;
+          if (val.startsWith('__separator_')) return;
+          onSelect(val);
+        }}
+        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+        style={{ fontSize: '20px' }}
+      >
+        {pickerHeader && <option disabled value="">{pickerHeader}</option>}
+        {groups ? (
+          groups.map(g => (
+            <optgroup key={g.label} label={g.label}>
+              {g.options.map(o => (
+                <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
+              ))}
+            </optgroup>
+          ))
+        ) : renderOptions}
+      </select>
+    </div>
+  );
+};
 
-    <!-- Main Content Container -->
-    <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-8 space-y-6">
+/** Boxed section heading */
+const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="px-5 pt-5 pb-2" role="heading" aria-level={3}>
+    <div
+      className="inline-block px-3 py-1 text-foreground text-[15px] font-semibold"
+      style={{
+        border: '1.5px solid rgba(255,255,255,0.35)',
+        borderRadius: 8,
+        background: 'rgba(255,255,255,0.04)',
+      }}
+    >
+      {children}
+    </div>
+  </div>
+);
 
-        <!-- Upload Dropzone Hero Area -->
-        <div id="dropzone" class="relative group border-2 border-dashed border-slate-800 hover:border-indigo-500/80 bg-slate-900/40 hover:bg-slate-900/70 rounded-3xl p-8 md:p-12 transition-all duration-300 text-center cursor-pointer shadow-xl overflow-hidden">
-            <input type="file" id="fileInput" accept="video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20">
-            
-            <div class="relative z-10 space-y-4 pointer-events-none">
-                <div class="w-20 h-20 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto group-hover:scale-110 group-hover:bg-indigo-500/20 transition-all duration-300 shadow-inner">
-                    <i class="fa-solid fa-file-video text-3xl"></i>
-                </div>
-                
-                <div class="space-y-1">
-                    <h2 class="text-lg font-bold text-slate-100">動画ファイルをドラッグ＆ドロップ</h2>
-                    <p class="text-xs text-slate-400">またはクリックしてファイルを選択 (MP4, MOV, MKV, AVI)</p>
-                </div>
+export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, onChange, videoDuration, videoPreviewUrl, isVideo, selectedFormat }) => {
+  const isMobile = useIsMobile();
+  const [showCustomRes, setShowCustomRes] = useState(false);
+  const [customResW, setCustomResW] = useState('');
+  const [customResH, setCustomResH] = useState('');
+  const [showCustomBitrate, setShowCustomBitrate] = useState<'video' | 'audio' | null>(null);
+  const [customBitrate, setCustomBitrate] = useState('');
+  const [showCustomFramerate, setShowCustomFramerate] = useState(false);
+  const [customFramerate, setCustomFramerate] = useState('');
+  const [savedSettings, setSavedSettings] = useState<ConvertSettings>(settings);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
-                <div class="inline-flex items-center space-x-2 text-[11px] text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-3.5 py-1.5 rounded-full">
-                    <i class="fa-solid fa-shield-halved"></i>
-                    <span>完全オフライン・ローカル動作保障 (サーバーモード完全無効化済み)</span>
-                </div>
+  const isInterlace = settings.scanType === 'インターレース方式';
+  const arParts = settings.aspectRatio.split(':').map(Number);
+  const isPortrait = arParts.length === 2 && arParts[0] < arParts[1];
+
+  const outputIsAudioOnly = selectedFormat ? !isVideoFormat(selectedFormat) : false;
+  const isAmr = settings.audioCodec === 'AMR_NB' || settings.audioCodec === 'AMR_WB';
+  const isAdpcm = isAdpcmCodec(settings.audioCodec);
+  const audioIsNone = settings.audioCodec === 'none';
+
+  useEffect(() => {
+    if (open) {
+      setSavedSettings(settings);
+      setShowCustomRes(false);
+      setShowCustomBitrate(null);
+      setShowCustomFramerate(false);
+      setTimeout(() => closeButtonRef.current?.focus(), 100);
+    }
+  }, [open]);
+
+  const handleCancel = () => {
+    if (window.confirm('設定内容を破棄しますか？\nこの操作は取り消せません。')) {
+      onChange(savedSettings);
+      requestClose();
+    }
+  };
+  const confirmDiscard = () => {
+    onChange(savedSettings);
+    setShowDiscardConfirm(false);
+    requestClose();
+  };
+
+  const resolutionLabel = (tag?: string) => {
+    if (!tag) return '';
+    return isInterlace ? tag.replace(/(\d+)p/g, '$1I') : tag;
+  };
+
+  const compatVideoCodecs = getCompatibleVideoCodecs(selectedFormat);
+  const videoCodecGroups = [
+    { label: 'その他のアクション', options: [{ label: 'コピー (破損構造を自動修復)', value: 'copy' }] },
+    { label: 'コーデック', options: compatVideoCodecs.map(c => ({ label: c, value: c })) },
+  ];
+
+  const audioCodecDisplayName = (c: string) => {
+    if (c === 'LPCM') return 'PCM_L';
+    return c;
+  };
+
+  const compatAudioCodecs = getCompatibleAudioCodecs(selectedFormat);
+  const audioCodecGroups = [
+    { label: 'その他のアクション', options: [
+      { label: 'コピー', value: 'copy' },
+      { label: '音声を消します', value: 'none' },
+    ] },
+    { label: 'コーデック', options: compatAudioCodecs.map(c => ({
+      label: audioCodecDisplayName(c),
+      value: c,
+    })) },
+  ];
+
+  const aspectRatioOptions = ASPECT_RATIOS.map(a => ({ label: a, value: a }));
+
+  const resolutionOptions = [
+    { label: '打ち込む（カスタム）', value: 'custom' },
+    ...RESOLUTIONS.map(r => {
+      const w = isPortrait ? r.h : r.w;
+      const h = isPortrait ? r.w : r.h;
+      const tagDisplay = resolutionLabel(r.tag);
+      return {
+        label: `${w}×${h}${tagDisplay ? ` (${tagDisplay})` : ''}${r.desc ? ` ${r.desc}` : ''}`,
+        value: `${r.w}x${r.h}`,
+      };
+    }),
+  ];
+
+  const getAudioBitrates = () => {
+    if (settings.audioCodec === 'AMR_NB') return AMR_NB_BITRATES;
+    if (settings.audioCodec === 'AMR_WB') return AMR_WB_BITRATES;
+    if (isAdpcm && ADPCM_BITRATES[settings.audioCodec]) return ADPCM_BITRATES[settings.audioCodec];
+    return AUDIO_BITRATES;
+  };
+
+  const getFrequencies = () => {
+    if (settings.audioCodec === 'AMR_NB') return AMR_NB_FREQUENCIES;
+    if (settings.audioCodec === 'AMR_WB') return AMR_WB_FREQUENCIES;
+    return FREQUENCIES;
+  };
+
+  const canCustomBitrate = !isAmr && !isAdpcm;
+  const audioBitrateOptions = [
+    ...(canCustomBitrate ? [{ label: '打ち込む（カスタム）', value: 'custom' }] : []),
+    ...getAudioBitrates().map(b => ({ label: b, value: b })),
+  ];
+
+  const getChannelOptions = () => {
+    if (isAmr) return [{ label: 'モノラル', value: 'モノラル' }];
+    return CHANNELS.map(c => ({ label: c, value: c }));
+  };
+
+  const videoBitrateOptions = [{ label: '打ち込む（カスタム）', value: 'custom' }, ...VIDEO_BITRATES.map(b => ({ label: b, value: b }))];
+  const scanTypeOptions = SCAN_TYPES.map(s => ({ label: s, value: s }));
+  const pixelFormatOptions = [
+    { label: '自動', value: 'auto' },
+    ...getCompatiblePixelFormats(settings.videoCodec).map(p => ({ label: p.toUpperCase(), value: p })),
+  ];
+  const framerateOptions = [{ label: '打ち込む（カスタム）', value: 'custom' }, ...FRAMERATES.map(f => ({ label: f, value: f }))];
+  const speedOptions = SPEEDS.map(s => ({ label: `${s}×`, value: s }));
+  const frequencyOptions = getFrequencies().map(f => ({ label: f, value: f }));
+  const volumeOptions = VOLUME_OPTIONS.map(v => ({
+    label: v.label,
+    value: v.value,
+    separator: (v as any).separator,
+  }));
+
+  const timeOptions = (max: number) => {
+    const opts: { label: string; value: string }[] = [];
+    const step = max > 120 ? 5 : max > 30 ? 1 : 0.5;
+    for (let t = 0; t <= max; t += step) {
+      const m = Math.floor(t / 60);
+      const s = (t % 60).toFixed(step < 1 ? 1 : 0);
+      opts.push({ label: `${m}:${s.padStart(step < 1 ? 4 : 2, '0')}`, value: String(t) });
+    }
+    return opts;
+  };
+
+  const startTimeOptions = timeOptions(videoDuration);
+  const endTimeOptions = [{ label: '最後まで', value: '0' }, ...timeOptions(videoDuration).slice(1)];
+
+  const volumeDisplay = settings.volume === 'none' ? '変えない' : `${settings.volume}dB`;
+  const volumeIsDestructive = settings.volume !== 'none' && parseInt(settings.volume) >= 120;
+
+  // Auto-fix AMR settings
+  useEffect(() => {
+    if (isAmr) {
+      const freq = settings.audioCodec === 'AMR_NB' ? '8000Hz' : '16000Hz';
+      const bitrates = settings.audioCodec === 'AMR_NB' ? AMR_NB_BITRATES : AMR_WB_BITRATES;
+      const updates: Partial<ConvertSettings> = {};
+      if (settings.channels !== 'モノラル') updates.channels = 'モノラル';
+      if (settings.frequency !== freq) updates.frequency = freq;
+      if (!bitrates.includes(settings.audioBitrate)) updates.audioBitrate = bitrates[0];
+      if (Object.keys(updates).length > 0) {
+        onChange({ ...settings, ...updates });
+      }
+    }
+    if (isAdpcm && ADPCM_BITRATES[settings.audioCodec]) {
+      const validBitrates = ADPCM_BITRATES[settings.audioCodec];
+      if (!validBitrates.includes(settings.audioBitrate)) {
+        onChange({ ...settings, audioBitrate: validBitrates[0] });
+      }
+    }
+  }, [settings.audioCodec]);
+
+  useEffect(() => {
+    if (audioIsNone && settings.audioEnabled) {
+      onChange({ ...settings, audioEnabled: false });
+    } else if (!audioIsNone && !settings.audioEnabled) {
+      onChange({ ...settings, audioEnabled: true });
+    }
+  }, [settings.audioCodec]);
+
+  const handleSelect = (picker: string, value: string) => {
+    switch (picker) {
+      case 'videoCodec': onChange({ ...settings, videoCodec: value }); break;
+      case 'audioCodec': onChange({ ...settings, audioCodec: value, audioEnabled: value !== 'none' }); break;
+      case 'aspectRatio':
+        onChange({ ...settings, aspectRatio: value });
+        if (value !== '自由' && !checkAspectResolutionMatch(value, settings.resolutionW, settings.resolutionH)) {
+          window.alert('現在の解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれているため、このままでは映像が意図した比率になりません。');
+        }
+        break;
+      case 'resolution':
+        if (value === 'custom') { setShowCustomRes(true); return; }
+        { const [rw, rh] = value.split('x').map(Number);
+          onChange({ ...settings, resolutionW: rw, resolutionH: rh });
+          if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, rw, rh)) {
+            window.alert('選択した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
+          }
+        }
+        break;
+      case 'videoBitrate':
+        if (value === 'custom') { setShowCustomBitrate('video'); return; }
+        onChange({ ...settings, videoBitrate: value }); break;
+      case 'audioBitrate':
+        if (value === 'custom') { setShowCustomBitrate('audio'); return; }
+        onChange({ ...settings, audioBitrate: value }); break;
+      case 'scanType': onChange({ ...settings, scanType: value }); break;
+      case 'pixelFormat': onChange({ ...settings, pixelFormat: value }); break;
+      case 'framerate':
+        if (value === 'custom') { setShowCustomFramerate(true); return; }
+        onChange({ ...settings, framerate: value }); break;
+      case 'startTime': onChange({ ...settings, startTime: parseFloat(value) }); break;
+      case 'endTime': onChange({ ...settings, endTime: parseFloat(value) }); break;
+      case 'speed': onChange({ ...settings, speed: value }); break;
+      case 'pitchSync': onChange({ ...settings, pitchSync: value === 'on' }); break;
+      case 'channels': onChange({ ...settings, channels: value }); break;
+      case 'frequency': onChange({ ...settings, frequency: value }); break;
+      case 'volume': onChange({ ...settings, volume: value }); break;
+    }
+  };
+
+  const showVideoSection = isVideo && !outputIsAudioOnly;
+  const audioCodecDisplay = settings.audioCodec === 'none' ? '音声を消します'
+    : settings.audioCodec === 'copy' ? 'コピー'
+    : audioCodecDisplayName(settings.audioCodec);
+
+  const formatTitle = selectedFormat ? `${selectedFormat} の詳細設定` : '詳細設定';
+
+  // VoiceOver aria-live announcement
+  const [voAnnouncement, setVoAnnouncement] = useState('');
+  useEffect(() => {
+    if (open) {
+      setVoAnnouncement('');
+      setTimeout(() => setVoAnnouncement('詳細設定 ダイアログ'), 50);
+    } else {
+      setVoAnnouncement('');
+    }
+  }, [open]);
+
+  // Handle Escape
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        requestClose();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+
+  const settingsContent = (
+    <>
+      {/* VoiceOver announcement */}
+      <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
+
+      {/* Header Bar */}
+      <div className="px-4 py-3 flex items-center justify-between gap-2 flex-shrink-0" style={{ minHeight: '56px' }}>
+        <button
+          onClick={handleCancel}
+          aria-label="キャンセル"
+          className="text-[17px] font-normal active:opacity-60 transition-opacity px-1 flex-shrink-0"
+          style={{ color: '#fff' }}
+        >
+          キャンセル
+        </button>
+        <h2 className="text-[17px] font-semibold text-center truncate flex-1 min-w-0" style={{ color: '#fff' }}>{formatTitle}</h2>
+        <button
+          ref={closeButtonRef}
+          onClick={() => requestClose()}
+          aria-label="完了"
+          className="text-[17px] font-semibold active:opacity-60 transition-opacity px-1 flex-shrink-0"
+          style={{ color: '#fff' }}
+        >
+          完了
+        </button>
+      </div>
+
+      <div className="overflow-y-auto overscroll-contain flex-1 -webkit-overflow-scrolling-touch">
+        {showVideoSection && (
+          <>
+            <SectionHeading>ビデオ</SectionHeading>
+
+            <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー (自動構造修復)' : settings.videoCodec}
+              options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
+              onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
+
+            <NativePickerRow label="ピクセル形式" displayValue={settings.pixelFormat === 'auto' ? '自動' : settings.pixelFormat.toUpperCase()}
+              options={pixelFormatOptions} selected={settings.pixelFormat}
+              onSelect={v => handleSelect('pixelFormat', v)} pickerHeader="ピクセル形式" />
+
+            <NativePickerRow label="縦横比" displayValue={settings.aspectRatio}
+              options={aspectRatioOptions} selected={settings.aspectRatio}
+              onSelect={v => handleSelect('aspectRatio', v)} pickerHeader="縦横比" />
+            <NativePickerRow label="フレーム書き出し方式" displayValue={settings.scanType}
+              options={scanTypeOptions} selected={settings.scanType}
+              onSelect={v => handleSelect('scanType', v)} pickerHeader="フレーム書き出し方式" />
+            <NativePickerRow label="解像度" displayValue={`${settings.resolutionW}×${settings.resolutionH}`}
+              options={resolutionOptions} selected={`${settings.resolutionW}x${settings.resolutionH}`}
+              onSelect={v => handleSelect('resolution', v)} pickerHeader="解像度" />
+            <NativePickerRow label="動画ビットレート" displayValue={settings.videoBitrate}
+              options={videoBitrateOptions} selected={settings.videoBitrate}
+              onSelect={v => handleSelect('videoBitrate', v)} pickerHeader="動画ビットレート" />
+            <NativePickerRow label="フレームレート" displayValue={settings.framerate}
+              options={framerateOptions} selected={settings.framerate}
+              onSelect={v => handleSelect('framerate', v)} pickerHeader="フレームレート" />
+            <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
+              options={startTimeOptions} selected={String(settings.startTime)}
+              onSelect={v => handleSelect('startTime', v)} pickerHeader="開始時間" />
+            <NativePickerRow label="終了時間" displayValue={settings.endTime > 0 ? `${settings.endTime}s` : '最後まで'}
+              options={endTimeOptions} selected={String(settings.endTime)}
+              onSelect={v => handleSelect('endTime', v)} pickerHeader="終了時間" />
+            <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
+              options={speedOptions} selected={settings.speed}
+              onSelect={v => handleSelect('speed', v)} pickerHeader="再生速度" />
+            {settings.speed !== '1' && (
+              <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
+                options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
+                selected={settings.pitchSync ? 'on' : 'off'}
+                onSelect={v => handleSelect('pitchSync', v)} pickerHeader="ピッチを再生速度に合わせる" />
+            )}
+          </>
+        )}
+
+        <SectionHeading>オーディオ</SectionHeading>
+
+        <NativePickerRow label="オーディオコーデック" displayValue={audioCodecDisplay}
+          options={[]} groups={audioCodecGroups} selected={settings.audioCodec}
+          onSelect={v => handleSelect('audioCodec', v)} pickerHeader="オーディオコーデック" />
+
+        {!audioIsNone && settings.audioCodec !== 'copy' && (
+          <>
+            {outputIsAudioOnly && (
+              <>
+                <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
+                  options={startTimeOptions} selected={String(settings.startTime)}
+                  onSelect={v => handleSelect('startTime', v)} pickerHeader="開始時間" />
+                <NativePickerRow label="終了時間" displayValue={settings.endTime > 0 ? `${settings.endTime}s` : '最後まで'}
+                  options={endTimeOptions} selected={String(settings.endTime)}
+                  onSelect={v => handleSelect('endTime', v)} pickerHeader="終了時間" />
+                <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
+                  options={speedOptions} selected={settings.speed}
+                  onSelect={v => handleSelect('speed', v)} pickerHeader="再生速度" />
+                {settings.speed !== '1' && (
+                  <NativePickerRow label="ピッチを再生速度に合わせる" displayValue={settings.pitchSync ? 'オン' : 'オフ'}
+                    options={[{ label: 'オン', value: 'on' }, { label: 'オフ', value: 'off' }]}
+                    selected={settings.pitchSync ? 'on' : 'off'}
+                    onSelect={v => handleSelect('pitchSync', v)} pickerHeader="ピッチを再生速度に合わせる" />
+                )}
+              </>
+            )}
+
+            <NativePickerRow label="音声ビットレート" displayValue={settings.audioBitrate}
+              options={audioBitrateOptions} selected={settings.audioBitrate}
+              onSelect={v => handleSelect('audioBitrate', v)} pickerHeader="音声ビットレート" />
+            <NativePickerRow label="チャンネル数" displayValue={settings.channels}
+              options={getChannelOptions()} selected={settings.channels}
+              onSelect={v => handleSelect('channels', v)} pickerHeader="チャンネル数" />
+            <NativePickerRow label="周波数" displayValue={settings.frequency}
+              options={frequencyOptions} selected={settings.frequency}
+              onSelect={v => handleSelect('frequency', v)} pickerHeader="周波数" />
+            <NativePickerRow label="音量" displayValue={volumeDisplay}
+              options={volumeOptions} selected={settings.volume}
+              onSelect={v => handleSelect('volume', v)}
+              destructiveValue={volumeIsDestructive}
+              onLongPress={() => window.alert('音量を変更すると、元の音声トラックが上書きされます。この操作は元に戻せません。')}
+              pickerHeader="音量" />
+          </>
+        )}
+      </div>
+    </>
+  );
+
+  // Custom dialogs
+  const customDialogs = (
+    <>
+      {showCustomRes && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomRes(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
+            <h3 className="text-foreground text-[31px] font-semibold text-center mb-4">解像度を入力</h3>
+            <div className="flex items-center gap-2 justify-center">
+              <input type="number" inputMode="numeric" placeholder={String(settings.resolutionW)}
+                value={customResW} onChange={e => setCustomResW(e.target.value)}
+                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[31px]">×</span>
+              <input type="number" inputMode="numeric" placeholder={String(settings.resolutionH)}
+                value={customResH} onChange={e => setCustomResH(e.target.value)}
+                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
             </div>
+            <button onClick={() => {
+              const w = parseInt(customResW) || settings.resolutionW;
+              const h = parseInt(customResH) || settings.resolutionH;
+              onChange({ ...settings, resolutionW: w, resolutionH: h });
+              if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, w, h))
+                window.alert('入力した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
+              setShowCustomRes(false);
+              setCustomResW('');
+              setCustomResH('');
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[31px] font-semibold active:opacity-80">OK</button>
+          </div>
         </div>
+      )}
 
-        <!-- Interactive Processing Dashboard -->
-        <div id="dashboard" class="hidden space-y-6">
-
-            <!-- Active File Info Header -->
-            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-lg">
-                <div class="flex items-center space-x-3.5 min-w-0">
-                    <div class="w-11 h-11 rounded-xl bg-slate-800 border border-slate-700/80 flex items-center justify-center text-indigo-400 shrink-0">
-                        <i class="fa-solid fa-film text-lg"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <p id="fileName" class="font-semibold text-slate-100 text-sm truncate">video.mp4</p>
-                        <p id="fileSize" class="text-xs text-slate-400 mt-0.5">0.00 MB</p>
-                    </div>
-                </div>
-
-                <button id="resetBtn" class="text-xs text-slate-400 hover:text-rose-400 px-3 py-2 rounded-xl hover:bg-slate-800/80 transition flex items-center space-x-1 shrink-0">
-                    <i class="fa-solid fa-arrow-rotate-left"></i>
-                    <span>ファイル変更</span>
-                </button>
+      {showCustomBitrate && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomBitrate(null)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
+            <h3 className="text-foreground text-[31px] font-semibold text-center mb-4">
+              {showCustomBitrate === 'video' ? '動画' : '音声'}ビットレートを入力
+            </h3>
+            <div className="flex items-center gap-2 justify-center">
+              <input type="number" inputMode="numeric" placeholder={showCustomBitrate === 'video' ? '5120' : '128'}
+                value={customBitrate} onChange={e => setCustomBitrate(e.target.value)}
+                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[31px]">KBPS</span>
             </div>
-
-            <!-- Settings & Pipeline Features Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                
-                <!-- Format & Conversion Options -->
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
-                    <div class="flex items-center space-x-2 text-indigo-400 text-xs font-bold uppercase tracking-wider">
-                        <i class="fa-solid fa-sliders"></i>
-                        <span>出力形式 & パラメータ</span>
-                    </div>
-
-                    <div class="space-y-3 text-xs">
-                        <div>
-                            <label class="block text-slate-400 mb-1 font-medium">出力フォーマット</label>
-                            <select id="outputFormat" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500">
-                                <option value="mp4" selected>MP4 (H.264 / AAC - 標準的互換性)</option>
-                                <option value="mov">MOV (QuickTime Format)</option>
-                                <option value="webm">WebM (VP9 / Opus)</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-slate-400 mb-1 font-medium">処理モード</label>
-                            <select id="qualityMode" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500">
-                                <option value="copy">無劣化高速コピー (破損修復 + メタデータ付与のみ)</option>
-                                <option value="medium" selected>標準エンコード (CRF 23)</option>
-                                <option value="high">高品質エンコード (CRF 18)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pipeline Optimization Matrix -->
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
-                    <div class="flex items-center space-x-2 text-indigo-400 text-xs font-bold uppercase tracking-wider">
-                        <i class="fa-solid fa-microchip"></i>
-                        <span>WASM ローカル修復パイプライン</span>
-                    </div>
-
-                    <div class="space-y-2.5 text-xs">
-                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-                            <span class="flex items-center space-x-2 text-slate-300">
-                                <i class="fa-solid fa-wrench text-amber-400"></i>
-                                <span>100% 動画構造・Index (moov) 自動修復</span>
-                            </span>
-                            <span class="text-emerald-400 font-semibold text-[10px] bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-800/40">自動実行</span>
-                        </div>
-
-                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-                            <span class="flex items-center space-x-2 text-slate-300">
-                                <i class="fa-solid fa-laptop-code text-indigo-400"></i>
-                                <span>ブラウザ完全内蔵 FFmpeg 処理</span>
-                            </span>
-                            <span class="text-emerald-400 font-semibold text-[10px] bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-800/40">通信ゼロ</span>
-                        </div>
-
-                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-                            <span class="flex items-center space-x-2 text-slate-300">
-                                <i class="fa-solid fa-tags text-purple-400"></i>
-                                <span>標準Exif/メタデータ再生成</span>
-                            </span>
-                            <span class="text-emerald-400 font-semibold text-[10px] bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-800/40">自動インジェクト</span>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Conversion Action Button -->
-            <button id="convertBtn" class="w-full bg-gradient-to-r from-indigo-500 via-purple-600 to-indigo-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-2xl shadow-xl shadow-indigo-500/20 transition-all transform active:scale-[0.99] flex items-center justify-center space-x-2 text-sm">
-                <i class="fa-solid fa-play"></i>
-                <span>動画を修復・変換・メタデータ生成</span>
-            </button>
-
-            <!-- Execution Logs and Progress Section -->
-            <div id="progressBox" class="hidden space-y-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-inner">
-                <div class="flex items-center justify-between text-xs">
-                    <span id="progressStatusText" class="font-medium text-slate-300 flex items-center space-x-2">
-                        <i class="fa-solid fa-spinner animate-spin text-indigo-400"></i>
-                        <span>処理準備中...</span>
-                    </span>
-                    <span id="progressPercent" class="text-indigo-400 font-mono font-bold">0%</span>
-                </div>
-
-                <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden p-0.5 border border-slate-800">
-                    <div id="progressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full w-0 rounded-full transition-all duration-300"></div>
-                </div>
-
-                <!-- Live Log Console Output Window -->
-                <div id="consoleLog" class="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-slate-400 h-32 overflow-y-auto custom-scrollbar space-y-1">
-                    <div class="text-slate-500">[System] WASM クライアントモード起動完了。</div>
-                </div>
-            </div>
-
-            <!-- Download Result Card -->
-            <div id="resultBox" class="hidden bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-6 text-center space-y-4">
-                <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/30">
-                    <i class="fa-solid fa-check text-2xl"></i>
-                </div>
-                
-                <div>
-                    <h3 class="text-base font-bold text-slate-100">動画処理が完了しました</h3>
-                    <p class="text-xs text-slate-400 mt-1">動画破損の100%補修および標準メタデータの埋め込みがブラウザ内で完了しました。</p>
-                </div>
-
-                <a id="downloadLink" download class="inline-flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer text-sm">
-                    <i class="fa-solid fa-download"></i>
-                    <span>修復・変換済み動画を保存</span>
-                </a>
-            </div>
-
+            <button onClick={() => {
+              const key = showCustomBitrate === 'video' ? 'videoBitrate' : 'audioBitrate';
+              const def = showCustomBitrate === 'video' ? '5120' : '128';
+              onChange({ ...settings, [key]: `${customBitrate || def}KBPS` });
+              setShowCustomBitrate(null);
+              setCustomBitrate('');
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[31px] font-semibold active:opacity-80">OK</button>
+          </div>
         </div>
+      )}
 
-    </main>
+      {showCustomFramerate && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomFramerate(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
+            <h3 className="text-foreground text-[31px] font-semibold text-center mb-4">フレームレートを入力</h3>
+            <div className="flex items-center gap-2 justify-center">
+              <input type="number" inputMode="decimal" placeholder="30"
+                value={customFramerate} onChange={e => setCustomFramerate(e.target.value)}
+                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              <span className="text-foreground text-[31px]">FPS</span>
+            </div>
+            <button onClick={() => {
+              const val = parseFloat(customFramerate) || 30;
+              onChange({ ...settings, framerate: `${val}FPS` });
+              setShowCustomFramerate(false);
+              setCustomFramerate('');
+            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[31px] font-semibold active:opacity-80">OK</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
 
-    <!-- Footer -->
-    <footer class="border-t border-slate-800/80 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        <p>© 2026 Media2Converter • Pure Browser WebAssembly Engine</p>
-    </footer>
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const [closing, setClosing] = useState(false);
+  const [rendered, setRendered] = useState(open);
+  const audioPool = useRef<HTMLAudioElement[]>([]);
 
-    <!-- Strict Client-side Logic Script -->
-    <script>
-        const { FFmpeg } = FFmpegWASM;
-        const { fetchFile, toBlobURL } = FFmpegUtil;
-
-        let ffmpegEngine = null;
-        let selectedFileObj = null;
-
-        // Elements
-        const fileInput = document.getElementById('fileInput');
-        const dropzone = document.getElementById('dropzone');
-        const dashboard = document.getElementById('dashboard');
-        const fileName = document.getElementById('fileName');
-        const fileSize = document.getElementById('fileSize');
-        const resetBtn = document.getElementById('resetBtn');
-        const convertBtn = document.getElementById('convertBtn');
-        const progressBox = document.getElementById('progressBox');
-        const progressBar = document.getElementById('progressBar');
-        const progressPercent = document.getElementById('progressPercent');
-        const progressStatusText = document.getElementById('progressStatusText');
-        const consoleLog = document.getElementById('consoleLog');
-        const resultBox = document.getElementById('resultBox');
-        const downloadLink = document.getElementById('downloadLink');
-        const statusDot = document.getElementById('statusDot');
-        const statusText = document.getElementById('statusText');
-
-        // Console Log Display Utility
-        function appendConsoleLog(text, level = 'info') {
-            const line = document.createElement('div');
-            const timestamp = new Date().toLocaleTimeString();
-            let style = 'text-slate-400';
-            if (level === 'success') style = 'text-emerald-400 font-semibold';
-            if (level === 'warn') style = 'text-amber-400';
-            if (level === 'error') style = 'text-rose-400 font-semibold';
-
-            line.className = `${style} leading-relaxed`;
-            line.textContent = `[${timestamp}] ${text}`;
-            consoleLog.appendChild(line);
-            consoleLog.scrollTop = consoleLog.scrollHeight;
-        }
-
-        // Initialize FFmpeg WASM Core strictly in client browser
-        async function bootWasmEngine() {
-            try {
-                ffmpegEngine = new FFmpeg();
-                
-                ffmpegEngine.on('log', ({ message }) => appendConsoleLog(message));
-                ffmpegEngine.on('progress', ({ progress }) => {
-                    const pct = Math.min(Math.round(progress * 100), 100);
-                    progressBar.style.width = `${pct}%`;
-                    progressPercent.textContent = `${pct}%`;
-                });
-
-                appendConsoleLog('ブラウザ内 WebAssembly コアをロード中...');
-                const unpkgBase = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-                
-                await ffmpegEngine.load({
-                    coreURL: await toBlobURL(`${unpkgBase}/ffmpeg-core.js`, 'text/javascript'),
-                    wasmURL: await toBlobURL(`${unpkgBase}/ffmpeg-core.wasm`, 'application/wasm')
-                });
-
-                statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
-                statusText.textContent = '100% WASM モード稼働中';
-                appendConsoleLog('ローカル WASM エンジンの初期化に成功しました。', 'success');
-            } catch (err) {
-                console.error(err);
-                statusDot.className = 'w-2 h-2 rounded-full bg-rose-500';
-                statusText.textContent = 'WASM 初期化エラー';
-                appendConsoleLog('WASM ロード失敗: ' + err.message, 'error');
-            }
-        }
-
-        function handleFileSelected(file) {
-            if (!file) return;
-            selectedFileObj = file;
-            fileName.textContent = file.name;
-            fileSize.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
-
-            dropzone.classList.add('hidden');
-            dashboard.classList.remove('hidden');
-            resultBox.classList.add('hidden');
-            progressBox.classList.add('hidden');
-        }
-
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) handleFileSelected(e.target.files[0]);
+  const playSheetSound = () => {
+    try {
+      const el = new Audio(sheetSound.url);
+      el.preload = 'auto';
+      el.volume = 1;
+      audioPool.current.push(el);
+      el.onended = () => {
+        audioPool.current = audioPool.current.filter(a => a !== el);
+      };
+      const p = el.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          try {
+            el.currentTime = 0;
+            void el.play();
+          } catch {}
         });
+      }
+    } catch {}
+  };
 
-        resetBtn.addEventListener('click', () => {
-            selectedFileObj = null;
-            fileInput.value = '';
-            dropzone.classList.remove('hidden');
-            dashboard.classList.add('hidden');
-        });
+  useEffect(() => {
+    if (open) {
+      setRendered(true);
+      setClosing(false);
+      playSheetSound();
+    }
+  }, [open]);
 
-        // Conversion & Repair Executor (Pure Client Side Only)
-        convertBtn.addEventListener('click', async () => {
-            if (!selectedFileObj || !ffmpegEngine || !ffmpegEngine.loaded) {
-                alert('WASM エンジンの準備が完了していません。少々お待ちください。');
-                return;
-            }
+  const requestClose = (after?: () => void) => {
+    if (closing) return;
+    playSheetSound();
+    setClosing(true);
+    window.setTimeout(() => {
+      setRendered(false);
+      setClosing(false);
+      after ? after() : onClose();
+    }, 300);
+  };
 
-            convertBtn.disabled = true;
-            convertBtn.classList.add('opacity-50', 'pointer-events-none');
-            progressBox.classList.remove('hidden');
-            resultBox.classList.add('hidden');
-            consoleLog.innerHTML = '';
-            progressBar.style.width = '0%';
-            progressPercent.textContent = '0%';
+  useIOSSheetA11y(open && !closing, sheetRef);
 
-            try {
-                // Phase 1: Exif Reading
-                progressStatusText.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-indigo-400"></i> Exif / メタデータ構造を読破中...';
-                appendConsoleLog('ExifReader によるローカル解析開始...', 'warn');
-                try {
-                    await ExifReader.load(selectedFileObj);
-                    appendConsoleLog('Exif メタデータの取得完了。', 'success');
-                } catch (exErr) {
-                    appendConsoleLog('ヘッダー直接解析を適用して修復を実行します。', 'warn');
-                }
+  if (!rendered) return null;
 
-                // Phase 2: WASM FS Write
-                progressStatusText.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-indigo-400"></i> 仮想メモリ領域へ書き込み中...';
-                const inputFSName = `input_${Date.now()}_${selectedFileObj.name}`;
-                await ffmpegEngine.writeFile(inputFSName, await fetchFile(selectedFileObj));
-                appendConsoleLog(`仮想ディスク領域 (${inputFSName}) へのロード完了。`);
-
-                // Phase 3: Structural Repair & Transcode
-                progressStatusText.innerHTML = '<i class="fa-solid fa-wrench animate-spin text-amber-400"></i> 動画ストリーム 100% 修復 & 変換処理中...';
-                appendConsoleLog('【フェーズ 1】動画コンテナ補修 (-err_detect ignore_err +faststart)', 'warn');
-
-                const targetFormat = document.getElementById('outputFormat').value;
-                const processMode = document.getElementById('qualityMode').value;
-                const outputFSName = `repaired_out.${targetFormat}`;
-
-                let commandArgs = ['-err_detect', 'ignore_err', '-i', inputFSName];
-
-                if (processMode === 'copy') {
-                    commandArgs.push('-c', 'copy');
-                } else {
-                    commandArgs.push('-c:v', 'libx264', '-crf', processMode === 'high' ? '18' : '23', '-preset', 'ultrafast', '-c:a', 'aac');
-                }
-
-                if (targetFormat === 'mp4' || targetFormat === 'mov') {
-                    commandArgs.push('-movflags', '+faststart');
-                }
-
-                // Inject Standardized Creation & Media Tags
-                const currentISO = new Date().toISOString();
-                commandArgs.push(
-                    '-metadata', `title=${selectedFileObj.name.split('.')[0]}`,
-                    '-metadata', `creation_time=${currentISO}`,
-                    '-metadata', 'encoder=Media2Converter Standalone WASM'
-                );
-
-                commandArgs.push(outputFSName);
-
-                appendConsoleLog('WASM 内部コマンド実行: ffmpeg ' + commandArgs.join(' '));
-                await ffmpegEngine.exec(commandArgs);
-
-                // Phase 4: Output Blob Extraction
-                progressStatusText.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> 100% 修復・変換完了';
-                appendConsoleLog('動画補修およびエンコード処理が完了しました。', 'success');
-
-                const resultBuffer = await ffmpegEngine.readFile(outputFSName);
-                const fileBlob = new Blob([resultBuffer.buffer], { type: `video/${targetFormat}` });
-                const blobObjectUrl = URL.createObjectURL(fileBlob);
-
-                downloadLink.href = blobObjectUrl;
-                downloadLink.download = `repaired_${selectedFileObj.name.split('.')[0]}.${targetFormat}`;
-
-                // Memory Cleanup
-                await ffmpegEngine.deleteFile(inputFSName);
-                await ffmpegEngine.deleteFile(outputFSName);
-
-                progressBox.classList.add('hidden');
-                resultBox.classList.remove('hidden');
-
-            } catch (err) {
-                console.error(err);
-                appendConsoleLog('エラーが発生しました: ' + err.message, 'error');
-                progressStatusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-500"></i> 処理エラー';
-            } finally {
-                convertBtn.disabled = false;
-                convertBtn.classList.remove('opacity-50', 'pointer-events-none');
-            }
-        });
-
-        // Initialize WebAssembly engine on page load
-        window.onload = bootWasmEngine;
-    </script>
-</body>
-</html>
+  return (
+    <>
+      <VOOverlayCloseButton onClose={() => requestClose()} />
+      <div className="fixed inset-0 z-50 flex items-end justify-center pointer-events-none">
+        <div className={`absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto ${closing ? 'opacity-0 transition-opacity duration-300' : 'ios-fade-in'}`} onClick={() => requestClose()} />
+        <div
+          ref={sheetRef}
+          aria-label="詳細設定 ダイアログ"
+          // @ts-ignore
+          popover="auto"
+          className={`relative z-10 flex flex-col outline-none pointer-events-auto ${closing ? 'ios-slide-down' : 'ios-slide-up'}`}
+          style={{
+            width: '100%',
+            maxWidth: 640,
+            height: '92vh',
+            background: '#B91C1C',
+            borderTopLeftRadius: 14,
+            borderTopRightRadius: 14,
+            boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
+            overflow: 'hidden',
+          }}
+        >
+          {settingsContent}
+        </div>
+      </div>
+      {customDialogs}
+      <IOSConfirmDialog
+        open={showDiscardConfirm}
+        onClose={() => setShowDiscardConfirm(false)}
+        onConfirm={confirmDiscard}
+        title="設定内容を破棄しますか？"
+        message="この操作は取り消せません。"
+        confirmLabel="破棄"
+        cancelLabel="キャンセル"
+        destructive
+      />
+    </>
+  );
+};
 
