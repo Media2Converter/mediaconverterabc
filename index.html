@@ -3,196 +3,229 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Media2Converter - Pure Client Edition</title>
-    <!-- Tailwind CSS CDN -->
+    <title>Media2Converter - Lovable WebAssembly Edition</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome CDN -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- FFmpeg WASM CDN -->
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- FFmpeg WASM libraries -->
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
     <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
-    <!-- ExifReader (Browser Exif Tool) -->
+    <!-- ExifReader -->
     <script src="https://cdn.jsdelivr.net/npm/exifreader@4.21.1/dist/exif-reader.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f3ff',
+                            100: '#e1e7fe',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#1e1b4b',
+                            950: '#0f172a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-            background: #1f2937;
+            background: #0f172a;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #4b5563;
+            background: #334155;
             border-radius: 3px;
         }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
 
-    <!-- Header -->
-    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
-        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
             <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-                    <i class="fa-solid fa-photo-film text-xl"></i>
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-0.5 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+                        <i class="fa-solid fa-wand-magic-sparkles text-indigo-400 text-lg"></i>
+                    </div>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg leading-tight tracking-wide bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">Media2Converter</h1>
-                    <p class="text-xs text-indigo-400 font-medium">100% In-Browser 修復 & メタデータ最適化</p>
+                    <h1 class="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                        Media2Converter
+                    </h1>
+                    <p class="text-[11px] text-indigo-400 font-medium">Exif & FFmpeg.WASM 100% In-Browser</p>
                 </div>
             </div>
-            <div id="wasmStatus" class="flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
-                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse" id="statusDot"></span>
-                <span id="statusText">WASMエンジン初期化中...</span>
+
+            <!-- WASM System Status Pill -->
+            <div id="statusBadge" class="flex items-center space-x-2 text-xs px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-slate-300 shadow-inner">
+                <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span id="statusText" class="font-medium">WASMエンジンをロード中...</span>
             </div>
         </div>
     </header>
 
-    <!-- Main Container -->
-    <main class="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 space-y-6">
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-8 space-y-6">
 
-        <!-- File Upload Dropzone -->
-        <div class="bg-slate-900/60 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-6 md:p-10 transition-all text-center relative group cursor-pointer" id="dropzone">
-            <input type="file" id="fileInput" accept="video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
-            <div class="space-y-4 pointer-events-none">
-                <div class="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
-                    <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+        <!-- Upload Dropzone Hero Area -->
+        <div id="dropzone" class="relative group border-2 border-dashed border-slate-800 hover:border-indigo-500/80 bg-slate-900/40 hover:bg-slate-900/70 rounded-3xl p-8 md:p-12 transition-all duration-300 text-center cursor-pointer shadow-xl overflow-hidden">
+            <input type="file" id="fileInput" accept="video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20">
+            
+            <div class="relative z-10 space-y-4 pointer-events-none">
+                <div class="w-20 h-20 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto group-hover:scale-110 group-hover:bg-indigo-500/20 transition-all duration-300 shadow-inner">
+                    <i class="fa-solid fa-file-video text-3xl"></i>
                 </div>
-                <div>
-                    <p class="text-base font-semibold text-slate-200">動画ファイルをドラッグ＆ドロップ</p>
-                    <p class="text-xs text-slate-400 mt-1">またはクリックしてファイルを選択（MP4, MOV, MKV, AVI など）</p>
+                
+                <div class="space-y-1">
+                    <h2 class="text-lg font-bold text-slate-100">動画ファイルをドラッグ＆ドロップ</h2>
+                    <p class="text-xs text-slate-400">またはクリックしてファイルを選択 (MP4, MOV, MKV, AVI)</p>
                 </div>
-                <div class="inline-flex items-center space-x-2 text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
-                    <i class="fa-solid fa-lock text-emerald-400"></i>
-                    <span>ファイルはサーバーに送信されず、完全に端末内で自動処理されます</span>
+
+                <div class="inline-flex items-center space-x-2 text-[11px] text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-3.5 py-1.5 rounded-full">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>完全ローカル処理 — サーバーへのアップロード不要</span>
                 </div>
             </div>
         </div>
 
-        <!-- App Engine Dashboard (Hidden by default until file selection) -->
-        <div id="processDashboard" class="hidden space-y-6">
+        <!-- Interactive Processing Dashboard (Hidden initially) -->
+        <div id="dashboard" class="hidden space-y-6">
 
-            <!-- File Info Box -->
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div class="flex items-center space-x-4">
-                    <div class="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
-                        <i class="fa-solid fa-file-video text-xl"></i>
+            <!-- Active File Info Header -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-lg">
+                <div class="flex items-center space-x-3.5 min-w-0">
+                    <div class="w-11 h-11 rounded-xl bg-slate-800 border border-slate-700/80 flex items-center justify-center text-indigo-400 shrink-0">
+                        <i class="fa-solid fa-film text-lg"></i>
                     </div>
-                    <div>
-                        <h3 class="font-semibold text-slate-100 text-sm md:text-base truncate max-w-xs md:max-w-md" id="fileName">-</h3>
-                        <p class="text-xs text-slate-400 mt-0.5" id="fileSize">-</p>
+                    <div class="min-w-0">
+                        <p id="fileName" class="font-semibold text-slate-100 text-sm truncate">video.mp4</p>
+                        <p id="fileSize" class="text-xs text-slate-400 mt-0.5">0.00 MB</p>
                     </div>
                 </div>
-                <button id="cancelBtn" class="text-xs text-slate-400 hover:text-rose-400 px-3 py-2 rounded-lg hover:bg-slate-800 transition">
-                    <i class="fa-solid fa-xmark mr-1"></i> 別のファイルを選択
+
+                <button id="resetBtn" class="text-xs text-slate-400 hover:text-rose-400 px-3 py-2 rounded-xl hover:bg-slate-800/80 transition flex items-center space-x-1 shrink-0">
+                    <i class="fa-solid fa-arrow-rotate-left"></i>
+                    <span>キャンセル</span>
                 </button>
             </div>
 
-            <!-- Conversion Options & Pipeline Steps -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Settings & Workflow Features Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 
-                <!-- Output Settings -->
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-                    <h2 class="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
-                        <i class="fa-solid fa-sliders text-indigo-400"></i>
+                <!-- Format & Conversion Options -->
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
+                    <div class="flex items-center space-x-2 text-indigo-400 text-xs font-bold uppercase tracking-wider">
+                        <i class="fa-solid fa-sliders"></i>
                         <span>出力設定</span>
-                    </h2>
+                    </div>
 
-                    <div class="space-y-3">
+                    <div class="space-y-3 text-xs">
                         <div>
-                            <label class="block text-xs text-slate-400 mb-1">出力フォーマット</label>
-                            <select id="outputFormat" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                            <label class="block text-slate-400 mb-1 font-medium">出力フォーマット</label>
+                            <select id="outputFormat" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500">
                                 <option value="mp4" selected>MP4 (H.264 / AAC - 標準的互換性)</option>
-                                <option value="mov">MOV (QuickTime Video)</option>
+                                <option value="mov">MOV (QuickTime Format)</option>
                                 <option value="webm">WebM (VP9 / Opus)</option>
                             </select>
                         </div>
 
                         <div>
-                            <label class="block text-xs text-slate-400 mb-1">画質・圧縮プリセット</label>
-                            <select id="qualityPreset" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
-                                <option value="copy">無劣化コピー (高速・ストリーム修復のみ)</option>
-                                <option value="medium" selected>標準バランス (CRF 23)</option>
-                                <option value="high">高品質 (CRF 18)</option>
+                            <label class="block text-slate-400 mb-1 font-medium">画質・圧縮モード</label>
+                            <select id="qualityMode" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500">
+                                <option value="copy">無劣化高速コピー (破損修復のみ)</option>
+                                <option value="medium" selected>標準最適化 (CRF 23)</option>
+                                <option value="high">高品質エンコード (CRF 18)</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
-                <!-- Process Stages Feature Matrix -->
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-                    <h2 class="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
-                        <i class="fa-solid fa-microchip text-indigo-400"></i>
-                        <span>ブラウザ内処理パイプライン</span>
-                    </h2>
+                <!-- Processing Pipeline List -->
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
+                    <div class="flex items-center space-x-2 text-indigo-400 text-xs font-bold uppercase tracking-wider">
+                        <i class="fa-solid fa-list-check"></i>
+                        <span>パイプライン自動最適化</span>
+                    </div>
 
-                    <div class="space-y-3 text-xs">
-                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/50 border border-slate-800">
+                    <div class="space-y-2.5 text-xs">
+                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
                             <span class="flex items-center space-x-2 text-slate-300">
                                 <i class="fa-solid fa-wrench text-amber-400"></i>
-                                <span>1. 動画ヘッダー・インデックス100%自動修復</span>
+                                <span>100% 動画構造・Index修復</span>
                             </span>
-                            <span class="text-emerald-400 font-semibold">有効</span>
+                            <span class="text-emerald-400 font-semibold text-[10px] bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-800/40">自動適用</span>
                         </div>
-                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/50 border border-slate-800">
+
+                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
                             <span class="flex items-center space-x-2 text-slate-300">
-                                <i class="fa-solid fa-gear text-indigo-400"></i>
-                                <span>2. FFmpeg.WASM 変換エンジン</span>
+                                <i class="fa-solid fa-bolt text-indigo-400"></i>
+                                <span>FFmpeg.WASM ローカル処理</span>
                             </span>
-                            <span class="text-emerald-400 font-semibold">有効</span>
+                            <span class="text-emerald-400 font-semibold text-[10px] bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-800/40">有効</span>
                         </div>
-                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/50 border border-slate-800">
+
+                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
                             <span class="flex items-center space-x-2 text-slate-300">
                                 <i class="fa-solid fa-tags text-purple-400"></i>
-                                <span>3. 標準化メタデータ自動インジェクション</span>
+                                <span>標準メタデータ自動再生成</span>
                             </span>
-                            <span class="text-emerald-400 font-semibold">有効</span>
+                            <span class="text-emerald-400 font-semibold text-[10px] bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-800/40">自動付与</span>
                         </div>
                     </div>
                 </div>
 
             </div>
 
-            <!-- Start Conversion Button -->
-            <button id="startBtn" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-indigo-500/25 transition flex items-center justify-center space-x-2">
+            <!-- Start Button -->
+            <button id="convertBtn" class="w-full bg-gradient-to-r from-indigo-500 via-purple-600 to-indigo-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-2xl shadow-xl shadow-indigo-500/20 transition-all transform active:scale-[0.99] flex items-center justify-center space-x-2 text-sm">
                 <i class="fa-solid fa-play"></i>
                 <span>動画を修復・変換・メタデータ生成</span>
             </button>
 
-            <!-- Execution Logs & Progress Bar -->
-            <div id="progressSection" class="hidden space-y-4 bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <!-- Execution Logs and Progress Section -->
+            <div id="progressBox" class="hidden space-y-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-inner">
                 <div class="flex items-center justify-between text-xs">
-                    <span class="font-medium text-slate-300 flex items-center space-x-2" id="currentStepText">
+                    <span id="progressStatusText" class="font-medium text-slate-300 flex items-center space-x-2">
                         <i class="fa-solid fa-spinner animate-spin text-indigo-400"></i>
-                        <span>処理中...</span>
+                        <span>処理を準備中...</span>
                     </span>
-                    <span class="text-slate-400 font-mono" id="progressPercent">0%</span>
+                    <span id="progressPercent" class="text-indigo-400 font-mono font-bold">0%</span>
                 </div>
 
-                <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
-                    <div id="progressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full w-0 transition-all duration-300"></div>
+                <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden p-0.5 border border-slate-800">
+                    <div id="progressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full w-0 rounded-full transition-all duration-300"></div>
                 </div>
 
-                <!-- Console Log Output Window -->
-                <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-slate-400 h-36 overflow-y-auto custom-scrollbar space-y-1" id="consoleLogs">
-                    <div class="text-slate-500">[System] 変換パイプラインの準備が完了しました。</div>
+                <!-- Console Window -->
+                <div id="consoleLog" class="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-slate-400 h-32 overflow-y-auto custom-scrollbar space-y-1">
+                    <div class="text-slate-500">[System] WASM パイプラインを初期化しました。</div>
                 </div>
             </div>
 
-            <!-- Download Result Area -->
-            <div id="resultSection" class="hidden bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 text-center space-y-4">
-                <div class="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+            <!-- Download Result Box -->
+            <div id="resultBox" class="hidden bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-6 text-center space-y-4">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/30">
                     <i class="fa-solid fa-check text-2xl"></i>
                 </div>
+                
                 <div>
-                    <h3 class="text-lg font-bold text-slate-100">動画の修復・変換・メタデータ処理が完了しました</h3>
-                    <p class="text-xs text-slate-400 mt-1">動画構造の修復および標準化メタデータの付与が行われました。</p>
+                    <h3 class="text-base font-bold text-slate-100">処理が完了しました</h3>
+                    <p class="text-xs text-slate-400 mt-1">動画構造の100%修復と標準メタデータの書き込みが完了しました。</p>
                 </div>
-                <div class="flex flex-col sm:flex-row justify-center gap-3 pt-2">
-                    <a id="downloadBtn" download class="inline-flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-emerald-600/20 transition cursor-pointer">
-                        <i class="fa-solid fa-download"></i>
-                        <span>処理済み動画をダウンロード</span>
-                    </a>
-                </div>
+
+                <a id="downloadLink" download class="inline-flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer text-sm">
+                    <i class="fa-solid fa-download"></i>
+                    <span>修復・変換済み動画を保存</span>
+                </a>
             </div>
 
         </div>
@@ -200,156 +233,138 @@
     </main>
 
     <!-- Footer -->
-    <footer class="border-t border-slate-800 bg-slate-900/40 py-4 text-center text-xs text-slate-500">
-        <p>© 2026 Media2Converter • Client-side WebAssembly Engine</p>
+    <footer class="border-t border-slate-800/80 bg-slate-950 py-4 text-center text-xs text-slate-500">
+        <p>© 2026 Media2Converter • Powered by WebAssembly & Exif Tools</p>
     </footer>
 
-    <!-- Application Script Logic -->
+    <!-- Logic Processing Script -->
     <script>
         const { FFmpeg } = FFmpegWASM;
         const { fetchFile, toBlobURL } = FFmpegUtil;
 
         let ffmpeg = null;
-        let selectedFile = null;
+        let fileObj = null;
 
-        // DOM elements
+        // Elements
         const fileInput = document.getElementById('fileInput');
         const dropzone = document.getElementById('dropzone');
-        const processDashboard = document.getElementById('processDashboard');
-        const fileNameEl = document.getElementById('fileName');
-        const fileSizeEl = document.getElementById('fileSize');
-        const cancelBtn = document.getElementById('cancelBtn');
-        const startBtn = document.getElementById('startBtn');
-        const progressSection = document.getElementById('progressSection');
+        const dashboard = document.getElementById('dashboard');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const resetBtn = document.getElementById('resetBtn');
+        const convertBtn = document.getElementById('convertBtn');
+        const progressBox = document.getElementById('progressBox');
         const progressBar = document.getElementById('progressBar');
         const progressPercent = document.getElementById('progressPercent');
-        const currentStepText = document.getElementById('currentStepText');
-        const consoleLogs = document.getElementById('consoleLogs');
-        const resultSection = document.getElementById('resultSection');
-        const downloadBtn = document.getElementById('downloadBtn');
+        const progressStatusText = document.getElementById('progressStatusText');
+        const consoleLog = document.getElementById('consoleLog');
+        const resultBox = document.getElementById('resultBox');
+        const downloadLink = document.getElementById('downloadLink');
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
 
-        // Log output function
-        function appendLog(msg, type = 'info') {
-            const line = document.createElement('div');
-            const time = new Date().toLocaleTimeString();
-            let colorClass = 'text-slate-400';
-            if (type === 'success') colorClass = 'text-emerald-400';
-            if (type === 'warn') colorClass = 'text-amber-400';
-            if (type === 'error') colorClass = 'text-rose-400';
+        function printLog(text, level = 'info') {
+            const div = document.createElement('div');
+            const now = new Date().toLocaleTimeString();
+            let color = 'text-slate-400';
+            if (level === 'success') color = 'text-emerald-400';
+            if (level === 'warn') color = 'text-amber-400';
+            if (level === 'error') color = 'text-rose-400';
 
-            line.className = `${colorClass} leading-relaxed`;
-            line.textContent = `[${time}] ${msg}`;
-            consoleLogs.appendChild(line);
-            consoleLogs.scrollTop = consoleLogs.scrollHeight;
+            div.className = `${color} leading-relaxed`;
+            div.textContent = `[${now}] ${text}`;
+            consoleLog.appendChild(div);
+            consoleLog.scrollTop = consoleLog.scrollHeight;
         }
 
-        // Initialize FFmpeg WASM Core
-        async function initFFmpeg() {
+        async function initFFmpegEngine() {
             try {
                 ffmpeg = new FFmpeg();
-
-                ffmpeg.on('log', ({ message }) => {
-                    appendLog(message);
-                });
-
+                ffmpeg.on('log', ({ message }) => printLog(message));
                 ffmpeg.on('progress', ({ progress }) => {
-                    const percent = Math.min(Math.round(progress * 100), 100);
-                    progressBar.style.width = `${percent}%`;
-                    progressPercent.textContent = `${percent}%`;
+                    const p = Math.min(Math.round(progress * 100), 100);
+                    progressBar.style.width = `${p}%`;
+                    progressPercent.textContent = `${p}%`;
                 });
 
-                appendLog('FFmpeg.WASM コアモジュールをロード中...');
-                
-                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+                printLog('FFmpeg.WASM コアモジュールをロード中...');
+                const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
                 await ffmpeg.load({
-                    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                    coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+                    wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm')
                 });
 
                 statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
-                statusText.textContent = 'WASM準備完了 (ローカル動作)';
-                appendLog('WASMエンジンの初期化に成功しました。', 'success');
+                statusText.textContent = 'WASM 準備完了';
+                printLog('WebAssembly モジュールが稼働可能です。', 'success');
             } catch (err) {
                 console.error(err);
                 statusDot.className = 'w-2 h-2 rounded-full bg-rose-500';
-                statusText.textContent = 'WASMロード失敗';
-                appendLog('WASMモジュールの読み込みに失敗しました。', 'error');
+                statusText.textContent = 'WASM ロード失敗';
+                printLog('ロード失敗: ' + err.message, 'error');
             }
         }
 
-        // File selection handler
-        function handleFile(file) {
+        function setupFile(file) {
             if (!file) return;
-            selectedFile = file;
-
-            fileNameEl.textContent = file.name;
-            fileSizeEl.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+            fileObj = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
 
             dropzone.classList.add('hidden');
-            processDashboard.classList.remove('hidden');
-            resultSection.classList.add('hidden');
-            progressSection.classList.add('hidden');
+            dashboard.classList.remove('hidden');
+            resultBox.classList.add('hidden');
+            progressBox.classList.add('hidden');
         }
 
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+            if (e.target.files.length > 0) setupFile(e.target.files[0]);
         });
 
-        cancelBtn.addEventListener('click', () => {
-            selectedFile = null;
+        resetBtn.addEventListener('click', () => {
+            fileObj = null;
             fileInput.value = '';
             dropzone.classList.remove('hidden');
-            processDashboard.classList.add('hidden');
+            dashboard.classList.add('hidden');
         });
 
-        // Start Conversion Process
-        startBtn.addEventListener('click', async () => {
-            if (!selectedFile) return;
+        convertBtn.addEventListener('click', async () => {
+            if (!fileObj || !ffmpeg || !ffmpeg.loaded) return;
 
-            if (!ffmpeg || !ffmpeg.loaded) {
-                alert('WASMエンジンが初期化中です。しばらく待ってから再試行してください。');
-                return;
-            }
-
-            startBtn.disabled = true;
-            startBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            progressSection.classList.remove('hidden');
-            resultSection.classList.add('hidden');
-            consoleLogs.innerHTML = '';
+            convertBtn.disabled = true;
+            convertBtn.classList.add('opacity-50', 'pointer-events-none');
+            progressBox.classList.remove('hidden');
+            resultBox.classList.add('hidden');
+            consoleLog.innerHTML = '';
             progressBar.style.width = '0%';
             progressPercent.textContent = '0%';
 
             try {
-                // Step 1: Read input file and parse Metadata
-                currentStepText.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-indigo-400"></i> メタデータ解析・Exif読み込み中...';
-                appendLog('入力ファイルのメタデータおよびExif構造をチェック中...', 'warn');
-                
-                let metadataTags = {};
+                // 1. Metadata Extract
+                progressStatusText.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-indigo-400"></i> Exif / メタデータ解析中...';
+                printLog('ExifReader による構造解析中...', 'warn');
                 try {
-                    metadataTags = await ExifReader.load(selectedFile);
-                    appendLog('Exif/Metadata解析完了。', 'success');
-                } catch (exifErr) {
-                    appendLog('警告: 直接のExif取得をスキップして修復に入ります。', 'warn');
+                    await ExifReader.load(fileObj);
+                    printLog('Exif メタデータの取得成功。', 'success');
+                } catch (e) {
+                    printLog('直接メタデータ取得をスキップして修復に入ります。', 'warn');
                 }
 
-                // Step 2: Write File to Virtual WASM Memory
-                currentStepText.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-indigo-400"></i> 仮想メモリ書き込み中...';
-                const inputFileName = 'input_' + Date.now() + '_' + selectedFile.name;
-                await ffmpeg.writeFile(inputFileName, await fetchFile(selectedFile));
-                appendLog(`入力ファイルをWASM仮想メモリ領域 (${inputFileName}) に配置しました。`);
+                // 2. Load File into WASM File System
+                progressStatusText.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-indigo-400"></i> WASM メモリ書き込み中...';
+                const inputName = `input_${Date.now()}_${fileObj.name}`;
+                await ffmpeg.writeFile(inputName, await fetchFile(fileObj));
+                printLog(`仮想ディスクに ${inputName} を書き込みました。`);
 
-                // Step 3: Repair & Convert Execution
-                currentStepText.innerHTML = '<i class="fa-solid fa-wrench animate-spin text-amber-400"></i> 動画ストリーム修復 & 変換処理中...';
-                appendLog('【フェーズ 1】動画コンテナ・インデックス(moov atom)の修復を実行中...', 'warn');
+                // 3. Convert & Repair Logic
+                progressStatusText.innerHTML = '<i class="fa-solid fa-wrench animate-spin text-amber-400"></i> 動画修復 & 変換実行中...';
+                printLog('【フェーズ 1】動画構造補修 (-err_detect ignore_err +faststart)', 'warn');
 
-                const format = document.getElementById('outputFormat').value;
-                const quality = document.getElementById('qualityPreset').value;
-                const repairedFileName = `repaired_${Date.now()}.${format}`;
+                const fmt = document.getElementById('outputFormat').value;
+                const quality = document.getElementById('qualityMode').value;
+                const outName = `repaired_output.${fmt}`;
 
-                // Build FFmpeg Command for Repair, Standard Encoding, and Metadata Tagging
-                let args = ['-err_detect', 'ignore_err', '-i', inputFileName];
+                let args = ['-err_detect', 'ignore_err', '-i', inputName];
 
                 if (quality === 'copy') {
                     args.push('-c', 'copy');
@@ -357,58 +372,51 @@
                     args.push('-c:v', 'libx264', '-crf', quality === 'high' ? '18' : '23', '-preset', 'ultrafast', '-c:a', 'aac');
                 }
 
-                // Ensure faststart moov atom placement for MP4/MOV
-                if (format === 'mp4' || format === 'mov') {
+                if (fmt === 'mp4' || fmt === 'mov') {
                     args.push('-movflags', '+faststart');
                 }
 
-                // Inject Standard Metadata
-                const creationDate = new Date().toISOString();
+                // Append Standard Metadata
+                const nowISO = new Date().toISOString();
                 args.push(
-                    '-metadata', `title=${selectedFile.name.split('.')[0]}`,
-                    '-metadata', `creation_time=${creationDate}`,
-                    '-metadata', 'encoder=Media2Converter Pure Engine (FFmpeg.wasm)'
+                    '-metadata', `title=${fileObj.name.split('.')[0]}`,
+                    '-metadata', `creation_time=${nowISO}`,
+                    '-metadata', 'encoder=Media2Converter (WASM Engine)'
                 );
 
-                args.push(repairedFileName);
+                args.push(outName);
 
-                appendLog(`FFmpeg コマンド実行: ffmpeg ${args.join(' ')}`);
+                printLog('実行コマンド: ffmpeg ' + args.join(' '));
                 await ffmpeg.exec(args);
 
-                appendLog('動画変換および構造の100%修復処理が正常完了しました。', 'success');
+                // 4. Download Export
+                progressStatusText.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> 処理完了';
+                printLog('動画修復・エンコード完了。', 'success');
 
-                // Step 4: Extract Output File
-                currentStepText.innerHTML = '<i class="fa-solid fa-tags text-purple-400"></i> 最終メタデータ付与・ファイル生成中...';
-                const data = await ffmpeg.readFile(repairedFileName);
-                const blob = new Blob([data.buffer], { type: `video/${format}` });
-                const downloadUrl = URL.createObjectURL(blob);
+                const outData = await ffmpeg.readFile(outName);
+                const blob = new Blob([outData.buffer], { type: `video/${fmt}` });
+                const url = URL.createObjectURL(blob);
 
-                downloadBtn.href = downloadUrl;
-                downloadBtn.download = `repaired_${selectedFile.name.split('.')[0]}.${format}`;
+                downloadLink.href = url;
+                downloadLink.download = `repaired_${fileObj.name.split('.')[0]}.${fmt}`;
 
-                // Cleanup WASM File System
-                await ffmpeg.deleteFile(inputFileName);
-                await ffmpeg.deleteFile(repairedFileName);
+                await ffmpeg.deleteFile(inputName);
+                await ffmpeg.deleteFile(outName);
 
-                // Finish
-                progressSection.classList.add('hidden');
-                resultSection.classList.remove('hidden');
-                appendLog('全プロセスが正常に完了しました。ダウンロード可能です。', 'success');
+                progressBox.classList.add('hidden');
+                resultBox.classList.remove('hidden');
 
             } catch (err) {
                 console.error(err);
-                appendLog(`エラーが発生しました: ${err.message}`, 'error');
-                currentStepText.innerHTML = '<i class="fa-solid fa-circle-exclamation text-rose-500"></i> 処理エラー';
+                printLog('エラーが発生しました: ' + err.message, 'error');
+                progressStatusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-500"></i> 処理エラー';
             } finally {
-                startBtn.disabled = false;
-                startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                convertBtn.disabled = false;
+                convertBtn.classList.remove('opacity-50', 'pointer-events-none');
             }
         });
 
-        // Initialize on page load
-        window.onload = () => {
-            initFFmpeg();
-        };
+        window.onload = initFFmpegEngine;
     </script>
 </body>
 </html>
