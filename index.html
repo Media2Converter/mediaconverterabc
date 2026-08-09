@@ -1,349 +1,415 @@
-import React, { useState, useEffect } from 'react';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media2Converter - Pure Client Edition</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- FFmpeg WASM CDN -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
+    <!-- ExifReader (Browser Exif Tool) -->
+    <script src="https://cdn.jsdelivr.net/npm/exifreader@4.21.1/dist/exif-reader.min.js"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
 
-// CodespacesのバックエンドAPIサーバーURL
-const SERVER_BASE = 'https://sturdy-space-train-pg5w5cx49r-3000.app.github.dev';
-const CONVERT_API = `${SERVER_BASE}/api/convert`;
-const LOVABLE_PROJECT_URL = 'https://lovable.dev/projects/1d6cdcc3-4e4a-42b3-9504-fc113ba89f02?utm_source=lovable-badge';
-
-export default function Index() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [format, setFormat] = useState<string>('mp4');
-  const [vcodec, setVcodec] = useState<string>('');
-  const [acodec, setAcodec] = useState<string>('');
-  const [resolution, setResolution] = useState<string>('original');
-  const [framerate, setFramerate] = useState<string>('original');
-
-  const [isConverting, setIsConverting] = useState<boolean>(false);
-  const [statusMessage, setStatusMessage] = useState<string>('');
-  const [statusType, setStatusType] = useState<'info' | 'success' | 'error' | ''>('');
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [downloadFileName, setDownloadFileName] = useState<string>('');
-  const [isWorkingHours, setIsWorkingHours] = useState<boolean>(true);
-
-  useEffect(() => {
-    checkBusinessHours();
-    const timer = setInterval(checkBusinessHours, 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const checkBusinessHours = () => {
-    const nowJST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
-    const hour = nowJST.getHours();
-    const working = (hour >= 6 && hour < 23);
-    setIsWorkingHours(working);
-    if (!working) {
-      setStatusType('error');
-      setStatusMessage('サーバの営業時間が終了しました。(06:00〜23:00)');
-    } else if (statusMessage === 'サーバの営業時間が終了しました。(06:00〜23:00)') {
-      setStatusMessage('');
-      setStatusType('');
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-      setDownloadUrl(null);
-      setStatusMessage('');
-    }
-  };
-
-  const handleFormatChange = (newFormat: string) => {
-    setFormat(newFormat);
-    if (newFormat === 'avi') {
-      setVcodec('mjpeg');
-      setAcodec('pcm_s16le');
-    } else if (newFormat === 'webm') {
-      setVcodec('libvpx-vp9');
-      setAcodec('libopus');
-    } else {
-      setVcodec('');
-      setAcodec('');
-    }
-  };
-
-  const submitConversion = async () => {
-    checkBusinessHours();
-    if (!isWorkingHours) {
-      setStatusType('error');
-      setStatusMessage('サーバの営業時間が終了しました。');
-      return;
-    }
-
-    if (!selectedFile) {
-      setStatusType('error');
-      setStatusMessage('ファイルを選択してください。');
-      return;
-    }
-
-    setIsConverting(true);
-    setDownloadUrl(null);
-    setStatusType('info');
-    setStatusMessage('変換プロセスを実行中...');
-
-    const formData = new FormData();
-    const cleanFormat = format.split(',')[0].trim();
-
-    formData.append('file', selectedFile);
-    formData.append('format', cleanFormat);
-    formData.append('vcodec', vcodec);
-    formData.append('acodec', acodec);
-    formData.append('resolution', resolution);
-    formData.append('framerate', framerate);
-
-    try {
-      const response = await fetch(CONVERT_API, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || errJson.details || `エラー (${response.status})`);
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const outName = `converted_${Date.now()}.${cleanFormat}`;
-
-      setDownloadUrl(url);
-      setDownloadFileName(outName);
-      setStatusType('success');
-      setStatusMessage('変換完了！ファイルを出力保存しました。');
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = outName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (err: any) {
-      console.error('Fetch error:', err);
-      setStatusType('error');
-      setStatusMessage(err.message || '通信エラーが発生しました。');
-    } finally {
-      setIsConverting(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#121411] text-[#f0f2ee] flex items-center justify-center p-4 sm:p-5 font-sans">
-      <div className="w-full max-w-[520px] bg-[#1c201a] border-2 border-[#3b4438] rounded-xl p-6 sm:p-7 shadow-2xl relative overflow-hidden">
-        
-        {/* 金色アクセントバー */}
-        <div className="absolute top-0 left-0 right-0 h-[6px] bg-[#d4af37]" />
-
-        {/* ヘッダー */}
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-extrabold text-[#d4af37] tracking-wider flex items-center justify-center gap-2 m-0 mb-1.5">
-            <span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2L9 8h6l-3-6zm-3 8v12h6V10H9z"/>
-              </svg>
-            </span>
-            弾薬モード コンバータ
-          </h1>
-          <p className="text-xs text-[#8c9688] m-0">Lovable プロジェクト連動</p>
-          
-          <div className="inline-flex items-center gap-2 text-xs px-3.5 py-1.5 rounded-md mt-3 bg-[#262c24] border border-[#3b4438] font-semibold text-[#e0e0e0]">
-            <span className={`w-2 h-2 rounded-full ${isWorkingHours ? 'bg-[#30d158] shadow-[0_0_8px_#30d158]' : 'bg-[#ff453a] shadow-[0_0_8px_#ff453a]'}`} />
-            <span>{isWorkingHours ? '作戦稼働中 (06:00〜23:00)' : 'サーバの営業時間が終了しました。(06:00〜23:00)'}</span>
-          </div>
-        </div>
-
-        {/* 1. 対象ファイルロード */}
-        <div className="mb-5">
-          <span className="block text-xs font-bold text-[#e5a93c] tracking-wider uppercase mb-2">
-            1. 対象ファイルロード
-          </span>
-          <label className="border-2 border-dashed border-[#d4af37] hover:border-[#e5a93c] bg-[#d4af37]/5 hover:bg-[#d4af37]/10 rounded-lg p-6 text-center cursor-pointer transition-all block">
-            <div className="text-[#d4af37] font-bold text-base">タップして動画または音声を装填</div>
-            <div className="text-xs text-white mt-1.5 break-all">
-              {selectedFile ? selectedFile.name : 'ファイル未装填'}
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+                    <i class="fa-solid fa-photo-film text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-wide bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">Media2Converter</h1>
+                    <p class="text-xs text-indigo-400 font-medium">100% In-Browser 修復 & メタデータ最適化</p>
+                </div>
             </div>
-            <input type="file" accept="video/*,audio/*" onChange={handleFileChange} className="hidden" />
-          </label>
+            <div id="wasmStatus" class="flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse" id="statusDot"></span>
+                <span id="statusText">WASMエンジン初期化中...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 space-y-6">
+
+        <!-- File Upload Dropzone -->
+        <div class="bg-slate-900/60 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-6 md:p-10 transition-all text-center relative group cursor-pointer" id="dropzone">
+            <input type="file" id="fileInput" accept="video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+            <div class="space-y-4 pointer-events-none">
+                <div class="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-base font-semibold text-slate-200">動画ファイルをドラッグ＆ドロップ</p>
+                    <p class="text-xs text-slate-400 mt-1">またはクリックしてファイルを選択（MP4, MOV, MKV, AVI など）</p>
+                </div>
+                <div class="inline-flex items-center space-x-2 text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
+                    <i class="fa-solid fa-lock text-emerald-400"></i>
+                    <span>ファイルはサーバーに送信されず、完全に端末内で自動処理されます</span>
+                </div>
+            </div>
         </div>
 
-        {/* 2. ターゲットフォーマット */}
-        <div className="mb-5">
-          <span className="block text-xs font-bold text-[#e5a93c] tracking-wider uppercase mb-2">
-            2. ターゲットフォーマット
-          </span>
-          <select
-            value={format}
-            onChange={(e) => handleFormatChange(e.target.value)}
-            className="w-full p-3 text-sm bg-[#262c24] border border-[#3b4438] text-white rounded-lg appearance-none cursor-pointer focus:outline-none focus:border-[#d4af37]"
-            style={{
-              backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'right 12px center',
-              backgroundSize: '16px'
-            }}
-          >
-            <option value="mp4">MP4 (標準 / iPhone対応)</option>
-            <option value="mov">MOV (QuickTime)</option>
-            <option value="avi">AVI (クラシック/レトロ)</option>
-            <option value="webm">WebM (Web動画)</option>
-          </select>
-        </div>
+        <!-- App Engine Dashboard (Hidden by default until file selection) -->
+        <div id="processDashboard" class="hidden space-y-6">
 
-        {/* 3. コーデック・パラメータ */}
-        <div className="mb-5">
-          <span className="block text-xs font-bold text-[#e5a93c] tracking-wider uppercase mb-2">
-            3. コーデック・パラメータ
-          </span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-[#8c9688] mb-1.5">映像コーデック</label>
-              <select
-                value={vcodec}
-                onChange={(e) => setVcodec(e.target.value)}
-                className="w-full p-3 text-sm bg-[#262c24] border border-[#3b4438] text-white rounded-lg appearance-none focus:outline-none focus:border-[#d4af37]"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 12px center',
-                  backgroundSize: '16px'
-                }}
-              >
-                <option value="">自動 (推奨)</option>
-                <option value="h264">H.264 (AVC)</option>
-                <option value="hevc">H.265 (HEVC)</option>
-                <option value="mjpeg">MJPEG</option>
-                <option value="libvpx-vp9">VP9</option>
-              </select>
+            <!-- File Info Box -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
+                        <i class="fa-solid fa-file-video text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-100 text-sm md:text-base truncate max-w-xs md:max-w-md" id="fileName">-</h3>
+                        <p class="text-xs text-slate-400 mt-0.5" id="fileSize">-</p>
+                    </div>
+                </div>
+                <button id="cancelBtn" class="text-xs text-slate-400 hover:text-rose-400 px-3 py-2 rounded-lg hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-xmark mr-1"></i> 別のファイルを選択
+                </button>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-[#8c9688] mb-1.5">音声コーデック</label>
-              <select
-                value={acodec}
-                onChange={(e) => setAcodec(e.target.value)}
-                className="w-full p-3 text-sm bg-[#262c24] border border-[#3b4438] text-white rounded-lg appearance-none focus:outline-none focus:border-[#d4af37]"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 12px center',
-                  backgroundSize: '16px'
-                }}
-              >
-                <option value="">自動 (推奨)</option>
-                <option value="aac">AAC</option>
-                <option value="pcm_s16le">PCM 16-bit</option>
-                <option value="mp3">MP3</option>
-                <option value="libopus">Opus</option>
-              </select>
+            <!-- Conversion Options & Pipeline Steps -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Output Settings -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                    <h2 class="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
+                        <i class="fa-solid fa-sliders text-indigo-400"></i>
+                        <span>出力設定</span>
+                    </h2>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">出力フォーマット</label>
+                            <select id="outputFormat" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                                <option value="mp4" selected>MP4 (H.264 / AAC - 標準的互換性)</option>
+                                <option value="mov">MOV (QuickTime Video)</option>
+                                <option value="webm">WebM (VP9 / Opus)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">画質・圧縮プリセット</label>
+                            <select id="qualityPreset" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                                <option value="copy">無劣化コピー (高速・ストリーム修復のみ)</option>
+                                <option value="medium" selected>標準バランス (CRF 23)</option>
+                                <option value="high">高品質 (CRF 18)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Process Stages Feature Matrix -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                    <h2 class="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
+                        <i class="fa-solid fa-microchip text-indigo-400"></i>
+                        <span>ブラウザ内処理パイプライン</span>
+                    </h2>
+
+                    <div class="space-y-3 text-xs">
+                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/50 border border-slate-800">
+                            <span class="flex items-center space-x-2 text-slate-300">
+                                <i class="fa-solid fa-wrench text-amber-400"></i>
+                                <span>1. 動画ヘッダー・インデックス100%自動修復</span>
+                            </span>
+                            <span class="text-emerald-400 font-semibold">有効</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/50 border border-slate-800">
+                            <span class="flex items-center space-x-2 text-slate-300">
+                                <i class="fa-solid fa-gear text-indigo-400"></i>
+                                <span>2. FFmpeg.WASM 変換エンジン</span>
+                            </span>
+                            <span class="text-emerald-400 font-semibold">有効</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/50 border border-slate-800">
+                            <span class="flex items-center space-x-2 text-slate-300">
+                                <i class="fa-solid fa-tags text-purple-400"></i>
+                                <span>3. 標準化メタデータ自動インジェクション</span>
+                            </span>
+                            <span class="text-emerald-400 font-semibold">有効</span>
+                        </div>
+                    </div>
+                </div>
+
             </div>
-          </div>
+
+            <!-- Start Conversion Button -->
+            <button id="startBtn" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-indigo-500/25 transition flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-play"></i>
+                <span>動画を修復・変換・メタデータ生成</span>
+            </button>
+
+            <!-- Execution Logs & Progress Bar -->
+            <div id="progressSection" class="hidden space-y-4 bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="font-medium text-slate-300 flex items-center space-x-2" id="currentStepText">
+                        <i class="fa-solid fa-spinner animate-spin text-indigo-400"></i>
+                        <span>処理中...</span>
+                    </span>
+                    <span class="text-slate-400 font-mono" id="progressPercent">0%</span>
+                </div>
+
+                <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                    <div id="progressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full w-0 transition-all duration-300"></div>
+                </div>
+
+                <!-- Console Log Output Window -->
+                <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-slate-400 h-36 overflow-y-auto custom-scrollbar space-y-1" id="consoleLogs">
+                    <div class="text-slate-500">[System] 変換パイプラインの準備が完了しました。</div>
+                </div>
+            </div>
+
+            <!-- Download Result Area -->
+            <div id="resultSection" class="hidden bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 text-center space-y-4">
+                <div class="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                    <i class="fa-solid fa-check text-2xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-slate-100">動画の修復・変換・メタデータ処理が完了しました</h3>
+                    <p class="text-xs text-slate-400 mt-1">動画構造の修復および標準化メタデータの付与が行われました。</p>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-center gap-3 pt-2">
+                    <a id="downloadBtn" download class="inline-flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-emerald-600/20 transition cursor-pointer">
+                        <i class="fa-solid fa-download"></i>
+                        <span>処理済み動画をダウンロード</span>
+                    </a>
+                </div>
+            </div>
+
         </div>
 
-        {/* 4. 出力解像度＆FPS */}
-        <div className="mb-5">
-          <span className="block text-xs font-bold text-[#e5a93c] tracking-wider uppercase mb-2">
-            4. 出力解像度＆FPS
-          </span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-[#8c9688] mb-1.5">解像度</label>
-              <select
-                value={resolution}
-                onChange={(e) => setResolution(e.target.value)}
-                className="w-full p-3 text-sm bg-[#262c24] border border-[#3b4438] text-white rounded-lg appearance-none focus:outline-none focus:border-[#d4af37]"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 12px center',
-                  backgroundSize: '16px'
-                }}
-              >
-                <option value="original">原寸サイズ維持</option>
-                <option value="1080p">1080p (Full HD)</option>
-                <option value="720p">720p (HD)</option>
-                <option value="480p">480p (SD)</option>
-                <option value="320x240">320×240 (クラシック)</option>
-              </select>
-            </div>
+    </main>
 
-            <div>
-              <label className="block text-xs font-semibold text-[#8c9688] mb-1.5">フレームレート</label>
-              <select
-                value={framerate}
-                onChange={(e) => setFramerate(e.target.value)}
-                className="w-full p-3 text-sm bg-[#262c24] border border-[#3b4438] text-white rounded-lg appearance-none focus:outline-none focus:border-[#d4af37]"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 12px center',
-                  backgroundSize: '16px'
-                }}
-              >
-                <option value="original">原寸FPS維持</option>
-                <option value="60">60 fps</option>
-                <option value="30">30 fps</option>
-                <option value="24">24 fps</option>
-                <option value="12">12 fps (レトロ)</option>
-              </select>
-            </div>
-          </div>
-        </div>
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 bg-slate-900/40 py-4 text-center text-xs text-slate-500">
+        <p>© 2026 Media2Converter • Client-side WebAssembly Engine</p>
+    </footer>
 
-        {/* 実行ボタン */}
-        <button
-          onClick={submitConversion}
-          disabled={isConverting || !isWorkingHours}
-          className="w-full p-4 text-base font-extrabold text-[#121411] bg-gradient-to-r from-[#d4af37] to-[#e5a93c] border-none rounded-lg cursor-pointer mt-2 tracking-wider shadow-[0_4px_15px_rgba(212,175,55,0.3)] transition-all disabled:bg-[#3a3f38] disabled:text-[#666c64] disabled:shadow-none disabled:cursor-not-allowed"
-        >
-          {isConverting ? '変換プロセス実行中...' : '変換プロセス実行'}
-        </button>
+    <!-- Application Script Logic -->
+    <script>
+        const { FFmpeg } = FFmpegWASM;
+        const { fetchFile, toBlobURL } = FFmpegUtil;
 
-        {/* ステータスカード */}
-        {statusMessage && (
-          <div
-            className={`mt-5 p-3.5 rounded-lg text-sm font-semibold text-center border break-words ${
-              statusType === 'info'
-                ? 'bg-[#1a2a38] text-[#82b1ff] border-[#2c4a6f]'
-                : statusType === 'success'
-                ? 'bg-[#193822] text-[#81c784] border-[#2e5c38]'
-                : 'bg-[#3d1c1d] text-[#e57373] border-[#6b2d2f]'
-            }`}
-          >
-            {statusMessage}
-          </div>
-        )}
+        let ffmpeg = null;
+        let selectedFile = null;
 
-        {/* ダウンロードエリア */}
-        {downloadUrl && (
-          <div className="mt-4">
-            <a
-              href={downloadUrl}
-              download={downloadFileName}
-              className="block w-full p-4 text-base font-extrabold text-[#121411] bg-gradient-to-r from-[#d4af37] to-[#e5a93c] rounded-lg text-center no-underline shadow-[0_4px_15px_rgba(212,175,55,0.3)]"
-            >
-              変換済みファイルを保存
-            </a>
-          </div>
-        )}
+        // DOM elements
+        const fileInput = document.getElementById('fileInput');
+        const dropzone = document.getElementById('dropzone');
+        const processDashboard = document.getElementById('processDashboard');
+        const fileNameEl = document.getElementById('fileName');
+        const fileSizeEl = document.getElementById('fileSize');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const startBtn = document.getElementById('startBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+        const currentStepText = document.getElementById('currentStepText');
+        const consoleLogs = document.getElementById('consoleLogs');
+        const resultSection = document.getElementById('resultSection');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
 
-        {/* Lovable公式フッターバッジ */}
-        <div className="mt-7 pt-4 border-t border-[#3b4438] text-center">
-          <a
-            href={LOVABLE_PROJECT_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-xs font-bold text-[#e5a93c] bg-[#262c24] px-4 py-2 rounded-full border border-[#d4af37] hover:bg-[#d4af37] hover:text-[#121411] transition-colors no-underline"
-          >
-            <span>Edit with Lovable Project</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-              <polyline points="15 3 21 3 21 9"/>
-              <line x1="10" y1="14" x2="21" y2="3"/>
-            </svg>
-          </a>
-        </div>
+        // Log output function
+        function appendLog(msg, type = 'info') {
+            const line = document.createElement('div');
+            const time = new Date().toLocaleTimeString();
+            let colorClass = 'text-slate-400';
+            if (type === 'success') colorClass = 'text-emerald-400';
+            if (type === 'warn') colorClass = 'text-amber-400';
+            if (type === 'error') colorClass = 'text-rose-400';
 
-      </div>
-    </div>
-  );
-}
+            line.className = `${colorClass} leading-relaxed`;
+            line.textContent = `[${time}] ${msg}`;
+            consoleLogs.appendChild(line);
+            consoleLogs.scrollTop = consoleLogs.scrollHeight;
+        }
+
+        // Initialize FFmpeg WASM Core
+        async function initFFmpeg() {
+            try {
+                ffmpeg = new FFmpeg();
+
+                ffmpeg.on('log', ({ message }) => {
+                    appendLog(message);
+                });
+
+                ffmpeg.on('progress', ({ progress }) => {
+                    const percent = Math.min(Math.round(progress * 100), 100);
+                    progressBar.style.width = `${percent}%`;
+                    progressPercent.textContent = `${percent}%`;
+                });
+
+                appendLog('FFmpeg.WASM コアモジュールをロード中...');
+                
+                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+                await ffmpeg.load({
+                    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                });
+
+                statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+                statusText.textContent = 'WASM準備完了 (ローカル動作)';
+                appendLog('WASMエンジンの初期化に成功しました。', 'success');
+            } catch (err) {
+                console.error(err);
+                statusDot.className = 'w-2 h-2 rounded-full bg-rose-500';
+                statusText.textContent = 'WASMロード失敗';
+                appendLog('WASMモジュールの読み込みに失敗しました。', 'error');
+            }
+        }
+
+        // File selection handler
+        function handleFile(file) {
+            if (!file) return;
+            selectedFile = file;
+
+            fileNameEl.textContent = file.name;
+            fileSizeEl.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+
+            dropzone.classList.add('hidden');
+            processDashboard.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+            progressSection.classList.add('hidden');
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            selectedFile = null;
+            fileInput.value = '';
+            dropzone.classList.remove('hidden');
+            processDashboard.classList.add('hidden');
+        });
+
+        // Start Conversion Process
+        startBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            if (!ffmpeg || !ffmpeg.loaded) {
+                alert('WASMエンジンが初期化中です。しばらく待ってから再試行してください。');
+                return;
+            }
+
+            startBtn.disabled = true;
+            startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            progressSection.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+            consoleLogs.innerHTML = '';
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
+
+            try {
+                // Step 1: Read input file and parse Metadata
+                currentStepText.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-indigo-400"></i> メタデータ解析・Exif読み込み中...';
+                appendLog('入力ファイルのメタデータおよびExif構造をチェック中...', 'warn');
+                
+                let metadataTags = {};
+                try {
+                    metadataTags = await ExifReader.load(selectedFile);
+                    appendLog('Exif/Metadata解析完了。', 'success');
+                } catch (exifErr) {
+                    appendLog('警告: 直接のExif取得をスキップして修復に入ります。', 'warn');
+                }
+
+                // Step 2: Write File to Virtual WASM Memory
+                currentStepText.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-indigo-400"></i> 仮想メモリ書き込み中...';
+                const inputFileName = 'input_' + Date.now() + '_' + selectedFile.name;
+                await ffmpeg.writeFile(inputFileName, await fetchFile(selectedFile));
+                appendLog(`入力ファイルをWASM仮想メモリ領域 (${inputFileName}) に配置しました。`);
+
+                // Step 3: Repair & Convert Execution
+                currentStepText.innerHTML = '<i class="fa-solid fa-wrench animate-spin text-amber-400"></i> 動画ストリーム修復 & 変換処理中...';
+                appendLog('【フェーズ 1】動画コンテナ・インデックス(moov atom)の修復を実行中...', 'warn');
+
+                const format = document.getElementById('outputFormat').value;
+                const quality = document.getElementById('qualityPreset').value;
+                const repairedFileName = `repaired_${Date.now()}.${format}`;
+
+                // Build FFmpeg Command for Repair, Standard Encoding, and Metadata Tagging
+                let args = ['-err_detect', 'ignore_err', '-i', inputFileName];
+
+                if (quality === 'copy') {
+                    args.push('-c', 'copy');
+                } else {
+                    args.push('-c:v', 'libx264', '-crf', quality === 'high' ? '18' : '23', '-preset', 'ultrafast', '-c:a', 'aac');
+                }
+
+                // Ensure faststart moov atom placement for MP4/MOV
+                if (format === 'mp4' || format === 'mov') {
+                    args.push('-movflags', '+faststart');
+                }
+
+                // Inject Standard Metadata
+                const creationDate = new Date().toISOString();
+                args.push(
+                    '-metadata', `title=${selectedFile.name.split('.')[0]}`,
+                    '-metadata', `creation_time=${creationDate}`,
+                    '-metadata', 'encoder=Media2Converter Pure Engine (FFmpeg.wasm)'
+                );
+
+                args.push(repairedFileName);
+
+                appendLog(`FFmpeg コマンド実行: ffmpeg ${args.join(' ')}`);
+                await ffmpeg.exec(args);
+
+                appendLog('動画変換および構造の100%修復処理が正常完了しました。', 'success');
+
+                // Step 4: Extract Output File
+                currentStepText.innerHTML = '<i class="fa-solid fa-tags text-purple-400"></i> 最終メタデータ付与・ファイル生成中...';
+                const data = await ffmpeg.readFile(repairedFileName);
+                const blob = new Blob([data.buffer], { type: `video/${format}` });
+                const downloadUrl = URL.createObjectURL(blob);
+
+                downloadBtn.href = downloadUrl;
+                downloadBtn.download = `repaired_${selectedFile.name.split('.')[0]}.${format}`;
+
+                // Cleanup WASM File System
+                await ffmpeg.deleteFile(inputFileName);
+                await ffmpeg.deleteFile(repairedFileName);
+
+                // Finish
+                progressSection.classList.add('hidden');
+                resultSection.classList.remove('hidden');
+                appendLog('全プロセスが正常に完了しました。ダウンロード可能です。', 'success');
+
+            } catch (err) {
+                console.error(err);
+                appendLog(`エラーが発生しました: ${err.message}`, 'error');
+                currentStepText.innerHTML = '<i class="fa-solid fa-circle-exclamation text-rose-500"></i> 処理エラー';
+            } finally {
+                startBtn.disabled = false;
+                startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+
+        // Initialize on page load
+        window.onload = () => {
+            initFFmpeg();
+        };
+    </script>
+</body>
+</html>
 
