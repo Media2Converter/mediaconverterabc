@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
-import { IOSConfirmDialog } from './IOSComponents';
+import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from '../iosSheetUtils';
+import { IOSConfirmDialog } from '../IOSComponents';
 import sheetSound from '@/assets/shinki-rokuon.m4a.asset.json';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
@@ -24,8 +24,7 @@ interface Props {
   selectedFormat: string | null;
 }
 
-/** A settings row showing label + sub-text of current value, with native picker */
-const NativePickerRow: React.FC<{
+interface PickerRowProps {
   label: string;
   displayValue: string;
   options: { label: string; value: string; disabled?: boolean; separator?: boolean }[];
@@ -36,7 +35,12 @@ const NativePickerRow: React.FC<{
   destructiveValue?: boolean;
   onLongPress?: () => void;
   pickerHeader?: string;
-}> = ({ label, displayValue, options, groups, selected, onSelect, warning, destructiveValue, onLongPress, pickerHeader }) => {
+}
+
+/** A settings row showing label + sub-text of current value, with native picker */
+const NativePickerRow: React.FC<PickerRowProps> = ({
+  label, displayValue, options, groups, selected, onSelect, warning, destructiveValue, onLongPress, pickerHeader
+}) => {
   const selectRef = useRef<HTMLSelectElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const delayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -322,7 +326,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       case 'aspectRatio':
         onChange({ ...settings, aspectRatio: value });
         if (value !== '自由' && !checkAspectResolutionMatch(value, settings.resolutionW, settings.resolutionH)) {
-          window.alert('現在の解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれているため、このままでは映像が意図した比率になりません。');
+          window.alert('現在の解像度が選択中のアスペクト比と一致していません。');
         }
         break;
       case 'resolution':
@@ -330,7 +334,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         { const [rw, rh] = value.split('x').map(Number);
           onChange({ ...settings, resolutionW: rw, resolutionH: rh });
           if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, rw, rh)) {
-            window.alert('選択した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
+            window.alert('選択した解像度が選択中のアスペクト比と一致していません。');
           }
         }
         break;
@@ -388,10 +392,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const settingsContent = (
     <>
-      {/* VoiceOver announcement */}
       <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
 
-      {/* Header Bar */}
       <div className="px-4 py-3 flex items-center justify-between gap-2 flex-shrink-0" style={{ minHeight: '56px' }}>
         <button
           onClick={handleCancel}
@@ -500,7 +502,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               options={volumeOptions} selected={settings.volume}
               onSelect={v => handleSelect('volume', v)}
               destructiveValue={volumeIsDestructive}
-              onLongPress={() => window.alert('音量を変更すると、元の音声トラックが上書きされます。この操作は元に戻せません。')}
+              onLongPress={() => window.alert('音量を変更すると、元の音声トラックが上書きされます。')}
               pickerHeader="音量" />
           </>
         )}
@@ -508,7 +510,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     </>
   );
 
-  // Custom dialogs
   const customDialogs = (
     <>
       {showCustomRes && (
@@ -529,8 +530,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               const w = parseInt(customResW) || settings.resolutionW;
               const h = parseInt(customResH) || settings.resolutionH;
               onChange({ ...settings, resolutionW: w, resolutionH: h });
-              if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, w, h))
-                window.alert('入力した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
               setShowCustomRes(false);
               setCustomResW('');
               setCustomResH('');
