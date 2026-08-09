@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from '../iosSheetUtils';
-import { IOSConfirmDialog } from '../IOSComponents';
+import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
+import { IOSConfirmDialog } from './IOSComponents';
 import sheetSound from '@/assets/shinki-rokuon.m4a.asset.json';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
