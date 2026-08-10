@@ -1,43 +1,39 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import ExifReader from 'exifreader';
 import type { ConvertSettings } from '@/constants/converterOptions';
 
-let ffmpegInstance: FFmpeg | null = null;
-
-/**
- * FFmpeg.WASM モジュールの初期化と取得
- */
-export async function getFFmpegEngine(
-  onLog?: (msg: string) => void,
-  onProgress?: (percent: number) => void
-): Promise<FFmpeg> {
-  if (ffmpegInstance && ffmpegInstance.loaded) {
-    return ffmpegInstance;
-  }
-
-  const ffmpeg = new FFmpeg();
-
-  if (onLog) {
-    ffmpeg.on('log', ({ message }) => onLog(message));
-  }
-
-  if (onProgress) {
-    ffmpeg.on('progress', ({ progress }) => {
-      const pct = Math.min(Math.round(progress * 100), 100);
-      onProgress(pct);
-    });
-  }
-
-  const unpkgBase = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${unpkgBase}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${unpkgBase}/ffmpeg-core.wasm`, 'application/wasm')
+// CDNからのライブラリ動的ロードヘルパー
+async function loadScript(src: string): Promise<void> {
+  if (document.querySelector(`script[src="${src}"]`)) return;
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`スクリプトのロードに失敗しました: ${src}`));
+    document.head.appendChild(script);
   });
-
-  ffmpegInstance = ffmpeg;
-  return ffmpeg;
 }
+
+// FFmpeg と ExifReader のブラウザ内初期化
+async function ensureBrowserTools(onLog?: (msg: string) => void): Promise<{ FFmpeg: any; fetchFile: any; ExifReader: any }> {
+  if (onLog) onLog('[System] ブラウザ内コンバータモジュールをロード中...');
+
+  await Promise.all([
+    loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js'),
+    loadScript('https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js'),
+    loadScript('https://cdn.jsdelivr.net/npm/exifreader@4.21.1/dist/exif-reader.min.js')
+  ]);
+
+  const FFmpegWASM = (window as any).FFmpegWASM;
+  const FFmpegUtil = (window as any).FFmpegUtil;
+  const ExifReader = (window as any).ExifReader;
+
+  if (!FFmpegWASM || !FFmpegUtil) {
+    throw new Error('FFmpeg モジュールの初期化に失敗しました。ネット接続を確認してください。');
+  }
+
+  return { FFmpeg: FFmpegWASM.FFmpeg, fetchFile: FFmpegUtil.fetchFile, ExifReader };
+}
+
+let ffmpegInstance: any = null;
 
 /**
  * ブラウザ完結型の動画変換＆100%補修・メタデータ付与関数
@@ -49,27 +45,47 @@ export async function convertMediaFile(
   onProgress?: (pct: number) => void,
   onLog?: (msg: string) => void
 ): Promise<Blob> {
-  if (onLog) onLog('[ExifReader] メタデータ解析を開始...');
-  try {
-    const tags = await ExifReader.load(file);
-    if (onLog) onLog(`[ExifReader] メタデータタグ検出成功 (${Object.keys(tags).length} 項目の属性)`);
-  } catch (err) {
-    if (onLog) onLog('[ExifReader] メタデータ解析完了（自動構造修復へ進みます）');
+  const { FFmpeg, fetchFile, ExifReader } = await ensureBrowserTools(onLog);
+
+  // Exif/Metadata 解析
+  if (ExifReader) {
+    try {
+      const tags = await ExifReader.load(file);
+      if (onLog) onLog(`[ExifReader] メタデータ解析完了 (${Object.keys(tags).length} 個のタグ)`);
+    } catch {
+      if (onLog) onLog('[ExifReader] メタデータ直接解析をスキップ');
+    }
   }
 
-  const ffmpeg = await getFFmpegEngine(onLog, onProgress);
+  if (!ffmpegInstance) {
+    ffmpegInstance = new FFmpeg();
+    if (onLog) {
+      ffmpegInstance.on('log', ({ message }: { message: string }) => onLog(message));
+    }
+    if (onProgress) {
+      ffmpegInstance.on('progress', ({ progress }: { progress: number }) => {
+        onProgress(Math.min(Math.round(progress * 100), 100));
+      });
+    }
 
-  const inputFSName = `input_${Date.now()}_${file.name}`;
+    if (onLog) onLog('[WASM Engine] コアモジュールをロード中...');
+    const unpkgBase = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    await ffmpegInstance.load({
+      coreURL: `${unpkgBase}/ffmpeg-core.js`,
+      wasmURL: `${unpkgBase}/ffmpeg-core.wasm`
+    });
+  }
+
+  const inputName = `input_${Date.now()}_${file.name}`;
   const outExt = outputFormat.toLowerCase();
-  const outputFSName = `repaired_output.${outExt}`;
+  const outputName = `output_${Date.now()}.${outExt}`;
 
-  if (onLog) onLog(`[WASM FS] ファイルを仮想領域 (${inputFSName}) に配置中...`);
-  await ffmpeg.writeFile(inputFSName, await fetchFile(file));
+  if (onLog) onLog(`[WASM Memory] ファイル配置中: ${inputName}`);
+  await ffmpegInstance.writeFile(inputName, await fetchFile(file));
 
-  // 厳格なエラー検出: -err_detect careful
-  const args: string[] = ['-err_detect', 'careful', '-i', inputFSName];
+  // FFmpeg コマンド引数 (-err_detect careful 判定)
+  const args: string[] = ['-err_detect', 'careful', '-i', inputName];
 
-  // ビデオコーデック
   if (settings.videoCodec === 'copy') {
     args.push('-c:v', 'copy');
   } else if (settings.videoCodec) {
@@ -78,7 +94,6 @@ export async function convertMediaFile(
     args.push('-c:v', 'libx264');
   }
 
-  // オーディオコーデック
   if (settings.audioCodec === 'none' || !settings.audioEnabled) {
     args.push('-an');
   } else if (settings.audioCodec === 'copy') {
@@ -89,43 +104,40 @@ export async function convertMediaFile(
     args.push('-c:a', 'aac');
   }
 
-  // Faststart (ヘッダー moov atom 先頭配置修復)
   if (outExt === 'mp4' || outExt === 'mov') {
     args.push('-movflags', '+faststart');
   }
 
-  // 標準メタデータの生成と書き込み
   const nowISO = new Date().toISOString();
   args.push(
     '-metadata', `title=${file.name.replace(/\.[^/.]+$/, '')}`,
     '-metadata', `creation_time=${nowISO}`,
-    '-metadata', 'encoder=Media2Converter WASM Engine'
+    '-metadata', 'encoder=Media2Converter Pure Engine'
   );
 
-  args.push(outputFSName);
+  args.push(outputName);
 
-  if (onLog) onLog(`[FFmpeg Careful] 実行: ffmpeg ${args.join(' ')}`);
+  if (onLog) onLog(`[FFmpeg Careful] 実行コマンド: ffmpeg ${args.join(' ')}`);
 
   try {
-    await ffmpeg.exec(args);
+    await ffmpegInstance.exec(args);
   } catch (err) {
-    if (onLog) onLog('[FFmpeg Careful Alert] エラー検出。100%自動補修フォールバックを実行中...');
-    const fallbackArgs = ['-err_detect', 'ignore_err', '-i', inputFSName, '-c', 'copy', '-movflags', '+faststart', outputFSName];
-    await ffmpeg.exec(fallbackArgs);
+    if (onLog) onLog('[FFmpeg Careful Alert] Carefulエラー検出。自動補修フォールバックを実行中...');
+    const fallbackArgs = ['-err_detect', 'ignore_err', '-i', inputName, '-c', 'copy', '-movflags', '+faststart', outputName];
+    await ffmpegInstance.exec(fallbackArgs);
   }
 
-  const outData = await ffmpeg.readFile(outputFSName);
-  const resultBlob = new Blob([outData.buffer], { type: `video/${outExt}` });
+  const resultData = await ffmpegInstance.readFile(outputName);
+  const blob = new Blob([resultData.buffer], { type: `video/${outExt}` });
 
-  await ffmpeg.deleteFile(inputFSName);
-  await ffmpeg.deleteFile(outputFSName);
+  await ffmpegInstance.deleteFile(inputName);
+  await ffmpegInstance.deleteFile(outputName);
 
-  if (onLog) onLog('[System] 動画の100%補修・標準メタデータ付与・変換が完了しました');
+  if (onLog) onLog('[System] 100% 自動補修・変換処理が完了しました');
 
-  return resultBlob;
+  return blob;
 }
 
-// 互換性のためのエイリアス
 export const serverConverter = {
   convert: convertMediaFile
 };
