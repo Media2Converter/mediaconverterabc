@@ -1,18 +1,18 @@
 import type { ConvertSettings } from '@/constants/converterOptions';
 
-// CDNからのライブラリ動的ロードヘルパー
+// Helper to load CDN scripts dynamically
 async function loadScript(src: string): Promise<void> {
   if (document.querySelector(`script[src="${src}"]`)) return;
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = src;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`スクリプトのロードに失敗しました: ${src}`));
+    script.onerror = () => reject(new Error(`スクリプトの読込に失敗しました: ${src}`));
     document.head.appendChild(script);
   });
 }
 
-// FFmpeg と ExifReader のブラウザ内初期化
+// Load FFmpeg & ExifReader into window
 async function ensureBrowserTools(onLog?: (msg: string) => void): Promise<{ FFmpeg: any; fetchFile: any; ExifReader: any }> {
   if (onLog) onLog('[System] ブラウザ内コンバータモジュールをロード中...');
 
@@ -27,7 +27,7 @@ async function ensureBrowserTools(onLog?: (msg: string) => void): Promise<{ FFmp
   const ExifReader = (window as any).ExifReader;
 
   if (!FFmpegWASM || !FFmpegUtil) {
-    throw new Error('FFmpeg モジュールの初期化に失敗しました。ネット接続を確認してください。');
+    throw new Error('FFmpeg モジュールの初期化に失敗しました。');
   }
 
   return { FFmpeg: FFmpegWASM.FFmpeg, fetchFile: FFmpegUtil.fetchFile, ExifReader };
@@ -35,9 +35,6 @@ async function ensureBrowserTools(onLog?: (msg: string) => void): Promise<{ FFmp
 
 let ffmpegInstance: any = null;
 
-/**
- * ブラウザ完結型の動画変換＆100%補修・メタデータ付与関数
- */
 export async function convertMediaFile(
   file: File,
   settings: ConvertSettings,
@@ -47,7 +44,6 @@ export async function convertMediaFile(
 ): Promise<Blob> {
   const { FFmpeg, fetchFile, ExifReader } = await ensureBrowserTools(onLog);
 
-  // Exif/Metadata 解析
   if (ExifReader) {
     try {
       const tags = await ExifReader.load(file);
@@ -83,7 +79,7 @@ export async function convertMediaFile(
   if (onLog) onLog(`[WASM Memory] ファイル配置中: ${inputName}`);
   await ffmpegInstance.writeFile(inputName, await fetchFile(file));
 
-  // FFmpeg コマンド引数 (-err_detect careful 判定)
+  // -err_detect careful mode
   const args: string[] = ['-err_detect', 'careful', '-i', inputName];
 
   if (settings.videoCodec === 'copy') {
