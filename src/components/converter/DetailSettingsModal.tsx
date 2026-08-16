@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Drawer as VaulDrawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ContextMenuChevron, useIOSSheetA11y, VOOverlayCloseButton } from './iosSheetUtils';
 import { IOSConfirmDialog } from './IOSComponents';
-import sheetSound from '@/assets/shinki-rokuon.m4a.asset.json';
+import sheetSound from '@/assets/shinki-rokuon-3.m4a.asset.json';
 import {
   ASPECT_RATIOS, SCAN_TYPES, RESOLUTIONS,
   VIDEO_BITRATES, AUDIO_BITRATES, FRAMERATES, SPEEDS, CHANNELS, FREQUENCIES,
@@ -24,7 +25,9 @@ interface Props {
   selectedFormat: string | null;
 }
 
-interface PickerRowProps {
+
+/** A settings row showing label + sub-text of current value, with native picker */
+const NativePickerRow: React.FC<{
   label: string;
   displayValue: string;
   options: { label: string; value: string; disabled?: boolean; separator?: boolean }[];
@@ -35,12 +38,7 @@ interface PickerRowProps {
   destructiveValue?: boolean;
   onLongPress?: () => void;
   pickerHeader?: string;
-}
-
-/** A settings row showing label + sub-text of current value, with native picker */
-const NativePickerRow: React.FC<PickerRowProps> = ({
-  label, displayValue, options, groups, selected, onSelect, warning, destructiveValue, onLongPress, pickerHeader
-}) => {
+}> = ({ label, displayValue, options, groups, selected, onSelect, warning, destructiveValue, onLongPress, pickerHeader }) => {
   const selectRef = useRef<HTMLSelectElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const delayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,7 +47,7 @@ const NativePickerRow: React.FC<PickerRowProps> = ({
     delayRef.current = setTimeout(() => {
       selectRef.current?.focus();
       selectRef.current?.click();
-    }, 100);
+    }, 1000);
   };
 
   const handleTouchStart = () => {
@@ -130,7 +128,8 @@ const NativePickerRow: React.FC<PickerRowProps> = ({
   );
 };
 
-/** Boxed section heading */
+
+/** Boxed (non-clickable) section heading — matches iOS rounded outline label */
 const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="px-5 pt-5 pb-2" role="heading" aria-level={3}>
     <div
@@ -145,6 +144,23 @@ const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) =
     </div>
   </div>
 );
+
+/** Accordion section for "Other Actions" like copy/mute */
+const AccordionSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="border-b border-border">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-5 py-3 active:bg-accent transition-colors"
+      >
+        <span className="text-foreground text-[31px]">{title}</span>
+        <span className="text-muted-foreground text-[29px]">{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && <div>{children}</div>}
+    </div>
+  );
+};
 
 export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, onChange, videoDuration, videoPreviewUrl, isVideo, selectedFormat }) => {
   const isMobile = useIsMobile();
@@ -184,12 +200,13 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       requestClose();
     }
   };
-
   const confirmDiscard = () => {
     onChange(savedSettings);
     setShowDiscardConfirm(false);
     requestClose();
   };
+
+
 
   const resolutionLabel = (tag?: string) => {
     if (!tag) return '';
@@ -198,7 +215,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const compatVideoCodecs = getCompatibleVideoCodecs(selectedFormat);
   const videoCodecGroups = [
-    { label: 'その他のアクション', options: [{ label: 'コピー (Careful判定・自動構造補修)', value: 'copy' }] },
+    { label: 'その他のアクション', options: [{ label: 'コピー', value: 'copy' }] },
     { label: 'コーデック', options: compatVideoCodecs.map(c => ({ label: c, value: c })) },
   ];
 
@@ -207,7 +224,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     return c;
   };
 
-  const compatAudioCodecs = getCompatibleAudioCodecs(selectedFormat);
+  const compatAudioCodecs = getCompatibleAudioCodecs(selectedFormat)
+    // PCM_U4 is only offered for AVI when configuring a video output
+    .filter(c => c !== 'PCM_U4' || !isVideo || selectedFormat === 'AVI');
+
   const audioCodecGroups = [
     { label: 'その他のアクション', options: [
       { label: 'コピー', value: 'copy' },
@@ -326,7 +346,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       case 'aspectRatio':
         onChange({ ...settings, aspectRatio: value });
         if (value !== '自由' && !checkAspectResolutionMatch(value, settings.resolutionW, settings.resolutionH)) {
-          window.alert('現在の解像度が選択中のアスペクト比と一致していません。');
+          window.alert('現在の解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれているため、このままでは映像が意図した比率になりません。');
         }
         break;
       case 'resolution':
@@ -334,7 +354,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         { const [rw, rh] = value.split('x').map(Number);
           onChange({ ...settings, resolutionW: rw, resolutionH: rh });
           if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, rw, rh)) {
-            window.alert('選択した解像度が選択中のアスペクト比と一致していません。');
+            window.alert('選択した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
           }
         }
         break;
@@ -377,7 +397,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     }
   }, [open]);
 
-  // Handle Escape
+  // Handle Escape / 2-finger scrub
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -392,8 +412,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   const settingsContent = (
     <>
+      {/* VoiceOver announcement */}
       <div aria-live="assertive" className="sr-only" role="status">{voAnnouncement}</div>
 
+      {/* iOS popup header: キャンセル (left) + 完了 (right) — flex layout so title never overlaps */}
       <div className="px-4 py-3 flex items-center justify-between gap-2 flex-shrink-0" style={{ minHeight: '56px' }}>
         <button
           onClick={handleCancel}
@@ -415,14 +437,17 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         </button>
       </div>
 
+
       <div className="overflow-y-auto overscroll-contain flex-1 -webkit-overflow-scrolling-touch">
         {showVideoSection && (
           <>
+            {/* Section heading (not a disabled button) */}
             <SectionHeading>ビデオ</SectionHeading>
 
-            <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー (Careful判定・自動構造補修)' : settings.videoCodec}
+            <NativePickerRow label="ビデオコーデック" displayValue={settings.videoCodec === 'copy' ? 'コピー' : settings.videoCodec}
               options={[]} groups={videoCodecGroups} selected={settings.videoCodec}
               onSelect={v => handleSelect('videoCodec', v)} pickerHeader="ビデオコーデック" />
+
 
             <NativePickerRow label="ピクセル形式" displayValue={settings.pixelFormat === 'auto' ? '自動' : settings.pixelFormat.toUpperCase()}
               options={pixelFormatOptions} selected={settings.pixelFormat}
@@ -467,6 +492,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           options={[]} groups={audioCodecGroups} selected={settings.audioCodec}
           onSelect={v => handleSelect('audioCodec', v)} pickerHeader="オーディオコーデック" />
 
+
         {!audioIsNone && settings.audioCodec !== 'copy' && (
           <>
             {outputIsAudioOnly && (
@@ -502,7 +528,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               options={volumeOptions} selected={settings.volume}
               onSelect={v => handleSelect('volume', v)}
               destructiveValue={volumeIsDestructive}
-              onLongPress={() => window.alert('音量を変更すると、元の音声トラックが上書きされます。')}
+              onLongPress={() => window.alert('音量を変更すると、元の音声トラックが上書きされます。この操作は元に戻せません。')}
               pickerHeader="音量" />
           </>
         )}
@@ -510,6 +536,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     </>
   );
 
+  // Custom input dialogs
   const customDialogs = (
     <>
       {showCustomRes && (
@@ -530,6 +557,8 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
               const w = parseInt(customResW) || settings.resolutionW;
               const h = parseInt(customResH) || settings.resolutionH;
               onChange({ ...settings, resolutionW: w, resolutionH: h });
+              if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, w, h))
+                window.alert('入力した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
               setShowCustomRes(false);
               setCustomResW('');
               setCustomResH('');
@@ -591,6 +620,9 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   const audioPool = useRef<HTMLAudioElement[]>([]);
 
   const playSheetSound = () => {
+    // Always play: fresh element each time, kept alive in a pool so the browser
+    // never garbage-collects it mid-playback (which silently dropped the sound
+    // after settings changes).
     try {
       const el = new Audio(sheetSound.url);
       el.preload = 'auto';
@@ -610,6 +642,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
       }
     } catch {}
   };
+
 
   useEffect(() => {
     if (open) {
@@ -634,6 +667,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
 
   if (!rendered) return null;
 
+  // iOS-style half-modal bottom sheet
   return (
     <>
       <VOOverlayCloseButton onClose={() => requestClose()} />
@@ -642,7 +676,7 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         <div
           ref={sheetRef}
           aria-label="詳細設定 ダイアログ"
-          // @ts-ignore
+          // @ts-ignore - popover is a valid HTML attribute
           popover="auto"
           className={`relative z-10 flex flex-col outline-none pointer-events-auto ${closing ? 'ios-slide-down' : 'ios-slide-up'}`}
           style={{
