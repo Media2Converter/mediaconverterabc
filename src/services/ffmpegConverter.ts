@@ -285,7 +285,39 @@ export function buildFFmpegArgs(
   return args;
 }
 
+/** Metadata check: returns true when FFmpeg can read the file's streams */
+async function checkMetadata(ff: FFmpeg, name: string): Promise<boolean> {
+  try {
+    await ff.exec(['-v', 'error', '-i', name, '-t', '0.1', '-f', 'null', '-']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Repair a broken/truncated container by remuxing with regenerated timestamps */
+async function repairFile(ff: FFmpeg, name: string): Promise<string> {
+  const ext = name.split('.').pop() || 'mp4';
+  const repaired = `repaired_${Date.now()}.${ext}`;
+  try {
+    await ff.exec([
+      '-y', '-nostdin',
+      '-err_detect', 'careful',
+      '-fflags', '+discardcorrupt+genpts+igndts',
+      '-i', name,
+      '-c', 'copy',
+      '-avoid_negative_ts', 'make_zero',
+      '-fflags', '+genpts',
+      repaired,
+    ]);
+    return repaired;
+  } catch {
+    return name;
+  }
+}
+
 /** Convert a file using FFmpeg WASM */
+
 export async function convertWithFFmpeg(
   file: File,
   format: string,
