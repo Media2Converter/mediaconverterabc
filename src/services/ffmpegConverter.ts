@@ -387,10 +387,17 @@ export async function convertWithFFmpeg(
 
   if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
 
+  onStatus?.('出力ファイルのメタデータを確認中...');
+  let finalName = outputName;
+  if (!(await checkMetadata(ff, outputName))) {
+    onStatus?.('出力ファイルが破損しています。修復中...');
+    finalName = await repairFile(ff, outputName);
+  }
+
   onStatus?.('FFmpeg → 出力ファイルを読み取り中...');
   onProgress?.(92);
 
-  const data = await ff.readFile(outputName);
+  const data = await ff.readFile(finalName);
   onProgress?.(96);
 
   const mime = FORMAT_MIME[format] || 'application/octet-stream';
@@ -398,8 +405,10 @@ export async function convertWithFFmpeg(
   const blob = new Blob([uint8.buffer as ArrayBuffer], { type: mime });
   const url = URL.createObjectURL(blob);
 
-  await ff.deleteFile(inputName);
-  await ff.deleteFile(outputName);
+  for (const n of new Set([inputName, sourceName, outputName, finalName])) {
+    try { await ff.deleteFile(n); } catch {}
+  }
+
 
   onStatus?.('変換完了！');
   onProgress?.(100);
