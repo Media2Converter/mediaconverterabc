@@ -350,7 +350,18 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         }
         break;
       case 'resolution':
-        if (value === 'custom') { setShowCustomRes(true); return; }
+        if (value === 'custom') {
+          const wInput = window.prompt('解像度の幅を入力してください（ピクセル）', String(settings.resolutionW));
+          if (wInput === null) return;
+          const hInput = window.prompt('解像度の高さを入力してください（ピクセル）', String(settings.resolutionH));
+          if (hInput === null) return;
+          const w = parseInt(wInput) || settings.resolutionW;
+          const h = parseInt(hInput) || settings.resolutionH;
+          onChange({ ...settings, resolutionW: w, resolutionH: h });
+          if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, w, h))
+            window.alert('入力した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
+          return;
+        }
         { const [rw, rh] = value.split('x').map(Number);
           onChange({ ...settings, resolutionW: rw, resolutionH: rh });
           if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, rw, rh)) {
@@ -359,15 +370,30 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         }
         break;
       case 'videoBitrate':
-        if (value === 'custom') { setShowCustomBitrate('video'); return; }
+        if (value === 'custom') {
+          const input = window.prompt('動画ビットレートを入力してください（KBPS）', '5120');
+          if (input === null) return;
+          onChange({ ...settings, videoBitrate: `${parseInt(input) || 5120}KBPS` });
+          return;
+        }
         onChange({ ...settings, videoBitrate: value }); break;
       case 'audioBitrate':
-        if (value === 'custom') { setShowCustomBitrate('audio'); return; }
+        if (value === 'custom') {
+          const input = window.prompt('音声ビットレートを入力してください（KBPS）', '128');
+          if (input === null) return;
+          onChange({ ...settings, audioBitrate: `${parseInt(input) || 128}KBPS` });
+          return;
+        }
         onChange({ ...settings, audioBitrate: value }); break;
       case 'scanType': onChange({ ...settings, scanType: value }); break;
       case 'pixelFormat': onChange({ ...settings, pixelFormat: value }); break;
       case 'framerate':
-        if (value === 'custom') { setShowCustomFramerate(true); return; }
+        if (value === 'custom') {
+          const input = window.prompt('フレームレートを入力してください（FPS）', '30');
+          if (input === null) return;
+          onChange({ ...settings, framerate: `${parseFloat(input) || 30}FPS` });
+          return;
+        }
         onChange({ ...settings, framerate: value }); break;
       case 'startTime': onChange({ ...settings, startTime: parseFloat(value) }); break;
       case 'endTime': onChange({ ...settings, endTime: parseFloat(value) }); break;
