@@ -352,8 +352,17 @@ export async function convertWithFFmpeg(
 
   if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
 
+  // Pre-conversion metadata check → repair broken/truncated input
+  onStatus?.('入力ファイルのメタデータを確認中...');
+  let sourceName = inputName;
+  if (!(await checkMetadata(ff, inputName))) {
+    onStatus?.('入力ファイルが破損しています。修復中...');
+    sourceName = await repairFile(ff, inputName);
+  }
+
   onStatus?.('FFmpegコマンドを生成中...');
-  const args = buildFFmpegArgs(inputName, outputName, settings, format, isVideo);
+  const args = buildFFmpegArgs(sourceName, outputName, settings, format, isVideo);
+
   const fullCmd = `ffmpeg ${args.join(' ')}`;
   onCommand?.(fullCmd);
   onStatus?.('FFmpeg → 変換実行中...');
