@@ -583,17 +583,10 @@ const Index: React.FC = () => {
         [
           'エラーが発生しました。',
           '',
-          'エラー内容',
-          translateFfmpegError(errorCode),
-          describeFailure(errorMsg, errorLines),
-          '',
-          'エラーコード',
           errorCode,
-          '',
-          '原因',
-          inferErrorCause(errorCode),
         ].join('\n')
       );
+
 
 
 
