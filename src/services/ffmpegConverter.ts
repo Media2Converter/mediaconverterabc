@@ -285,7 +285,39 @@ export function buildFFmpegArgs(
   return args;
 }
 
+/** Metadata check: returns true when FFmpeg can read the file's streams */
+async function checkMetadata(ff: FFmpeg, name: string): Promise<boolean> {
+  try {
+    await ff.exec(['-v', 'error', '-i', name, '-t', '0.1', '-f', 'null', '-']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Repair a broken/truncated container by remuxing with regenerated timestamps */
+async function repairFile(ff: FFmpeg, name: string): Promise<string> {
+  const ext = name.split('.').pop() || 'mp4';
+  const repaired = `repaired_${Date.now()}.${ext}`;
+  try {
+    await ff.exec([
+      '-y', '-nostdin',
+      '-err_detect', 'careful',
+      '-fflags', '+discardcorrupt+genpts+igndts',
+      '-i', name,
+      '-c', 'copy',
+      '-avoid_negative_ts', 'make_zero',
+      '-fflags', '+genpts',
+      repaired,
+    ]);
+    return repaired;
+  } catch {
+    return name;
+  }
+}
+
 /** Convert a file using FFmpeg WASM */
+
 export async function convertWithFFmpeg(
   file: File,
   format: string,
@@ -320,8 +352,17 @@ export async function convertWithFFmpeg(
 
   if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
 
+  // Pre-conversion metadata check → repair broken/truncated input
+  onStatus?.('入力ファイルのメタデータを確認中...');
+  let sourceName = inputName;
+  if (!(await checkMetadata(ff, inputName))) {
+    onStatus?.('入力ファイルが破損しています。修復中...');
+    sourceName = await repairFile(ff, inputName);
+  }
+
   onStatus?.('FFmpegコマンドを生成中...');
-  const args = buildFFmpegArgs(inputName, outputName, settings, format, isVideo);
+  const args = buildFFmpegArgs(sourceName, outputName, settings, format, isVideo);
+
   const fullCmd = `ffmpeg ${args.join(' ')}`;
   onCommand?.(fullCmd);
   onStatus?.('FFmpeg → 変換実行中...');
@@ -346,10 +387,17 @@ export async function convertWithFFmpeg(
 
   if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
 
+  onStatus?.('出力ファイルのメタデータを確認中...');
+  let finalName = outputName;
+  if (!(await checkMetadata(ff, outputName))) {
+    onStatus?.('出力ファイルが破損しています。修復中...');
+    finalName = await repairFile(ff, outputName);
+  }
+
   onStatus?.('FFmpeg → 出力ファイルを読み取り中...');
   onProgress?.(92);
 
-  const data = await ff.readFile(outputName);
+  const data = await ff.readFile(finalName);
   onProgress?.(96);
 
   const mime = FORMAT_MIME[format] || 'application/octet-stream';
@@ -357,8 +405,10 @@ export async function convertWithFFmpeg(
   const blob = new Blob([uint8.buffer as ArrayBuffer], { type: mime });
   const url = URL.createObjectURL(blob);
 
-  await ff.deleteFile(inputName);
-  await ff.deleteFile(outputName);
+  for (const n of new Set([inputName, sourceName, outputName, finalName])) {
+    try { await ff.deleteFile(n); } catch {}
+  }
+
 
   onStatus?.('変換完了！');
   onProgress?.(100);
