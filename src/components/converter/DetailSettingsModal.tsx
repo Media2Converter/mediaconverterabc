@@ -164,13 +164,6 @@ const AccordionSection: React.FC<{ title: string; children: React.ReactNode }> =
 
 export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, onChange, videoDuration, videoPreviewUrl, isVideo, selectedFormat }) => {
   const isMobile = useIsMobile();
-  const [showCustomRes, setShowCustomRes] = useState(false);
-  const [customResW, setCustomResW] = useState('');
-  const [customResH, setCustomResH] = useState('');
-  const [showCustomBitrate, setShowCustomBitrate] = useState<'video' | 'audio' | null>(null);
-  const [customBitrate, setCustomBitrate] = useState('');
-  const [showCustomFramerate, setShowCustomFramerate] = useState(false);
-  const [customFramerate, setCustomFramerate] = useState('');
   const [savedSettings, setSavedSettings] = useState<ConvertSettings>(settings);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -187,9 +180,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
   useEffect(() => {
     if (open) {
       setSavedSettings(settings);
-      setShowCustomRes(false);
-      setShowCustomBitrate(null);
-      setShowCustomFramerate(false);
       setTimeout(() => closeButtonRef.current?.focus(), 100);
     }
   }, [open]);
@@ -350,7 +340,18 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         }
         break;
       case 'resolution':
-        if (value === 'custom') { setShowCustomRes(true); return; }
+        if (value === 'custom') {
+          const wInput = window.prompt('解像度の幅を入力してください（ピクセル）', String(settings.resolutionW));
+          if (wInput === null) return;
+          const hInput = window.prompt('解像度の高さを入力してください（ピクセル）', String(settings.resolutionH));
+          if (hInput === null) return;
+          const w = parseInt(wInput) || settings.resolutionW;
+          const h = parseInt(hInput) || settings.resolutionH;
+          onChange({ ...settings, resolutionW: w, resolutionH: h });
+          if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, w, h))
+            window.alert('入力した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
+          return;
+        }
         { const [rw, rh] = value.split('x').map(Number);
           onChange({ ...settings, resolutionW: rw, resolutionH: rh });
           if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, rw, rh)) {
@@ -359,15 +360,30 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
         }
         break;
       case 'videoBitrate':
-        if (value === 'custom') { setShowCustomBitrate('video'); return; }
+        if (value === 'custom') {
+          const input = window.prompt('動画ビットレートを入力してください（KBPS）', '5120');
+          if (input === null) return;
+          onChange({ ...settings, videoBitrate: `${parseInt(input) || 5120}KBPS` });
+          return;
+        }
         onChange({ ...settings, videoBitrate: value }); break;
       case 'audioBitrate':
-        if (value === 'custom') { setShowCustomBitrate('audio'); return; }
+        if (value === 'custom') {
+          const input = window.prompt('音声ビットレートを入力してください（KBPS）', '128');
+          if (input === null) return;
+          onChange({ ...settings, audioBitrate: `${parseInt(input) || 128}KBPS` });
+          return;
+        }
         onChange({ ...settings, audioBitrate: value }); break;
       case 'scanType': onChange({ ...settings, scanType: value }); break;
       case 'pixelFormat': onChange({ ...settings, pixelFormat: value }); break;
       case 'framerate':
-        if (value === 'custom') { setShowCustomFramerate(true); return; }
+        if (value === 'custom') {
+          const input = window.prompt('フレームレートを入力してください（FPS）', '30');
+          if (input === null) return;
+          onChange({ ...settings, framerate: `${parseFloat(input) || 30}FPS` });
+          return;
+        }
         onChange({ ...settings, framerate: value }); break;
       case 'startTime': onChange({ ...settings, startTime: parseFloat(value) }); break;
       case 'endTime': onChange({ ...settings, endTime: parseFloat(value) }); break;
@@ -536,84 +552,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     </>
   );
 
-  // Custom input dialogs
-  const customDialogs = (
-    <>
-      {showCustomRes && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomRes(false)}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
-            <h3 className="text-foreground text-[31px] font-semibold text-center mb-4">解像度を入力</h3>
-            <div className="flex items-center gap-2 justify-center">
-              <input type="number" inputMode="numeric" placeholder={String(settings.resolutionW)}
-                value={customResW} onChange={e => setCustomResW(e.target.value)}
-                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-              <span className="text-foreground text-[31px]">×</span>
-              <input type="number" inputMode="numeric" placeholder={String(settings.resolutionH)}
-                value={customResH} onChange={e => setCustomResH(e.target.value)}
-                className="w-20 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-            </div>
-            <button onClick={() => {
-              const w = parseInt(customResW) || settings.resolutionW;
-              const h = parseInt(customResH) || settings.resolutionH;
-              onChange({ ...settings, resolutionW: w, resolutionH: h });
-              if (settings.aspectRatio !== '自由' && !checkAspectResolutionMatch(settings.aspectRatio, w, h))
-                window.alert('入力した解像度が選択中のアスペクト比と一致していません。縦横の比率が5ピクセル以上ずれています。');
-              setShowCustomRes(false);
-              setCustomResW('');
-              setCustomResH('');
-            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[31px] font-semibold active:opacity-80">OK</button>
-          </div>
-        </div>
-      )}
-
-      {showCustomBitrate && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomBitrate(null)}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
-            <h3 className="text-foreground text-[31px] font-semibold text-center mb-4">
-              {showCustomBitrate === 'video' ? '動画' : '音声'}ビットレートを入力
-            </h3>
-            <div className="flex items-center gap-2 justify-center">
-              <input type="number" inputMode="numeric" placeholder={showCustomBitrate === 'video' ? '5120' : '128'}
-                value={customBitrate} onChange={e => setCustomBitrate(e.target.value)}
-                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-              <span className="text-foreground text-[31px]">KBPS</span>
-            </div>
-            <button onClick={() => {
-              const key = showCustomBitrate === 'video' ? 'videoBitrate' : 'audioBitrate';
-              const def = showCustomBitrate === 'video' ? '5120' : '128';
-              onChange({ ...settings, [key]: `${customBitrate || def}KBPS` });
-              setShowCustomBitrate(null);
-              setCustomBitrate('');
-            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[31px] font-semibold active:opacity-80">OK</button>
-          </div>
-        </div>
-      )}
-
-      {showCustomFramerate && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center ios-fade-in" onClick={() => setShowCustomFramerate(false)}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative w-[280px] bg-card rounded-2xl p-6 ios-scale-in" onClick={e => e.stopPropagation()}>
-            <h3 className="text-foreground text-[31px] font-semibold text-center mb-4">フレームレートを入力</h3>
-            <div className="flex items-center gap-2 justify-center">
-              <input type="number" inputMode="decimal" placeholder="30"
-                value={customFramerate} onChange={e => setCustomFramerate(e.target.value)}
-                className="w-28 bg-secondary text-foreground text-center rounded-lg py-2 text-[31px] placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-              <span className="text-foreground text-[31px]">FPS</span>
-            </div>
-            <button onClick={() => {
-              const val = parseFloat(customFramerate) || 30;
-              onChange({ ...settings, framerate: `${val}FPS` });
-              setShowCustomFramerate(false);
-              setCustomFramerate('');
-            }} className="w-full mt-4 py-3 bg-primary text-primary-foreground rounded-xl text-[31px] font-semibold active:opacity-80">OK</button>
-          </div>
-        </div>
-      )}
-    </>
-  );
-
   const sheetRef = useRef<HTMLDivElement>(null);
   const [closing, setClosing] = useState(false);
   const [rendered, setRendered] = useState(open);
@@ -693,7 +631,6 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
           {settingsContent}
         </div>
       </div>
-      {customDialogs}
       <IOSConfirmDialog
         open={showDiscardConfirm}
         onClose={() => setShowDiscardConfirm(false)}
