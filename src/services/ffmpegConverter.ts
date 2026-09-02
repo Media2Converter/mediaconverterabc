@@ -67,11 +67,11 @@ let coreUrls: { coreURL: string; wasmURL: string } | null = null;
 // Worker of @ffmpeg/ffmpeg bundled by Vite (single self-contained file)
 import ffmpegWorkerUrl from '@/lib/ffmpeg-worker/worker.js?worker&url';
 
-const CDN_CORE_JS = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js';
-const CDN_CORE_WASM = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm';
+const CDN_CORE_JS = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm/ffmpeg-core.js';
+const CDN_CORE_WASM = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm/ffmpeg-core.wasm';
 // Dev-only copy served straight from node_modules by the Vite dev server
-const DEV_CORE_JS = '/node_modules/@ffmpeg/core/dist/umd/ffmpeg-core.js';
-const DEV_CORE_WASM = '/node_modules/@ffmpeg/core/dist/umd/ffmpeg-core.wasm';
+const DEV_CORE_JS = '/node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js';
+const DEV_CORE_WASM = '/node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm';
 
 async function fetchCorePair(jsUrl: string, wasmUrl: string): Promise<{ coreURL: string; wasmURL: string }> {
   // Verify the files really are the core files (an SPA fallback would return HTML)
