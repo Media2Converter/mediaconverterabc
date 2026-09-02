@@ -4,6 +4,7 @@ import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
 import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
   CODEC_MAP, AAC_HE_PROFILE, FORMAT_EXT, FORMAT_MIME, isVideoFormat,
+  isCodecCompatible, getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings,
 } from '@/constants/converterOptions';
 
@@ -36,6 +37,7 @@ const BENIGN_LOG_PATTERNS = [
   'Guessed Channel Layout',
   'Last message repeated',
   'No accelerated colorspace conversion',
+  'Aborted()', // ffmpeg-core prints this on every normal exit
 ];
 
 /** True only when the log line looks like a real error (not info/warning noise) */
@@ -158,6 +160,14 @@ export function buildFFmpegArgs(
   ];
   const outputIsVideo = isVideoFormat(format);
   const lowerFormat = format.toLowerCase();
+
+  // Never hand FFmpeg a codec the container cannot hold (e.g. AAC inside .mp3)
+  if (!isCodecCompatible(format, settings.videoCodec, 'video')) {
+    settings = { ...settings, videoCodec: getCompatibleVideoCodecs(format)[0] || 'H.264' };
+  }
+  if (!isCodecCompatible(format, settings.audioCodec, 'audio')) {
+    settings = { ...settings, audioCodec: getCompatibleAudioCodecs(format)[0] || 'AAC' };
+  }
 
   // Start/End time
   if (settings.startTime > 0) {
@@ -310,8 +320,8 @@ export function buildFFmpegArgs(
 /** Metadata check: returns true when FFmpeg can read the file's streams */
 async function checkMetadata(ff: FFmpeg, name: string): Promise<boolean> {
   try {
-    await ff.exec(['-v', 'error', '-i', name, '-t', '0.1', '-f', 'null', '-']);
-    return true;
+    const rc = await ff.exec(['-nostdin', '-v', 'error', '-i', name, '-t', '0.1', '-f', 'null', '-']);
+    return rc === 0;
   } catch {
     return false;
   }
@@ -322,7 +332,7 @@ async function repairFile(ff: FFmpeg, name: string): Promise<string> {
   const ext = name.split('.').pop() || 'mp4';
   const repaired = `repaired_${Date.now()}.${ext}`;
   try {
-    await ff.exec([
+    const rc = await ff.exec([
       '-y', '-nostdin',
       '-err_detect', 'careful',
       '-fflags', '+discardcorrupt+genpts+igndts',
@@ -332,6 +342,7 @@ async function repairFile(ff: FFmpeg, name: string): Promise<string> {
       '-fflags', '+genpts',
       repaired,
     ]);
+    if (rc !== 0) return name;
     return repaired;
   } catch {
     return name;
@@ -389,21 +400,31 @@ export async function convertWithFFmpeg(
   onCommand?.(fullCmd);
   onStatus?.('FFmpeg → 変換実行中...');
 
-  ff.on('progress', ({ progress }) => {
-    if (abortRequested) return;
+  let trackProgress = true;
+  const onFfProgress = ({ progress }: { progress: number }) => {
+    if (abortRequested || !trackProgress) return;
     const pct = Math.min(25 + progress * 65, 90);
     onProgress?.(pct);
     onStatus?.(`FFmpeg → 変換処理中... ${Math.round(pct)}%`);
-  });
+  };
+  ff.on('progress', onFfProgress);
 
+  // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
+  // are normal FFmpeg output and are never treated as errors. Failure = thrown
+  // exception OR a non-zero exit code returned by exec().
+  let rc: number;
   try {
-    // Only a thrown exception from exec() counts as a failure.
-    // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
-    // are normal FFmpeg output and are never treated as errors.
-    await ff.exec(args);
+    rc = await ff.exec(args);
   } catch (err: any) {
+    ff.off('progress', onFfProgress);
     const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
     throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
+  }
+  trackProgress = false;
+  ff.off('progress', onFfProgress);
+  if (rc !== 0) {
+    const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
+    throw new Error(`FFmpegエラー (exit code ${rc}):\n${lastLogs || '変換に失敗しました'}`);
   }
 
 
@@ -421,6 +442,9 @@ export async function convertWithFFmpeg(
 
   const data = await ff.readFile(finalName);
   onProgress?.(96);
+  if (!data || (data as Uint8Array).length === 0) {
+    throw new Error('FFmpegエラー:\n出力ファイルが空です（変換に失敗しました）');
+  }
 
   const mime = FORMAT_MIME[format] || 'application/octet-stream';
   const uint8 = data instanceof Uint8Array ? data : new TextEncoder().encode(data as string);
