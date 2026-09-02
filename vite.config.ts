@@ -13,6 +13,14 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  // ffmpeg.wasm spawns a module Worker via `new URL('./worker.js', import.meta.url)`;
+  // dep pre-bundling breaks that relative URL, so keep these packages unbundled.
+  optimizeDeps: {
+    exclude: ["@ffmpeg/ffmpeg", "@ffmpeg/util"],
+  },
+  worker: {
+    format: "es",
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
