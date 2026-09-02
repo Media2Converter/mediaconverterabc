@@ -65,7 +65,7 @@ export function resetFFmpeg() {
 let coreUrls: { coreURL: string; wasmURL: string } | null = null;
 
 // Worker of @ffmpeg/ffmpeg bundled by Vite (single self-contained file)
-import ffmpegWorkerUrl from '@ffmpeg/ffmpeg/dist/esm/worker.js?worker&url';
+import ffmpegWorkerUrl from '@/lib/ffmpeg-worker/worker.js?worker&url';
 
 const CDN_CORE_JS = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js';
 const CDN_CORE_WASM = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm';
