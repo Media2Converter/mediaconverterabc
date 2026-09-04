@@ -1,4 +1,4 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { FFmpeg, FFFSType } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
 import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
@@ -148,14 +148,16 @@ export function buildFFmpegArgs(
   format: string,
   isVideo: boolean,
 ): string[] {
-  // Input repair flags: ignore corrupt packets / errors, regenerate timestamps
+  // Input repair flags: careful detection + ignore errors, never abort on bad packets,
+  // regenerate timestamps
   const args: string[] = [
     '-y',
     '-nostdin',
-    '-err_detect', 'careful',
+    '-err_detect', 'careful+ignore_err',
     '-ignore_unknown',
     '-max_error_rate', '1.0',
     '-fflags', '+discardcorrupt+genpts+igndts',
+    '-analyzeduration', '100M', '-probesize', '100M',
     '-i', inputName,
   ];
   const outputIsVideo = isVideoFormat(format);
@@ -188,6 +190,18 @@ export function buildFFmpegArgs(
     } else {
       const vCodec = CODEC_MAP[settings.videoCodec] || 'libx264';
       args.push('-c:v', vCodec);
+
+      // Encoder speed / memory presets — single-threaded wasm on iPhone cannot
+      // afford the default (medium) presets; without these the first progress
+      // line may never arrive and the conversion looks frozen at 25%.
+      if (vCodec === 'libx264' || vCodec === 'libx265') {
+        args.push('-preset', 'ultrafast');
+        if (vCodec === 'libx264') args.push('-tune', 'fastdecode', '-x264-params', 'rc-lookahead=0:sync-lookahead=0');
+        if (vCodec === 'libx265') args.push('-x265-params', 'log-level=error');
+      } else if (vCodec === 'libvpx' || vCodec === 'libvpx-vp9') {
+        args.push('-deadline', 'realtime', '-cpu-used', '8');
+      }
+      args.push('-threads', '1');
 
       // Resolution - always force even numbers via scale filter with trunc
       const w = settings.resolutionW;
@@ -380,17 +394,44 @@ export async function convertWithFFmpeg(
   const outputExt = FORMAT_EXT[format] || 'mp4';
   const outputName = `output.${outputExt}`;
 
-  await ff.writeFile(inputName, await fetchFile(file));
+  // Mount the File directly (WORKERFS) instead of copying it into wasm memory —
+  // large iPhone videos otherwise exhaust Safari's memory and the worker dies
+  // silently, which is what a conversion "frozen at 25%" looks like.
+  const MOUNT_DIR = '/inmnt';
+  let mounted = false;
+  let inputPath = inputName;
+  try {
+    const mountFile = new File([file], inputName, { type: file.type });
+    try { await ff.createDir(MOUNT_DIR); } catch {}
+    mounted = await ff.mount(FFFSType.WORKERFS, { files: [mountFile] }, MOUNT_DIR);
+    if (mounted) inputPath = `${MOUNT_DIR}/${inputName}`;
+  } catch {
+    mounted = false;
+  }
+  if (!mounted) {
+    await ff.writeFile(inputName, await fetchFile(file));
+  }
   onProgress?.(25);
 
-  if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
+  const cleanup = async (names: string[]) => {
+    for (const n of new Set(names)) {
+      if (n.startsWith(MOUNT_DIR)) continue;
+      try { await ff.deleteFile(n); } catch {}
+    }
+    if (mounted) {
+      try { await ff.unmount(MOUNT_DIR); } catch {}
+      try { await ff.deleteDir(MOUNT_DIR); } catch {}
+    }
+  };
+
+  if (abortRequested) { await cleanup([inputName]); throw new Error('ユーザーによりキャンセルされました'); }
 
   // Pre-conversion metadata check → repair broken/truncated input
   onStatus?.('入力ファイルのメタデータを確認中...');
-  let sourceName = inputName;
-  if (!(await checkMetadata(ff, inputName))) {
+  let sourceName = inputPath;
+  if (!(await checkMetadata(ff, inputPath))) {
     onStatus?.('入力ファイルが破損しています。修復中...');
-    sourceName = await repairFile(ff, inputName);
+    sourceName = await repairFile(ff, inputPath);
   }
 
   onStatus?.('FFmpegコマンドを生成中...');
@@ -401,34 +442,66 @@ export async function convertWithFFmpeg(
   onStatus?.('FFmpeg → 変換実行中...');
 
   let trackProgress = true;
+  let lastActivity = Date.now();
   const onFfProgress = ({ progress }: { progress: number }) => {
+    lastActivity = Date.now();
     if (abortRequested || !trackProgress) return;
-    const pct = Math.min(25 + progress * 65, 90);
+    if (!Number.isFinite(progress) || progress < 0) return;
+    const pct = Math.min(25 + Math.min(progress, 1) * 65, 90);
     onProgress?.(pct);
     onStatus?.(`FFmpeg → 変換処理中... ${Math.round(pct)}%`);
   };
+  const onActivityLog = () => { lastActivity = Date.now(); };
   ff.on('progress', onFfProgress);
+  ff.on('log', onActivityLog);
+
+  // Stall watchdog: if the worker crashes (out of memory etc.) ffmpeg.wasm never
+  // resolves exec(). Detect "no log / no progress for a long time" and fail
+  // with a clear message instead of hanging forever.
+  const STALL_MS = 120_000;
+  let stallTimer: ReturnType<typeof setInterval> | undefined;
+  const stalled = new Promise<never>((_, reject) => {
+    stallTimer = setInterval(() => {
+      if (abortRequested) {
+        clearInterval(stallTimer);
+        resetFFmpeg();
+        reject(new Error('ユーザーによりキャンセルされました'));
+        return;
+      }
+      if (Date.now() - lastActivity > STALL_MS) {
+        clearInterval(stallTimer);
+        resetFFmpeg();
+        reject(new Error('FFmpegエラー:\n変換処理が応答しなくなりました（メモリ不足の可能性があります）。解像度やビットレートを下げて再試行してください。'));
+      }
+    }, 2_000);
+  });
 
   // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
   // are normal FFmpeg output and are never treated as errors. Failure = thrown
   // exception OR a non-zero exit code returned by exec().
   let rc: number;
   try {
-    rc = await ff.exec(args);
+    rc = await Promise.race([ff.exec(args), stalled]);
   } catch (err: any) {
-    ff.off('progress', onFfProgress);
+    clearInterval(stallTimer);
+    try { ff.off('progress', onFfProgress); ff.off('log', onActivityLog); } catch {}
+    if (ffmpeg) await cleanup([inputName, sourceName, outputName]);
+    if (String(err?.message ?? err).includes('キャンセル')) throw err;
     const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
     throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
   }
+  clearInterval(stallTimer);
   trackProgress = false;
   ff.off('progress', onFfProgress);
+  ff.off('log', onActivityLog);
   if (rc !== 0) {
     const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
+    await cleanup([inputName, sourceName, outputName]);
     throw new Error(`FFmpegエラー (exit code ${rc}):\n${lastLogs || '変換に失敗しました'}`);
   }
 
 
-  if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
+  if (abortRequested) { await cleanup([inputName, sourceName, outputName]); throw new Error('ユーザーによりキャンセルされました'); }
 
   onStatus?.('出力ファイルのメタデータを確認中...');
   let finalName = outputName;
@@ -443,6 +516,7 @@ export async function convertWithFFmpeg(
   const data = await ff.readFile(finalName);
   onProgress?.(96);
   if (!data || (data as Uint8Array).length === 0) {
+    await cleanup([inputName, sourceName, outputName, finalName]);
     throw new Error('FFmpegエラー:\n出力ファイルが空です（変換に失敗しました）');
   }
 
@@ -451,9 +525,7 @@ export async function convertWithFFmpeg(
   const blob = new Blob([uint8.buffer as ArrayBuffer], { type: mime });
   const url = URL.createObjectURL(blob);
 
-  for (const n of new Set([inputName, sourceName, outputName, finalName])) {
-    try { await ff.deleteFile(n); } catch {}
-  }
+  await cleanup([inputName, sourceName, outputName, finalName]);
 
 
   onStatus?.('変換完了！');
