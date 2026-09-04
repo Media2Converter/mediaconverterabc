@@ -148,14 +148,16 @@ export function buildFFmpegArgs(
   format: string,
   isVideo: boolean,
 ): string[] {
-  // Input repair flags: ignore corrupt packets / errors, regenerate timestamps
+  // Input repair flags: careful detection + ignore errors, never abort on bad packets,
+  // regenerate timestamps
   const args: string[] = [
     '-y',
     '-nostdin',
-    '-err_detect', 'careful',
+    '-err_detect', 'careful+ignore_err',
     '-ignore_unknown',
     '-max_error_rate', '1.0',
     '-fflags', '+discardcorrupt+genpts+igndts',
+    '-analyzeduration', '100M', '-probesize', '100M',
     '-i', inputName,
   ];
   const outputIsVideo = isVideoFormat(format);
