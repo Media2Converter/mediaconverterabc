@@ -191,6 +191,18 @@ export function buildFFmpegArgs(
       const vCodec = CODEC_MAP[settings.videoCodec] || 'libx264';
       args.push('-c:v', vCodec);
 
+      // Encoder speed / memory presets — single-threaded wasm on iPhone cannot
+      // afford the default (medium) presets; without these the first progress
+      // line may never arrive and the conversion looks frozen at 25%.
+      if (vCodec === 'libx264' || vCodec === 'libx265') {
+        args.push('-preset', 'ultrafast');
+        if (vCodec === 'libx264') args.push('-tune', 'fastdecode', '-x264-params', 'rc-lookahead=0:sync-lookahead=0');
+        if (vCodec === 'libx265') args.push('-x265-params', 'log-level=error');
+      } else if (vCodec === 'libvpx' || vCodec === 'libvpx-vp9') {
+        args.push('-deadline', 'realtime', '-cpu-used', '8');
+      }
+      args.push('-threads', '1');
+
       // Resolution - always force even numbers via scale filter with trunc
       const w = settings.resolutionW;
       const h = settings.resolutionH;
