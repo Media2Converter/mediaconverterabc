@@ -381,9 +381,14 @@ export async function convertWithFFmpeg(
   abortRequested = false;
   const logs: string[] = [];
   const logCollector = (msg: string) => {
+    if (logs.length > 500) logs.shift();
     logs.push(msg);
     onLog?.(msg);
   };
+
+  // Every status line carries "使用メモリ / 全容量"
+  const rawStatus = onStatus;
+  onStatus = rawStatus ? (s: string) => rawStatus(`${s}\n${getMemoryStatus(file.size)}`) : undefined;
 
   onStatus?.('FFmpeg WASM エンジンを初期化中...');
   onProgress?.(5);
