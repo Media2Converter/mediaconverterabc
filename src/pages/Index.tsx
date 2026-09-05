@@ -515,20 +515,12 @@ const Index: React.FC = () => {
 
     const ffmpegLogs: string[] = [];
     const results: { url: string; filename: string }[] = [];
-    const warnedLogs = new Set<string>();
-    let warningsMuted = false;
 
-    // Show FFmpeg warnings in a native Safari confirm dialog; OK continues the conversion
+    // Warnings are only collected — never block the conversion (no dialogs, no aborts)
     const handleLog = (msg: string) => {
+      if (ffmpegLogs.length > 2000) ffmpegLogs.shift();
       ffmpegLogs.push(msg);
-      if (warningsMuted || !isFfmpegWarningLog(msg)) return;
-      const key = msg.trim();
-      if (warnedLogs.has(key)) return;
-      warnedLogs.add(key);
-      const ok = window.confirm(`変換中に警告が発生しました。\n\n${key}\n\n「OK」を押すと変換を続けます。`);
-      if (!ok) {
-        warningsMuted = true;
-      }
+      if (isFfmpegWarningLog(msg)) console.warn('[ffmpeg warning]', msg);
     };
 
     try {
