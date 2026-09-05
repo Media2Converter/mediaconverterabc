@@ -12,6 +12,29 @@ import {
 let ffmpeg: FFmpeg | null = null;
 let abortRequested = false;
 
+const WASM_CORE_BYTES = coreWasmAsset.size;
+
+function fmtBytes(b: number): string {
+  if (b >= 1024 ** 3) return `${(b / 1024 ** 3).toFixed(2)} GB`;
+  return `${Math.round(b / 1024 ** 2)} MB`;
+}
+
+/**
+ * "使用メモリ / 全容量" string. Chrome exposes exact figures via performance.memory;
+ * Safari does not, so we fall back to an estimate (wasm core + working buffers) and
+ * navigator.deviceMemory (or unknown).
+ */
+export function getMemoryStatus(inputBytes = 0): string {
+  const perfMem = (performance as any).memory as { usedJSHeapSize?: number; jsHeapSizeLimit?: number } | undefined;
+  if (perfMem?.usedJSHeapSize && perfMem.jsHeapSizeLimit) {
+    return `メモリ: ${fmtBytes(perfMem.usedJSHeapSize)} / ${fmtBytes(perfMem.jsHeapSizeLimit)}`;
+  }
+  const estimatedUsed = WASM_CORE_BYTES * 2 + Math.min(inputBytes, 64 * 1024 ** 2) + 48 * 1024 ** 2;
+  const deviceGb = (navigator as any).deviceMemory as number | undefined;
+  const total = deviceGb ? fmtBytes(deviceGb * 1024 ** 3) : '不明';
+  return `メモリ(推定): ${fmtBytes(estimatedUsed)} / ${total}`;
+}
+
 export function requestAbort() {
   abortRequested = true;
 }
