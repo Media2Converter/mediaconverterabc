@@ -317,8 +317,8 @@ export function buildFFmpegArgs(
     args.push('-af', aFilters.join(','));
   }
 
-  // Buffer safety — large buffer to prevent muxing queue overflow
-  args.push('-max_muxing_queue_size', '9999');
+  // Muxing queue: large enough to avoid overflow, small enough not to hoard memory
+  args.push('-max_muxing_queue_size', '1024');
 
   // Output-side timestamp regeneration + never abort on recoverable errors
   args.push('-fflags', '+genpts', '-avoid_negative_ts', 'make_zero');
