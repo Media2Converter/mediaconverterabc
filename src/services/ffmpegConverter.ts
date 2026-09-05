@@ -149,15 +149,18 @@ export function buildFFmpegArgs(
   isVideo: boolean,
 ): string[] {
   // Input repair flags: careful detection + ignore errors, never abort on bad packets,
-  // regenerate timestamps
+  // regenerate timestamps. Probe buffers are kept small — 100M probesize alone
+  // would hold up to 100MB of the input in wasm memory before encoding starts.
   const args: string[] = [
     '-y',
     '-nostdin',
+    '-hide_banner',
     '-err_detect', 'careful+ignore_err',
     '-ignore_unknown',
     '-max_error_rate', '1.0',
-    '-fflags', '+discardcorrupt+genpts+igndts',
-    '-analyzeduration', '100M', '-probesize', '100M',
+    '-fflags', '+discardcorrupt+genpts+igndts+nobuffer',
+    '-analyzeduration', '5M', '-probesize', '5M',
+    '-thread_queue_size', '64',
     '-i', inputName,
   ];
   const outputIsVideo = isVideoFormat(format);
