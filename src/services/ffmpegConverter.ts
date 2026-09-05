@@ -199,8 +199,9 @@ export function buildFFmpegArgs(
       // line may never arrive and the conversion looks frozen at 25%.
       if (vCodec === 'libx264' || vCodec === 'libx265') {
         args.push('-preset', 'ultrafast');
-        if (vCodec === 'libx264') args.push('-tune', 'fastdecode', '-x264-params', 'rc-lookahead=0:sync-lookahead=0');
-        if (vCodec === 'libx265') args.push('-x265-params', 'log-level=error');
+        // Minimal-memory encoder config: 1 reference frame, no B-frames, no lookahead
+        if (vCodec === 'libx264') args.push('-tune', 'fastdecode', '-x264-params', 'rc-lookahead=0:sync-lookahead=0:ref=1:bframes=0:threads=1:lookahead-threads=1');
+        if (vCodec === 'libx265') args.push('-x265-params', 'log-level=error:rc-lookahead=0:ref=1:bframes=0:pools=1:frame-threads=1');
       } else if (vCodec === 'libvpx' || vCodec === 'libvpx-vp9') {
         args.push('-deadline', 'realtime', '-cpu-used', '8');
       }
