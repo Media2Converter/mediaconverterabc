@@ -12,6 +12,29 @@ import {
 let ffmpeg: FFmpeg | null = null;
 let abortRequested = false;
 
+const WASM_CORE_BYTES = coreWasmAsset.size;
+
+function fmtBytes(b: number): string {
+  if (b >= 1024 ** 3) return `${(b / 1024 ** 3).toFixed(2)} GB`;
+  return `${Math.round(b / 1024 ** 2)} MB`;
+}
+
+/**
+ * "使用メモリ / 全容量" string. Chrome exposes exact figures via performance.memory;
+ * Safari does not, so we fall back to an estimate (wasm core + working buffers) and
+ * navigator.deviceMemory (or unknown).
+ */
+export function getMemoryStatus(inputBytes = 0): string {
+  const perfMem = (performance as any).memory as { usedJSHeapSize?: number; jsHeapSizeLimit?: number } | undefined;
+  if (perfMem?.usedJSHeapSize && perfMem.jsHeapSizeLimit) {
+    return `メモリ: ${fmtBytes(perfMem.usedJSHeapSize)} / ${fmtBytes(perfMem.jsHeapSizeLimit)}`;
+  }
+  const estimatedUsed = WASM_CORE_BYTES * 2 + Math.min(inputBytes, 64 * 1024 ** 2) + 48 * 1024 ** 2;
+  const deviceGb = (navigator as any).deviceMemory as number | undefined;
+  const total = deviceGb ? fmtBytes(deviceGb * 1024 ** 3) : '不明';
+  return `メモリ(推定): ${fmtBytes(estimatedUsed)} / ${total}`;
+}
+
 export function requestAbort() {
   abortRequested = true;
 }
@@ -149,15 +172,18 @@ export function buildFFmpegArgs(
   isVideo: boolean,
 ): string[] {
   // Input repair flags: careful detection + ignore errors, never abort on bad packets,
-  // regenerate timestamps
+  // regenerate timestamps. Probe buffers are kept small — 100M probesize alone
+  // would hold up to 100MB of the input in wasm memory before encoding starts.
   const args: string[] = [
     '-y',
     '-nostdin',
+    '-hide_banner',
     '-err_detect', 'careful+ignore_err',
     '-ignore_unknown',
     '-max_error_rate', '1.0',
-    '-fflags', '+discardcorrupt+genpts+igndts',
-    '-analyzeduration', '100M', '-probesize', '100M',
+    '-fflags', '+discardcorrupt+genpts+igndts+nobuffer',
+    '-analyzeduration', '5M', '-probesize', '5M',
+    '-thread_queue_size', '64',
     '-i', inputName,
   ];
   const outputIsVideo = isVideoFormat(format);
@@ -196,8 +222,9 @@ export function buildFFmpegArgs(
       // line may never arrive and the conversion looks frozen at 25%.
       if (vCodec === 'libx264' || vCodec === 'libx265') {
         args.push('-preset', 'ultrafast');
-        if (vCodec === 'libx264') args.push('-tune', 'fastdecode', '-x264-params', 'rc-lookahead=0:sync-lookahead=0');
-        if (vCodec === 'libx265') args.push('-x265-params', 'log-level=error');
+        // Minimal-memory encoder config: 1 reference frame, no B-frames, no lookahead
+        if (vCodec === 'libx264') args.push('-tune', 'fastdecode', '-x264-params', 'rc-lookahead=0:sync-lookahead=0:ref=1:bframes=0:threads=1:lookahead-threads=1');
+        if (vCodec === 'libx265') args.push('-x265-params', 'log-level=error:rc-lookahead=0:ref=1:bframes=0:pools=1:frame-threads=1');
       } else if (vCodec === 'libvpx' || vCodec === 'libvpx-vp9') {
         args.push('-deadline', 'realtime', '-cpu-used', '8');
       }
@@ -314,8 +341,8 @@ export function buildFFmpegArgs(
     args.push('-af', aFilters.join(','));
   }
 
-  // Buffer safety — large buffer to prevent muxing queue overflow
-  args.push('-max_muxing_queue_size', '9999');
+  // Muxing queue: large enough to avoid overflow, small enough not to hoard memory
+  args.push('-max_muxing_queue_size', '1024');
 
   // Output-side timestamp regeneration + never abort on recoverable errors
   args.push('-fflags', '+genpts', '-avoid_negative_ts', 'make_zero');
@@ -378,9 +405,14 @@ export async function convertWithFFmpeg(
   abortRequested = false;
   const logs: string[] = [];
   const logCollector = (msg: string) => {
+    if (logs.length > 500) logs.shift();
     logs.push(msg);
     onLog?.(msg);
   };
+
+  // Every status line carries "使用メモリ / 全容量"
+  const rawStatus = onStatus;
+  onStatus = rawStatus ? (s: string) => rawStatus(`${s}\n${getMemoryStatus(file.size)}`) : undefined;
 
   onStatus?.('FFmpeg WASM エンジンを初期化中...');
   onProgress?.(5);
