@@ -516,73 +516,94 @@ export async function convertWithFFmpeg(
   }
 
   onStatus?.('FFmpegコマンドを生成中...');
-  const args = buildFFmpegArgs(sourceName, outputName, settings, format, isVideo);
+  const split = shouldSplitPasses(settings, format, isVideo);
+  const VIDEO_TMP = 'pass_video.nut';
+  const AUDIO_TMP = 'pass_audio.nut';
+  const tempNames = [inputName, sourceName, outputName, VIDEO_TMP, AUDIO_TMP];
 
-  const fullCmd = `ffmpeg ${args.join(' ')}`;
-  onCommand?.(fullCmd);
+  type Pass = { label: string; args: string[]; from: number; to: number };
+  const passes: Pass[] = split
+    ? [
+        { label: 'オーディオ変換中', args: buildFFmpegArgs(sourceName, AUDIO_TMP, settings, format, isVideo, 'audio'), from: 25, to: 40 },
+        { label: 'ビデオ変換中', args: buildFFmpegArgs(sourceName, VIDEO_TMP, settings, format, isVideo, 'video'), from: 40, to: 85 },
+        { label: 'ビデオとオーディオを結合中', args: buildMuxArgs(VIDEO_TMP, AUDIO_TMP, outputName, format), from: 85, to: 90 },
+      ]
+    : [{ label: '変換処理中', args: buildFFmpegArgs(sourceName, outputName, settings, format, isVideo), from: 25, to: 90 }];
+
+  onCommand?.(passes.map(p => `ffmpeg ${p.args.join(' ')}`).join('\n'));
   onStatus?.('FFmpeg → 変換実行中...');
-
-  let trackProgress = true;
-  let lastActivity = Date.now();
-  const onFfProgress = ({ progress }: { progress: number }) => {
-    lastActivity = Date.now();
-    if (abortRequested || !trackProgress) return;
-    if (!Number.isFinite(progress) || progress < 0) return;
-    const pct = Math.min(25 + Math.min(progress, 1) * 65, 90);
-    onProgress?.(pct);
-    onStatus?.(`FFmpeg → 変換処理中... ${Math.round(pct)}%`);
-  };
-  const onActivityLog = () => { lastActivity = Date.now(); };
-  ff.on('progress', onFfProgress);
-  ff.on('log', onActivityLog);
 
   // Stall watchdog: if the worker crashes (out of memory etc.) ffmpeg.wasm never
   // resolves exec(). Detect "no log / no progress for a long time" and fail
   // with a clear message instead of hanging forever.
   const STALL_MS = 120_000;
-  let stallTimer: ReturnType<typeof setInterval> | undefined;
-  const stalled = new Promise<never>((_, reject) => {
-    stallTimer = setInterval(() => {
-      if (abortRequested) {
-        clearInterval(stallTimer);
-        resetFFmpeg();
-        reject(new Error('ユーザーによりキャンセルされました'));
-        return;
-      }
-      if (Date.now() - lastActivity > STALL_MS) {
-        clearInterval(stallTimer);
-        resetFFmpeg();
-        reject(new Error('FFmpegエラー:\n変換処理が応答しなくなりました（メモリ不足の可能性があります）。解像度やビットレートを下げて再試行してください。'));
-      }
-    }, 2_000);
-  });
 
-  // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
-  // are normal FFmpeg output and are never treated as errors. Failure = thrown
-  // exception OR a non-zero exit code returned by exec().
-  let rc: number;
-  try {
-    rc = await Promise.race([ff.exec(args), stalled]);
-  } catch (err: any) {
+  const runPass = async (pass: Pass) => {
+    let trackProgress = true;
+    let lastActivity = Date.now();
+    const onFfProgress = ({ progress }: { progress: number }) => {
+      lastActivity = Date.now();
+      if (abortRequested || !trackProgress) return;
+      if (!Number.isFinite(progress) || progress < 0) return;
+      const pct = Math.min(pass.from + Math.min(progress, 1) * (pass.to - pass.from), pass.to);
+      onProgress?.(pct);
+      onStatus?.(`FFmpeg → ${pass.label}... ${Math.round(pct)}%`);
+    };
+    const onActivityLog = () => { lastActivity = Date.now(); };
+    ff.on('progress', onFfProgress);
+    ff.on('log', onActivityLog);
+
+    let stallTimer: ReturnType<typeof setInterval> | undefined;
+    const stalled = new Promise<never>((_, reject) => {
+      stallTimer = setInterval(() => {
+        if (abortRequested) {
+          clearInterval(stallTimer);
+          resetFFmpeg();
+          reject(new Error('ユーザーによりキャンセルされました'));
+          return;
+        }
+        if (Date.now() - lastActivity > STALL_MS) {
+          clearInterval(stallTimer);
+          resetFFmpeg();
+          reject(new Error('FFmpegエラー:\n変換処理が応答しなくなりました（メモリ不足の可能性があります）。解像度やビットレートを下げて再試行してください。'));
+        }
+      }, 2_000);
+    });
+
+    // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
+    // are normal FFmpeg output and are never treated as errors. Failure = thrown
+    // exception OR a non-zero exit code returned by exec().
+    let rc: number;
+    try {
+      onProgress?.(pass.from);
+      onStatus?.(`FFmpeg → ${pass.label}...`);
+      rc = await Promise.race([ff.exec(pass.args), stalled]);
+    } catch (err: any) {
+      clearInterval(stallTimer);
+      try { ff.off('progress', onFfProgress); ff.off('log', onActivityLog); } catch {}
+      if (ffmpeg) await cleanup(tempNames);
+      if (String(err?.message ?? err).includes('キャンセル')) throw err;
+      const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
+      throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
+    }
     clearInterval(stallTimer);
-    try { ff.off('progress', onFfProgress); ff.off('log', onActivityLog); } catch {}
-    if (ffmpeg) await cleanup([inputName, sourceName, outputName]);
-    if (String(err?.message ?? err).includes('キャンセル')) throw err;
-    const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
-    throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
-  }
-  clearInterval(stallTimer);
-  trackProgress = false;
-  ff.off('progress', onFfProgress);
-  ff.off('log', onActivityLog);
-  if (rc !== 0) {
-    const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
-    await cleanup([inputName, sourceName, outputName]);
-    throw new Error(`FFmpegエラー (exit code ${rc}):\n${lastLogs || '変換に失敗しました'}`);
-  }
+    trackProgress = false;
+    ff.off('progress', onFfProgress);
+    ff.off('log', onActivityLog);
+    if (rc !== 0) {
+      const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
+      await cleanup(tempNames);
+      throw new Error(`FFmpegエラー (exit code ${rc}):\n${lastLogs || '変換に失敗しました'}`);
+    }
+    if (abortRequested) { await cleanup(tempNames); throw new Error('ユーザーによりキャンセルされました'); }
+    onProgress?.(pass.to);
+  };
 
-
-  if (abortRequested) { await cleanup([inputName, sourceName, outputName]); throw new Error('ユーザーによりキャンセルされました'); }
+  for (const pass of passes) {
+    await runPass(pass);
+  }
+  // Free the intermediate streams before reading the result
+  for (const n of [VIDEO_TMP, AUDIO_TMP]) { try { await ff.deleteFile(n); } catch {} }
 
   onStatus?.('出力ファイルのメタデータを確認中...');
   let finalName = outputName;
