@@ -166,6 +166,13 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
 
 
 
+/**
+ * Pass mode: 'all' encodes video+audio at once; 'video' / 'audio' encode only one
+ * stream into an intermediate NUT file so that decoder + encoder memory for the
+ * two streams is never held at the same time (large iPhone videos otherwise die).
+ */
+export type PassMode = 'all' | 'video' | 'audio';
+
 /** Build FFmpeg arguments from settings — "safety-first" logic */
 export function buildFFmpegArgs(
   inputName: string,
@@ -173,6 +180,7 @@ export function buildFFmpegArgs(
   settings: ConvertSettings,
   format: string,
   isVideo: boolean,
+  mode: PassMode = 'all',
 ): string[] {
   // Input repair flags: careful detection + ignore errors, never abort on bad packets,
   // regenerate timestamps. Probe buffers are kept small — 100M probesize alone
