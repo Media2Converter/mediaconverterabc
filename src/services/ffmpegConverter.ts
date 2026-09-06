@@ -192,7 +192,7 @@ export function buildFFmpegArgs(
     '-err_detect', 'careful+ignore_err',
     '-ignore_unknown',
     '-max_error_rate', '1.0',
-    '-fflags', '+discardcorrupt+genpts+igndts+nobuffer',
+    '-fflags', '+discardcorrupt+genpts+igndts',
     '-analyzeduration', '5M', '-probesize', '5M',
     '-thread_queue_size', '64',
     '-i', inputName,
