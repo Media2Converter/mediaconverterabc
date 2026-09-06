@@ -168,7 +168,7 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
 
 /**
  * Pass mode: 'all' encodes video+audio at once; 'video' / 'audio' encode only one
- * stream into an intermediate NUT file so that decoder + encoder memory for the
+ * stream into an intermediate file (same container) so that decoder + encoder memory for the
  * two streams is never held at the same time (large iPhone videos otherwise die).
  */
 export type PassMode = 'all' | 'video' | 'audio';
@@ -360,12 +360,6 @@ export function buildFFmpegArgs(
   // Output-side timestamp regeneration + never abort on recoverable errors
   args.push('-fflags', '+genpts', '-avoid_negative_ts', 'make_zero');
 
-  if (mode !== 'all') {
-    // Intermediate stream file: NUT holds any codec, so the final step is a pure remux
-    args.push('-f', 'nut', outputName);
-    return args;
-  }
-
   // movflags: faststart for iPhone playback / metadata at start
   if (['3gp', '3g2'].includes(lowerFormat)) {
     args.push('-movflags', '+faststart+frag_keyframe+empty_moov');
@@ -517,8 +511,8 @@ export async function convertWithFFmpeg(
 
   onStatus?.('FFmpegコマンドを生成中...');
   const split = shouldSplitPasses(settings, format, isVideo);
-  const VIDEO_TMP = 'pass_video.nut';
-  const AUDIO_TMP = 'pass_audio.nut';
+  const VIDEO_TMP = `pass_video.${outputExt}`;
+  const AUDIO_TMP = `pass_audio.${outputExt}`;
   const tempNames = [inputName, sourceName, outputName, VIDEO_TMP, AUDIO_TMP];
 
   type Pass = { label: string; args: string[]; from: number; to: number };
