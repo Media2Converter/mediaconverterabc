@@ -19,10 +19,13 @@ function fmtBytes(b: number): string {
   return `${Math.round(b / 1024 ** 2)} MB`;
 }
 
+/** Upper bound of the ffmpeg-core wasm heap (32-bit wasm, ALLOW_MEMORY_GROWTH) */
+const WASM_HEAP_LIMIT = 2 * 1024 ** 3;
+
 /**
  * "使用メモリ / 全容量" string. Chrome exposes exact figures via performance.memory;
- * Safari does not, so we fall back to an estimate (wasm core + working buffers) and
- * navigator.deviceMemory (or unknown).
+ * Safari does not, so we estimate usage (wasm core + working buffers) and show the
+ * wasm heap ceiling — the real limit that matters for FFmpeg.wasm — as the total.
  */
 export function getMemoryStatus(inputBytes = 0): string {
   const perfMem = (performance as any).memory as { usedJSHeapSize?: number; jsHeapSizeLimit?: number } | undefined;
@@ -31,8 +34,8 @@ export function getMemoryStatus(inputBytes = 0): string {
   }
   const estimatedUsed = WASM_CORE_BYTES * 2 + Math.min(inputBytes, 64 * 1024 ** 2) + 48 * 1024 ** 2;
   const deviceGb = (navigator as any).deviceMemory as number | undefined;
-  const total = deviceGb ? fmtBytes(deviceGb * 1024 ** 3) : '不明';
-  return `メモリ(推定): ${fmtBytes(estimatedUsed)} / ${total}`;
+  const total = deviceGb ? Math.min(deviceGb * 1024 ** 3, WASM_HEAP_LIMIT) : WASM_HEAP_LIMIT;
+  return `メモリ(推定): ${fmtBytes(estimatedUsed)} / ${fmtBytes(total)}`;
 }
 
 export function requestAbort() {
@@ -163,6 +166,13 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
 
 
 
+/**
+ * Pass mode: 'all' encodes video+audio at once; 'video' / 'audio' encode only one
+ * stream into an intermediate file (same container) so that decoder + encoder memory for the
+ * two streams is never held at the same time (large iPhone videos otherwise die).
+ */
+export type PassMode = 'all' | 'video' | 'audio';
+
 /** Build FFmpeg arguments from settings — "safety-first" logic */
 export function buildFFmpegArgs(
   inputName: string,
@@ -170,6 +180,7 @@ export function buildFFmpegArgs(
   settings: ConvertSettings,
   format: string,
   isVideo: boolean,
+  mode: PassMode = 'all',
 ): string[] {
   // Input repair flags: careful detection + ignore errors, never abort on bad packets,
   // regenerate timestamps. Probe buffers are kept small — 100M probesize alone
@@ -181,7 +192,7 @@ export function buildFFmpegArgs(
     '-err_detect', 'careful+ignore_err',
     '-ignore_unknown',
     '-max_error_rate', '1.0',
-    '-fflags', '+discardcorrupt+genpts+igndts+nobuffer',
+    '-fflags', '+discardcorrupt+genpts+igndts',
     '-analyzeduration', '5M', '-probesize', '5M',
     '-thread_queue_size', '64',
     '-i', inputName,
@@ -210,7 +221,9 @@ export function buildFFmpegArgs(
   const aFilters: string[] = [];
 
   // Video settings
-  if (outputIsVideo && isVideo) {
+  if (mode === 'audio') {
+    args.push('-vn');
+  } else if (outputIsVideo && isVideo) {
     if (settings.videoCodec === 'copy') {
       args.push('-c:v', 'copy');
     } else {
@@ -276,7 +289,7 @@ export function buildFFmpegArgs(
   }
 
   // Audio settings
-  if (!settings.audioEnabled || settings.audioCodec === 'none') {
+  if (mode === 'video' || !settings.audioEnabled || settings.audioCodec === 'none') {
     args.push('-an');
   } else if (settings.audioCodec === 'copy') {
     args.push('-c:a', 'copy');
@@ -356,6 +369,36 @@ export function buildFFmpegArgs(
 
   args.push(outputName);
   return args;
+}
+
+/** Final remux of the separately encoded video / audio streams into the target container */
+export function buildMuxArgs(videoName: string, audioName: string, outputName: string, format: string): string[] {
+  const lowerFormat = format.toLowerCase();
+  const args = [
+    '-y', '-nostdin', '-hide_banner',
+    '-fflags', '+genpts+igndts',
+    '-i', videoName, '-i', audioName,
+    '-map', '0:v:0', '-map', '1:a:0',
+    '-c', 'copy',
+    '-max_muxing_queue_size', '1024',
+    '-avoid_negative_ts', 'make_zero',
+  ];
+  if (['3gp', '3g2'].includes(lowerFormat)) {
+    args.push('-movflags', '+faststart+frag_keyframe+empty_moov');
+  } else if (['mov', 'mp4', 'm4v', 'm4a'].includes(lowerFormat)) {
+    args.push('-movflags', '+faststart');
+  }
+  args.push(outputName);
+  return args;
+}
+
+/** True when the conversion should run as separate audio / video passes + remux */
+function shouldSplitPasses(settings: ConvertSettings, format: string, isVideo: boolean): boolean {
+  if (!isVideo || !isVideoFormat(format)) return false;
+  if (!settings.audioEnabled || settings.audioCodec === 'none') return false;
+  // Both streams copied: a single remux is already the lightest path
+  if (settings.videoCodec === 'copy' && settings.audioCodec === 'copy') return false;
+  return true;
 }
 
 /** Metadata check: returns true when FFmpeg can read the file's streams */
@@ -467,73 +510,94 @@ export async function convertWithFFmpeg(
   }
 
   onStatus?.('FFmpegコマンドを生成中...');
-  const args = buildFFmpegArgs(sourceName, outputName, settings, format, isVideo);
+  const split = shouldSplitPasses(settings, format, isVideo);
+  const VIDEO_TMP = `pass_video.${outputExt}`;
+  const AUDIO_TMP = `pass_audio.${outputExt}`;
+  const tempNames = [inputName, sourceName, outputName, VIDEO_TMP, AUDIO_TMP];
 
-  const fullCmd = `ffmpeg ${args.join(' ')}`;
-  onCommand?.(fullCmd);
+  type Pass = { label: string; args: string[]; from: number; to: number };
+  const passes: Pass[] = split
+    ? [
+        { label: 'オーディオ変換中', args: buildFFmpegArgs(sourceName, AUDIO_TMP, settings, format, isVideo, 'audio'), from: 25, to: 40 },
+        { label: 'ビデオ変換中', args: buildFFmpegArgs(sourceName, VIDEO_TMP, settings, format, isVideo, 'video'), from: 40, to: 85 },
+        { label: 'ビデオとオーディオを結合中', args: buildMuxArgs(VIDEO_TMP, AUDIO_TMP, outputName, format), from: 85, to: 90 },
+      ]
+    : [{ label: '変換処理中', args: buildFFmpegArgs(sourceName, outputName, settings, format, isVideo), from: 25, to: 90 }];
+
+  onCommand?.(passes.map(p => `ffmpeg ${p.args.join(' ')}`).join('\n'));
   onStatus?.('FFmpeg → 変換実行中...');
-
-  let trackProgress = true;
-  let lastActivity = Date.now();
-  const onFfProgress = ({ progress }: { progress: number }) => {
-    lastActivity = Date.now();
-    if (abortRequested || !trackProgress) return;
-    if (!Number.isFinite(progress) || progress < 0) return;
-    const pct = Math.min(25 + Math.min(progress, 1) * 65, 90);
-    onProgress?.(pct);
-    onStatus?.(`FFmpeg → 変換処理中... ${Math.round(pct)}%`);
-  };
-  const onActivityLog = () => { lastActivity = Date.now(); };
-  ff.on('progress', onFfProgress);
-  ff.on('log', onActivityLog);
 
   // Stall watchdog: if the worker crashes (out of memory etc.) ffmpeg.wasm never
   // resolves exec(). Detect "no log / no progress for a long time" and fail
   // with a clear message instead of hanging forever.
   const STALL_MS = 120_000;
-  let stallTimer: ReturnType<typeof setInterval> | undefined;
-  const stalled = new Promise<never>((_, reject) => {
-    stallTimer = setInterval(() => {
-      if (abortRequested) {
-        clearInterval(stallTimer);
-        resetFFmpeg();
-        reject(new Error('ユーザーによりキャンセルされました'));
-        return;
-      }
-      if (Date.now() - lastActivity > STALL_MS) {
-        clearInterval(stallTimer);
-        resetFFmpeg();
-        reject(new Error('FFmpegエラー:\n変換処理が応答しなくなりました（メモリ不足の可能性があります）。解像度やビットレートを下げて再試行してください。'));
-      }
-    }, 2_000);
-  });
 
-  // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
-  // are normal FFmpeg output and are never treated as errors. Failure = thrown
-  // exception OR a non-zero exit code returned by exec().
-  let rc: number;
-  try {
-    rc = await Promise.race([ff.exec(args), stalled]);
-  } catch (err: any) {
+  const runPass = async (pass: Pass) => {
+    let trackProgress = true;
+    let lastActivity = Date.now();
+    const onFfProgress = ({ progress }: { progress: number }) => {
+      lastActivity = Date.now();
+      if (abortRequested || !trackProgress) return;
+      if (!Number.isFinite(progress) || progress < 0) return;
+      const pct = Math.min(pass.from + Math.min(progress, 1) * (pass.to - pass.from), pass.to);
+      onProgress?.(pct);
+      onStatus?.(`FFmpeg → ${pass.label}... ${Math.round(pct)}%`);
+    };
+    const onActivityLog = () => { lastActivity = Date.now(); };
+    ff.on('progress', onFfProgress);
+    ff.on('log', onActivityLog);
+
+    let stallTimer: ReturnType<typeof setInterval> | undefined;
+    const stalled = new Promise<never>((_, reject) => {
+      stallTimer = setInterval(() => {
+        if (abortRequested) {
+          clearInterval(stallTimer);
+          resetFFmpeg();
+          reject(new Error('ユーザーによりキャンセルされました'));
+          return;
+        }
+        if (Date.now() - lastActivity > STALL_MS) {
+          clearInterval(stallTimer);
+          resetFFmpeg();
+          reject(new Error('FFmpegエラー:\n変換処理が応答しなくなりました（メモリ不足の可能性があります）。解像度やビットレートを下げて再試行してください。'));
+        }
+      }, 2_000);
+    });
+
+    // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
+    // are normal FFmpeg output and are never treated as errors. Failure = thrown
+    // exception OR a non-zero exit code returned by exec().
+    let rc: number;
+    try {
+      onProgress?.(pass.from);
+      onStatus?.(`FFmpeg → ${pass.label}...`);
+      rc = await Promise.race([ff.exec(pass.args), stalled]);
+    } catch (err: any) {
+      clearInterval(stallTimer);
+      try { ff.off('progress', onFfProgress); ff.off('log', onActivityLog); } catch {}
+      if (ffmpeg) await cleanup(tempNames);
+      if (String(err?.message ?? err).includes('キャンセル')) throw err;
+      const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
+      throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
+    }
     clearInterval(stallTimer);
-    try { ff.off('progress', onFfProgress); ff.off('log', onActivityLog); } catch {}
-    if (ffmpeg) await cleanup([inputName, sourceName, outputName]);
-    if (String(err?.message ?? err).includes('キャンセル')) throw err;
-    const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
-    throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
-  }
-  clearInterval(stallTimer);
-  trackProgress = false;
-  ff.off('progress', onFfProgress);
-  ff.off('log', onActivityLog);
-  if (rc !== 0) {
-    const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
-    await cleanup([inputName, sourceName, outputName]);
-    throw new Error(`FFmpegエラー (exit code ${rc}):\n${lastLogs || '変換に失敗しました'}`);
-  }
+    trackProgress = false;
+    ff.off('progress', onFfProgress);
+    ff.off('log', onActivityLog);
+    if (rc !== 0) {
+      const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
+      await cleanup(tempNames);
+      throw new Error(`FFmpegエラー (exit code ${rc}):\n${lastLogs || '変換に失敗しました'}`);
+    }
+    if (abortRequested) { await cleanup(tempNames); throw new Error('ユーザーによりキャンセルされました'); }
+    onProgress?.(pass.to);
+  };
 
-
-  if (abortRequested) { await cleanup([inputName, sourceName, outputName]); throw new Error('ユーザーによりキャンセルされました'); }
+  for (const pass of passes) {
+    await runPass(pass);
+  }
+  // Free the intermediate streams before reading the result
+  for (const n of [VIDEO_TMP, AUDIO_TMP]) { try { await ff.deleteFile(n); } catch {} }
 
   onStatus?.('出力ファイルのメタデータを確認中...');
   let finalName = outputName;
