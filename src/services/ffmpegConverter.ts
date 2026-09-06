@@ -289,7 +289,7 @@ export function buildFFmpegArgs(
   }
 
   // Audio settings
-  if (!settings.audioEnabled || settings.audioCodec === 'none') {
+  if (mode === 'video' || !settings.audioEnabled || settings.audioCodec === 'none') {
     args.push('-an');
   } else if (settings.audioCodec === 'copy') {
     args.push('-c:a', 'copy');
