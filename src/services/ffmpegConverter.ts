@@ -221,7 +221,9 @@ export function buildFFmpegArgs(
   const aFilters: string[] = [];
 
   // Video settings
-  if (outputIsVideo && isVideo) {
+  if (mode === 'audio') {
+    args.push('-vn');
+  } else if (outputIsVideo && isVideo) {
     if (settings.videoCodec === 'copy') {
       args.push('-c:v', 'copy');
     } else {
