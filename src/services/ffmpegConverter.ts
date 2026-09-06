@@ -19,10 +19,13 @@ function fmtBytes(b: number): string {
   return `${Math.round(b / 1024 ** 2)} MB`;
 }
 
+/** Upper bound of the ffmpeg-core wasm heap (32-bit wasm, ALLOW_MEMORY_GROWTH) */
+const WASM_HEAP_LIMIT = 2 * 1024 ** 3;
+
 /**
  * "使用メモリ / 全容量" string. Chrome exposes exact figures via performance.memory;
- * Safari does not, so we fall back to an estimate (wasm core + working buffers) and
- * navigator.deviceMemory (or unknown).
+ * Safari does not, so we estimate usage (wasm core + working buffers) and show the
+ * wasm heap ceiling — the real limit that matters for FFmpeg.wasm — as the total.
  */
 export function getMemoryStatus(inputBytes = 0): string {
   const perfMem = (performance as any).memory as { usedJSHeapSize?: number; jsHeapSizeLimit?: number } | undefined;
@@ -31,8 +34,8 @@ export function getMemoryStatus(inputBytes = 0): string {
   }
   const estimatedUsed = WASM_CORE_BYTES * 2 + Math.min(inputBytes, 64 * 1024 ** 2) + 48 * 1024 ** 2;
   const deviceGb = (navigator as any).deviceMemory as number | undefined;
-  const total = deviceGb ? fmtBytes(deviceGb * 1024 ** 3) : '不明';
-  return `メモリ(推定): ${fmtBytes(estimatedUsed)} / ${total}`;
+  const total = deviceGb ? Math.min(deviceGb * 1024 ** 3, WASM_HEAP_LIMIT) : WASM_HEAP_LIMIT;
+  return `メモリ(推定): ${fmtBytes(estimatedUsed)} / ${fmtBytes(total)}`;
 }
 
 export function requestAbort() {
