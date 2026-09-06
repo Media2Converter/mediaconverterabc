@@ -360,6 +360,12 @@ export function buildFFmpegArgs(
   // Output-side timestamp regeneration + never abort on recoverable errors
   args.push('-fflags', '+genpts', '-avoid_negative_ts', 'make_zero');
 
+  if (mode !== 'all') {
+    // Intermediate stream file: NUT holds any codec, so the final step is a pure remux
+    args.push('-f', 'nut', outputName);
+    return args;
+  }
+
   // movflags: faststart for iPhone playback / metadata at start
   if (['3gp', '3g2'].includes(lowerFormat)) {
     args.push('-movflags', '+faststart+frag_keyframe+empty_moov');
@@ -369,6 +375,36 @@ export function buildFFmpegArgs(
 
   args.push(outputName);
   return args;
+}
+
+/** Final remux of the separately encoded video / audio streams into the target container */
+export function buildMuxArgs(videoName: string, audioName: string, outputName: string, format: string): string[] {
+  const lowerFormat = format.toLowerCase();
+  const args = [
+    '-y', '-nostdin', '-hide_banner',
+    '-fflags', '+genpts+igndts',
+    '-i', videoName, '-i', audioName,
+    '-map', '0:v:0', '-map', '1:a:0',
+    '-c', 'copy',
+    '-max_muxing_queue_size', '1024',
+    '-avoid_negative_ts', 'make_zero',
+  ];
+  if (['3gp', '3g2'].includes(lowerFormat)) {
+    args.push('-movflags', '+faststart+frag_keyframe+empty_moov');
+  } else if (['mov', 'mp4', 'm4v', 'm4a'].includes(lowerFormat)) {
+    args.push('-movflags', '+faststart');
+  }
+  args.push(outputName);
+  return args;
+}
+
+/** True when the conversion should run as separate audio / video passes + remux */
+function shouldSplitPasses(settings: ConvertSettings, format: string, isVideo: boolean): boolean {
+  if (!isVideo || !isVideoFormat(format)) return false;
+  if (!settings.audioEnabled || settings.audioCodec === 'none') return false;
+  // Both streams copied: a single remux is already the lightest path
+  if (settings.videoCodec === 'copy' && settings.audioCodec === 'copy') return false;
+  return true;
 }
 
 /** Metadata check: returns true when FFmpeg can read the file's streams */
