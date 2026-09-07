@@ -545,7 +545,12 @@ function shouldSplitPasses(settings: ConvertSettings, format: string, isVideo: b
   if (!settings.audioEnabled || settings.audioCodec === 'none') return false;
   // Both streams copied: a single remux is already the lightest path
   if (settings.videoCodec === 'copy' && settings.audioCodec === 'copy') return false;
+  // Legacy / telephony codecs cannot be safely stream-copied out of an
+  // intermediate container — encode them in a single pass instead.
+  if (/^(AMR|ADPCM|PCM_|RAW|LPCM)/.test(settings.audioCodec)) return false;
+  if (['H.263', 'H.261', 'H.320', 'MJPEG', 'DIVX'].includes(settings.videoCodec)) return false;
   return true;
+
 }
 
 /** Metadata check: returns true when FFmpeg can read the file's streams */
