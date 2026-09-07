@@ -444,34 +444,32 @@ export function buildFFmpegArgs(
       args.push('-profile:a', AAC_HE_PROFILE[settings.audioCodec]);
     }
 
-    // AMR strict mode — force libopencore_amrnb in browser (ffmpeg.wasm)
-    if (settings.audioCodec === 'AMR_NB') {
-      args.push('-ar', '8000', '-ac', '1', '-ab', '12.2k', '-strict', '-2');
-      aFilters.push('aresample=8000', 'pan=mono|c0=c0+c1');
-    } else if (settings.audioCodec === 'AMR_WB') {
-      args.push('-ar', '16000', '-ac', '1', '-strict', '-2');
-      aFilters.push('aresample=16000', 'pan=mono|c0=c0+c1');
-    } else {
-      // Audio bitrate
-      const aBitrate = settings.audioBitrate.replace('KBPS', 'k');
-      args.push('-b:a', aBitrate);
-
-      // Channels
-      args.push('-ac', settings.channels === 'モノラル' ? '1' : '2');
-
-      // Frequency
-      const freq = settings.frequency.replace('Hz', '');
-      args.push('-ar', freq);
+    // Experimental encoders (AMR, ADPCM G.72x) need the strictness relaxed
+    if (EXPERIMENTAL_AUDIO.includes(settings.audioCodec)) {
+      args.push('-strict', '-2');
     }
 
-    // Async resampling for A/V sync safety — always applied
-    aFilters.push('aresample=async=1');
+    const channels = settings.channels === 'モノラル' ? 1 : 2;
+    const freq = String(Math.round(num(settings.frequency)) || 48000);
+
+    // Bitrate — skipped for lossless / fixed-rate codecs where it is invalid
+    if (!NO_BITRATE_AUDIO.test(settings.audioCodec)) {
+      args.push('-b:a', settings.audioBitrate.replace('KBPS', 'k'));
+    }
+    args.push('-ac', String(channels));
+    args.push('-ar', freq);
+
+    // Resample explicitly to the codec's rate / layout. Never use `pan=mono`
+    // (it fails outright when the source is already mono) — aresample+`-ac`
+    // downmixes safely for every input.
+    aFilters.push(`aresample=${freq}:async=1:first_pts=0`);
 
     // Volume
     if (settings.volume !== 'none') {
       aFilters.push(`volume=${settings.volume}dB`);
     }
   }
+
 
   // Speed
   if (settings.speed !== '1') {
