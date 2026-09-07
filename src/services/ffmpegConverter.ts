@@ -667,14 +667,19 @@ export async function convertWithFFmpeg(
   const AUDIO_TMP = `pass_audio.${outputExt}`;
   const tempNames = [inputName, sourceName, outputName, VIDEO_TMP, AUDIO_TMP];
 
-  type Pass = { label: string; args: string[]; from: number; to: number };
+  type Pass = { label: string; args: string[]; fallbackArgs?: string[]; from: number; to: number };
   const passes: Pass[] = split
     ? [
-        { label: 'オーディオ変換中', args: buildFFmpegArgs(sourceName, AUDIO_TMP, settings, format, isVideo, 'audio'), from: 25, to: 40 },
-        { label: 'ビデオ変換中', args: buildFFmpegArgs(sourceName, VIDEO_TMP, settings, format, isVideo, 'video'), from: 40, to: 85 },
+        { label: 'オーディオ変換中', args: buildFFmpegArgs(sourceName, AUDIO_TMP, settings, format, isVideo, 'audio'), fallbackArgs: buildFFmpegArgs(sourceName, AUDIO_TMP, settings, format, isVideo, 'audio', true), from: 25, to: 40 },
+        { label: 'ビデオ変換中', args: buildFFmpegArgs(sourceName, VIDEO_TMP, settings, format, isVideo, 'video'), fallbackArgs: buildFFmpegArgs(sourceName, VIDEO_TMP, settings, format, isVideo, 'video', true), from: 40, to: 85 },
         { label: 'ビデオとオーディオを結合中', args: buildMuxArgs(VIDEO_TMP, AUDIO_TMP, outputName, format), from: 85, to: 90 },
       ]
-    : [{ label: '変換処理中', args: buildFFmpegArgs(sourceName, outputName, settings, format, isVideo), from: 25, to: 90 }];
+    : [{
+        label: '変換処理中',
+        args: buildFFmpegArgs(sourceName, outputName, settings, format, isVideo),
+        fallbackArgs: buildFFmpegArgs(sourceName, outputName, settings, format, isVideo, 'all', true),
+        from: 25, to: 90,
+      }];
 
   onCommand?.(passes.map(p => `ffmpeg ${p.args.join(' ')}`).join('\n'));
   onStatus?.('FFmpeg → 変換実行中...');
@@ -684,7 +689,13 @@ export async function convertWithFFmpeg(
   // with a clear message instead of hanging forever.
   const STALL_MS = 120_000;
 
-  const runPass = async (pass: Pass) => {
+  /** Detailed Japanese failure text: what failed + the incompatible settings */
+  const failureText = (head: string) => {
+    const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
+    return [head, lastLogs, '', describeCodecIssue(settings, format, lastLogs)].filter(Boolean).join('\n');
+  };
+
+  const attempt = async (pass: Pass, args: string[]): Promise<{ rc?: number; error?: any }> => {
     let trackProgress = true;
     let lastActivity = Date.now();
     const onFfProgress = ({ progress }: { progress: number }) => {
@@ -719,28 +730,45 @@ export async function convertWithFFmpeg(
     // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
     // are normal FFmpeg output and are never treated as errors. Failure = thrown
     // exception OR a non-zero exit code returned by exec().
-    let rc: number;
     try {
       onProgress?.(pass.from);
       onStatus?.(`FFmpeg → ${pass.label}...`);
-      rc = await Promise.race([ff.exec(pass.args), stalled]);
-    } catch (err: any) {
+      const rc = await Promise.race([ff.exec(args), stalled]);
+      return { rc };
+    } catch (error: any) {
+      return { error };
+    } finally {
       clearInterval(stallTimer);
+      trackProgress = false;
       try { ff.off('progress', onFfProgress); ff.off('log', onActivityLog); } catch {}
+    }
+  };
+
+  const runPass = async (pass: Pass) => {
+    let { rc, error } = await attempt(pass, pass.args);
+    if (String(error?.message ?? '').includes('キャンセル')) {
       if (ffmpeg) await cleanup(tempNames);
-      if (String(err?.message ?? err).includes('キャンセル')) throw err;
-      const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
-      throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
+      throw error;
     }
-    clearInterval(stallTimer);
-    trackProgress = false;
-    ff.off('progress', onFfProgress);
-    ff.off('log', onActivityLog);
+
+    // Legacy codecs (H.263 / AMR / ADPCM ...) often reject the full filter chain.
+    // Retry once with only the essential filters before giving up.
+    if ((error || rc !== 0) && pass.fallbackArgs && ffmpeg?.loaded) {
+      onStatus?.(`FFmpeg → ${pass.label}...（互換設定で再試行中）`);
+      onCommand?.(`ffmpeg ${pass.fallbackArgs.join(' ')}`);
+      ({ rc, error } = await attempt(pass, pass.fallbackArgs));
+    }
+
+    if (error) {
+      if (ffmpeg) await cleanup(tempNames);
+      if (String(error?.message ?? error).includes('キャンセル')) throw error;
+      throw new Error(failureText(`FFmpegエラー（${pass.label}）:\n${error?.message ?? '変換に失敗しました'}`));
+    }
     if (rc !== 0) {
-      const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
       await cleanup(tempNames);
-      throw new Error(`FFmpegエラー (exit code ${rc}):\n${lastLogs || '変換に失敗しました'}`);
+      throw new Error(failureText(`FFmpegエラー（${pass.label} / exit code ${rc}）:`));
     }
+
     if (abortRequested) { await cleanup(tempNames); throw new Error('ユーザーによりキャンセルされました'); }
     onProgress?.(pass.to);
   };
