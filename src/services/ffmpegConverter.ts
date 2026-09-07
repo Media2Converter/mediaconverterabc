@@ -345,6 +345,11 @@ export function buildFFmpegArgs(
     settings = { ...settings, audioCodec: getCompatibleAudioCodecs(format)[0] || 'AAC' };
   }
 
+  // Snap legacy / telephony codec settings (H.263, AMR, ADPCM G.72x ...) onto legal values
+  settings = normalizeSpecialCodecSettings(settings, format, isVideo).settings;
+
+
+
   // Start/End time
   if (settings.startTime > 0) {
     args.push('-ss', String(settings.startTime));
