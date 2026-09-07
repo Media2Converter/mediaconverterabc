@@ -478,21 +478,28 @@ export function buildFFmpegArgs(
       vFilters.push(`setpts=${(1 / speed).toFixed(6)}*PTS`);
     }
     if (settings.audioEnabled && settings.audioCodec !== 'none' && settings.audioCodec !== 'copy') {
+      const targetRate = Math.round(num(settings.frequency)) || 48000;
       if (settings.pitchSync) {
         aFilters.push(`atempo=${speed}`);
       } else {
-        aFilters.push(`asetrate=${Math.round(44100 * speed)}`, 'aresample=44100', 'atempo=1');
+        aFilters.push(`asetrate=${Math.round(targetRate * speed)}`, `aresample=${targetRate}`, 'atempo=1');
       }
     }
   }
 
+  // Fallback mode: keep only the essential filters (scale / resample). Legacy
+  // codecs abort on padding, interlacing or tempo filter chains.
+  const finalVFilters = simplify ? vFilters.filter(f => f.startsWith('scale')) : vFilters;
+  const finalAFilters = simplify ? aFilters.filter(f => f.startsWith('aresample')) : aFilters;
+
   // Apply collected filters
-  if (vFilters.length > 0) {
-    args.push('-vf', vFilters.join(','));
+  if (finalVFilters.length > 0) {
+    args.push('-vf', finalVFilters.join(','));
   }
-  if (aFilters.length > 0) {
-    args.push('-af', aFilters.join(','));
+  if (finalAFilters.length > 0) {
+    args.push('-af', finalAFilters.join(','));
   }
+
 
   // Muxing queue: large enough to avoid overflow, small enough not to hoard memory
   args.push('-max_muxing_queue_size', '1024');
