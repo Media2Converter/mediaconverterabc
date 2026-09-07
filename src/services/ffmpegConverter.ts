@@ -173,6 +173,139 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
  */
 export type PassMode = 'all' | 'video' | 'audio';
 
+/* ------------------------------------------------------------------ *
+ * Special (legacy / telephony) codec constraints
+ *
+ * H.263 / H.261 accept only a fixed set of frame sizes, AMR and the ADPCM
+ * G.7xx family accept only one sample rate, mono audio and a fixed set of
+ * bitrates. Passing anything else makes FFmpeg abort. Every request is
+ * therefore snapped onto the nearest legal value before building the args.
+ * ------------------------------------------------------------------ */
+
+const H263_SIZES: [number, number][] = [[128, 96], [176, 144], [352, 288], [704, 576], [1408, 1152]];
+const H261_SIZES: [number, number][] = [[176, 144], [352, 288]];
+const H263_FPS = [10, 15, 20, 25, 30];
+
+/** Audio codecs that only work at one sample rate / mono */
+const FIXED_AUDIO: Record<string, { rate: number; mono: true; bitrates?: string[] }> = {
+  'AMR_NB': { rate: 8000, mono: true, bitrates: AMR_NB_BITRATES },
+  'AMR_WB': { rate: 16000, mono: true, bitrates: AMR_WB_BITRATES },
+  'ADPCM_G721': { rate: 8000, mono: true },
+  'ADPCM_G723': { rate: 8000, mono: true },
+  'ADPCM_G726': { rate: 8000, mono: true },
+  'ADPCM_G727': { rate: 8000, mono: true },
+  'ADPCM_G728': { rate: 8000, mono: true },
+  'ADPCM_OKI': { rate: 8000, mono: true },
+  'PCM_G.711': { rate: 8000, mono: true },
+};
+
+/** Codecs FFmpeg marks experimental — need -strict -2 */
+const EXPERIMENTAL_AUDIO = ['AMR_NB', 'AMR_WB', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_G721', 'ADPCM_OKI'];
+
+/** Codecs that must not receive a bitrate (lossless / fixed) */
+const NO_BITRATE_AUDIO = /^(WAV|AIFF|RAW|FLAC|ALAC|LPCM|PCM_)/;
+
+const num = (s: string) => parseFloat(String(s).replace(/[^0-9.]/g, ''));
+
+function nearestBitrate(list: string[], want: string): string {
+  const target = num(want);
+  if (!Number.isFinite(target) || list.length === 0) return list[0] ?? want;
+  return list.reduce((best, cur) => (Math.abs(num(cur) - target) < Math.abs(num(best) - target) ? cur : best), list[0]);
+}
+
+function snapSize(sizes: [number, number][], w: number, h: number): [number, number] {
+  const area = w * h;
+  return sizes.reduce((best, cur) =>
+    Math.abs(cur[0] * cur[1] - area) < Math.abs(best[0] * best[1] - area) ? cur : best, sizes[0]);
+}
+
+/**
+ * Clamp the user's settings onto values the chosen codec really supports.
+ * Returns the adjusted settings plus human-readable notes about what changed.
+ */
+export function normalizeSpecialCodecSettings(
+  settings: ConvertSettings,
+  format: string,
+  isVideo: boolean,
+): { settings: ConvertSettings; notes: string[] } {
+  const s: ConvertSettings = { ...settings };
+  const notes: string[] = [];
+
+  // ---- Video ----
+  if (isVideo && isVideoFormat(format) && s.videoCodec !== 'copy') {
+    const sizes = s.videoCodec === 'H.261' ? H261_SIZES
+      : (s.videoCodec === 'H.263' || s.videoCodec === 'H.320') ? H263_SIZES
+      : null;
+    if (sizes) {
+      const [w, h] = snapSize(sizes, s.resolutionW, s.resolutionH);
+      if (w !== s.resolutionW || h !== s.resolutionH) {
+        notes.push(`${s.videoCodec} は固定解像度のみ対応のため ${w}×${h} に調整しました。`);
+        s.resolutionW = w;
+        s.resolutionH = h;
+      }
+      s.aspectRatio = '自由';
+      s.pixelFormat = 'yuv420p';
+      s.scanType = 'プログレッシブ方式';
+      const fps = num(s.framerate);
+      const snapped = H263_FPS.reduce((b, c) => (Math.abs(c - fps) < Math.abs(b - fps) ? c : b), H263_FPS[0]);
+      if (snapped !== fps) {
+        notes.push(`${s.videoCodec} 向けにフレームレートを ${snapped}FPS に調整しました。`);
+        s.framerate = `${snapped}FPS`;
+      }
+    }
+    if (s.videoCodec === 'MJPEG' && (!s.pixelFormat || s.pixelFormat === 'auto')) {
+      s.pixelFormat = 'yuv420p';
+    }
+  }
+
+  // ---- Audio ----
+  if (s.audioEnabled && s.audioCodec !== 'none' && s.audioCodec !== 'copy') {
+    const fixed = FIXED_AUDIO[s.audioCodec];
+    if (fixed) {
+      if (num(s.frequency) !== fixed.rate) {
+        notes.push(`${s.audioCodec} は ${fixed.rate}Hz 固定のためサンプルレートを調整しました。`);
+        s.frequency = `${fixed.rate}Hz`;
+      }
+      if (s.channels !== 'モノラル') {
+        notes.push(`${s.audioCodec} はモノラルのみ対応のためモノラルに調整しました。`);
+        s.channels = 'モノラル';
+      }
+    }
+    const brList = fixed?.bitrates ?? ADPCM_BITRATES[s.audioCodec];
+    if (brList && brList.length > 0) {
+      const nb = nearestBitrate(brList, s.audioBitrate);
+      if (nb !== s.audioBitrate) {
+        notes.push(`${s.audioCodec} 対応のビットレート ${nb} に調整しました。`);
+        s.audioBitrate = nb;
+      }
+    }
+  }
+
+  return { settings: s, notes };
+}
+
+/** Japanese explanation of why a special codec failed */
+export function describeCodecIssue(settings: ConvertSettings, format: string, log: string): string {
+  const parts: string[] = [];
+  if (/AMR/.test(settings.audioCodec)) {
+    parts.push('AMR は 8000Hz(NB)／16000Hz(WB)・モノラル・専用ビットレートのみ対応です。');
+  }
+  if (settings.audioCodec.startsWith('ADPCM')) {
+    parts.push('ADPCM(G.72x) は 8000Hz・モノラル・規定ビットレート（16/24/32/40KBPS）のみ対応です。');
+  }
+  if (['H.263', 'H.261', 'H.320'].includes(settings.videoCodec)) {
+    parts.push('H.263／H.261 は 128×96・176×144・352×288・704×576・1408×1152 など固定解像度のみ対応です。');
+  }
+  if (/does not support|Specified sample|Invalid sample rate|Unsupported sample/i.test(log)) {
+    parts.push('選択したサンプルレートまたはチャンネル数がコーデックの対応範囲外です。');
+  }
+  if (/dimensions|picture size|Invalid frame size/i.test(log)) {
+    parts.push('選択した解像度がコーデックの対応範囲外です。');
+  }
+  parts.push(`出力形式: ${format} / 映像: ${settings.videoCodec} / 音声: ${settings.audioCodec} / ${settings.resolutionW}×${settings.resolutionH} / ${settings.frequency} / ${settings.channels}`);
+  return parts.join('\n');
+}
+
 /** Build FFmpeg arguments from settings — "safety-first" logic */
 export function buildFFmpegArgs(
   inputName: string,
@@ -181,7 +314,9 @@ export function buildFFmpegArgs(
   format: string,
   isVideo: boolean,
   mode: PassMode = 'all',
+  simplify = false,
 ): string[] {
+
   // Input repair flags: careful detection + ignore errors, never abort on bad packets,
   // regenerate timestamps. Probe buffers are kept small — 100M probesize alone
   // would hold up to 100MB of the input in wasm memory before encoding starts.
