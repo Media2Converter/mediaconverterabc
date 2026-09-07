@@ -5,8 +5,10 @@ import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
   CODEC_MAP, AAC_HE_PROFILE, FORMAT_EXT, FORMAT_MIME, isVideoFormat,
   isCodecCompatible, getCompatibleAudioCodecs, getCompatibleVideoCodecs,
+  AMR_NB_BITRATES, AMR_WB_BITRATES, ADPCM_BITRATES,
   type ConvertSettings,
 } from '@/constants/converterOptions';
+
 
 
 let ffmpeg: FFmpeg | null = null;
