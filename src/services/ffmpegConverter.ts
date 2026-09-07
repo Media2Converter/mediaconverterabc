@@ -5,8 +5,10 @@ import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
   CODEC_MAP, AAC_HE_PROFILE, FORMAT_EXT, FORMAT_MIME, isVideoFormat,
   isCodecCompatible, getCompatibleAudioCodecs, getCompatibleVideoCodecs,
+  AMR_NB_BITRATES, AMR_WB_BITRATES, ADPCM_BITRATES,
   type ConvertSettings,
 } from '@/constants/converterOptions';
+
 
 
 let ffmpeg: FFmpeg | null = null;
@@ -173,6 +175,139 @@ export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> 
  */
 export type PassMode = 'all' | 'video' | 'audio';
 
+/* ------------------------------------------------------------------ *
+ * Special (legacy / telephony) codec constraints
+ *
+ * H.263 / H.261 accept only a fixed set of frame sizes, AMR and the ADPCM
+ * G.7xx family accept only one sample rate, mono audio and a fixed set of
+ * bitrates. Passing anything else makes FFmpeg abort. Every request is
+ * therefore snapped onto the nearest legal value before building the args.
+ * ------------------------------------------------------------------ */
+
+const H263_SIZES: [number, number][] = [[128, 96], [176, 144], [352, 288], [704, 576], [1408, 1152]];
+const H261_SIZES: [number, number][] = [[176, 144], [352, 288]];
+const H263_FPS = [10, 15, 20, 25, 30];
+
+/** Audio codecs that only work at one sample rate / mono */
+const FIXED_AUDIO: Record<string, { rate: number; mono: true; bitrates?: string[] }> = {
+  'AMR_NB': { rate: 8000, mono: true, bitrates: AMR_NB_BITRATES },
+  'AMR_WB': { rate: 16000, mono: true, bitrates: AMR_WB_BITRATES },
+  'ADPCM_G721': { rate: 8000, mono: true },
+  'ADPCM_G723': { rate: 8000, mono: true },
+  'ADPCM_G726': { rate: 8000, mono: true },
+  'ADPCM_G727': { rate: 8000, mono: true },
+  'ADPCM_G728': { rate: 8000, mono: true },
+  'ADPCM_OKI': { rate: 8000, mono: true },
+  'PCM_G.711': { rate: 8000, mono: true },
+};
+
+/** Codecs FFmpeg marks experimental — need -strict -2 */
+const EXPERIMENTAL_AUDIO = ['AMR_NB', 'AMR_WB', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_G721', 'ADPCM_OKI'];
+
+/** Codecs that must not receive a bitrate (lossless / fixed) */
+const NO_BITRATE_AUDIO = /^(WAV|AIFF|RAW|FLAC|ALAC|LPCM|PCM_)/;
+
+const num = (s: string) => parseFloat(String(s).replace(/[^0-9.]/g, ''));
+
+function nearestBitrate(list: string[], want: string): string {
+  const target = num(want);
+  if (!Number.isFinite(target) || list.length === 0) return list[0] ?? want;
+  return list.reduce((best, cur) => (Math.abs(num(cur) - target) < Math.abs(num(best) - target) ? cur : best), list[0]);
+}
+
+function snapSize(sizes: [number, number][], w: number, h: number): [number, number] {
+  const area = w * h;
+  return sizes.reduce((best, cur) =>
+    Math.abs(cur[0] * cur[1] - area) < Math.abs(best[0] * best[1] - area) ? cur : best, sizes[0]);
+}
+
+/**
+ * Clamp the user's settings onto values the chosen codec really supports.
+ * Returns the adjusted settings plus human-readable notes about what changed.
+ */
+export function normalizeSpecialCodecSettings(
+  settings: ConvertSettings,
+  format: string,
+  isVideo: boolean,
+): { settings: ConvertSettings; notes: string[] } {
+  const s: ConvertSettings = { ...settings };
+  const notes: string[] = [];
+
+  // ---- Video ----
+  if (isVideo && isVideoFormat(format) && s.videoCodec !== 'copy') {
+    const sizes = s.videoCodec === 'H.261' ? H261_SIZES
+      : (s.videoCodec === 'H.263' || s.videoCodec === 'H.320') ? H263_SIZES
+      : null;
+    if (sizes) {
+      const [w, h] = snapSize(sizes, s.resolutionW, s.resolutionH);
+      if (w !== s.resolutionW || h !== s.resolutionH) {
+        notes.push(`${s.videoCodec} は固定解像度のみ対応のため ${w}×${h} に調整しました。`);
+        s.resolutionW = w;
+        s.resolutionH = h;
+      }
+      s.aspectRatio = '自由';
+      s.pixelFormat = 'yuv420p';
+      s.scanType = 'プログレッシブ方式';
+      const fps = num(s.framerate);
+      const snapped = H263_FPS.reduce((b, c) => (Math.abs(c - fps) < Math.abs(b - fps) ? c : b), H263_FPS[0]);
+      if (snapped !== fps) {
+        notes.push(`${s.videoCodec} 向けにフレームレートを ${snapped}FPS に調整しました。`);
+        s.framerate = `${snapped}FPS`;
+      }
+    }
+    if (s.videoCodec === 'MJPEG' && (!s.pixelFormat || s.pixelFormat === 'auto')) {
+      s.pixelFormat = 'yuv420p';
+    }
+  }
+
+  // ---- Audio ----
+  if (s.audioEnabled && s.audioCodec !== 'none' && s.audioCodec !== 'copy') {
+    const fixed = FIXED_AUDIO[s.audioCodec];
+    if (fixed) {
+      if (num(s.frequency) !== fixed.rate) {
+        notes.push(`${s.audioCodec} は ${fixed.rate}Hz 固定のためサンプルレートを調整しました。`);
+        s.frequency = `${fixed.rate}Hz`;
+      }
+      if (s.channels !== 'モノラル') {
+        notes.push(`${s.audioCodec} はモノラルのみ対応のためモノラルに調整しました。`);
+        s.channels = 'モノラル';
+      }
+    }
+    const brList = fixed?.bitrates ?? ADPCM_BITRATES[s.audioCodec];
+    if (brList && brList.length > 0) {
+      const nb = nearestBitrate(brList, s.audioBitrate);
+      if (nb !== s.audioBitrate) {
+        notes.push(`${s.audioCodec} 対応のビットレート ${nb} に調整しました。`);
+        s.audioBitrate = nb;
+      }
+    }
+  }
+
+  return { settings: s, notes };
+}
+
+/** Japanese explanation of why a special codec failed */
+export function describeCodecIssue(settings: ConvertSettings, format: string, log: string): string {
+  const parts: string[] = [];
+  if (/AMR/.test(settings.audioCodec)) {
+    parts.push('AMR は 8000Hz(NB)／16000Hz(WB)・モノラル・専用ビットレートのみ対応です。');
+  }
+  if (settings.audioCodec.startsWith('ADPCM')) {
+    parts.push('ADPCM(G.72x) は 8000Hz・モノラル・規定ビットレート（16/24/32/40KBPS）のみ対応です。');
+  }
+  if (['H.263', 'H.261', 'H.320'].includes(settings.videoCodec)) {
+    parts.push('H.263／H.261 は 128×96・176×144・352×288・704×576・1408×1152 など固定解像度のみ対応です。');
+  }
+  if (/does not support|Specified sample|Invalid sample rate|Unsupported sample/i.test(log)) {
+    parts.push('選択したサンプルレートまたはチャンネル数がコーデックの対応範囲外です。');
+  }
+  if (/dimensions|picture size|Invalid frame size/i.test(log)) {
+    parts.push('選択した解像度がコーデックの対応範囲外です。');
+  }
+  parts.push(`出力形式: ${format} / 映像: ${settings.videoCodec} / 音声: ${settings.audioCodec} / ${settings.resolutionW}×${settings.resolutionH} / ${settings.frequency} / ${settings.channels}`);
+  return parts.join('\n');
+}
+
 /** Build FFmpeg arguments from settings — "safety-first" logic */
 export function buildFFmpegArgs(
   inputName: string,
@@ -181,7 +316,9 @@ export function buildFFmpegArgs(
   format: string,
   isVideo: boolean,
   mode: PassMode = 'all',
+  simplify = false,
 ): string[] {
+
   // Input repair flags: careful detection + ignore errors, never abort on bad packets,
   // regenerate timestamps. Probe buffers are kept small — 100M probesize alone
   // would hold up to 100MB of the input in wasm memory before encoding starts.
@@ -207,6 +344,11 @@ export function buildFFmpegArgs(
   if (!isCodecCompatible(format, settings.audioCodec, 'audio')) {
     settings = { ...settings, audioCodec: getCompatibleAudioCodecs(format)[0] || 'AAC' };
   }
+
+  // Snap legacy / telephony codec settings (H.263, AMR, ADPCM G.72x ...) onto legal values
+  settings = normalizeSpecialCodecSettings(settings, format, isVideo).settings;
+
+
 
   // Start/End time
   if (settings.startTime > 0) {
@@ -302,34 +444,32 @@ export function buildFFmpegArgs(
       args.push('-profile:a', AAC_HE_PROFILE[settings.audioCodec]);
     }
 
-    // AMR strict mode — force libopencore_amrnb in browser (ffmpeg.wasm)
-    if (settings.audioCodec === 'AMR_NB') {
-      args.push('-ar', '8000', '-ac', '1', '-ab', '12.2k', '-strict', '-2');
-      aFilters.push('aresample=8000', 'pan=mono|c0=c0+c1');
-    } else if (settings.audioCodec === 'AMR_WB') {
-      args.push('-ar', '16000', '-ac', '1', '-strict', '-2');
-      aFilters.push('aresample=16000', 'pan=mono|c0=c0+c1');
-    } else {
-      // Audio bitrate
-      const aBitrate = settings.audioBitrate.replace('KBPS', 'k');
-      args.push('-b:a', aBitrate);
-
-      // Channels
-      args.push('-ac', settings.channels === 'モノラル' ? '1' : '2');
-
-      // Frequency
-      const freq = settings.frequency.replace('Hz', '');
-      args.push('-ar', freq);
+    // Experimental encoders (AMR, ADPCM G.72x) need the strictness relaxed
+    if (EXPERIMENTAL_AUDIO.includes(settings.audioCodec)) {
+      args.push('-strict', '-2');
     }
 
-    // Async resampling for A/V sync safety — always applied
-    aFilters.push('aresample=async=1');
+    const channels = settings.channels === 'モノラル' ? 1 : 2;
+    const freq = String(Math.round(num(settings.frequency)) || 48000);
+
+    // Bitrate — skipped for lossless / fixed-rate codecs where it is invalid
+    if (!NO_BITRATE_AUDIO.test(settings.audioCodec)) {
+      args.push('-b:a', settings.audioBitrate.replace('KBPS', 'k'));
+    }
+    args.push('-ac', String(channels));
+    args.push('-ar', freq);
+
+    // Resample explicitly to the codec's rate / layout. Never use `pan=mono`
+    // (it fails outright when the source is already mono) — aresample+`-ac`
+    // downmixes safely for every input.
+    aFilters.push(`aresample=${freq}:async=1:first_pts=0`);
 
     // Volume
     if (settings.volume !== 'none') {
       aFilters.push(`volume=${settings.volume}dB`);
     }
   }
+
 
   // Speed
   if (settings.speed !== '1') {
@@ -338,21 +478,28 @@ export function buildFFmpegArgs(
       vFilters.push(`setpts=${(1 / speed).toFixed(6)}*PTS`);
     }
     if (settings.audioEnabled && settings.audioCodec !== 'none' && settings.audioCodec !== 'copy') {
+      const targetRate = Math.round(num(settings.frequency)) || 48000;
       if (settings.pitchSync) {
         aFilters.push(`atempo=${speed}`);
       } else {
-        aFilters.push(`asetrate=${Math.round(44100 * speed)}`, 'aresample=44100', 'atempo=1');
+        aFilters.push(`asetrate=${Math.round(targetRate * speed)}`, `aresample=${targetRate}`, 'atempo=1');
       }
     }
   }
 
+  // Fallback mode: keep only the essential filters (scale / resample). Legacy
+  // codecs abort on padding, interlacing or tempo filter chains.
+  const finalVFilters = simplify ? vFilters.filter(f => f.startsWith('scale')) : vFilters;
+  const finalAFilters = simplify ? aFilters.filter(f => f.startsWith('aresample')) : aFilters;
+
   // Apply collected filters
-  if (vFilters.length > 0) {
-    args.push('-vf', vFilters.join(','));
+  if (finalVFilters.length > 0) {
+    args.push('-vf', finalVFilters.join(','));
   }
-  if (aFilters.length > 0) {
-    args.push('-af', aFilters.join(','));
+  if (finalAFilters.length > 0) {
+    args.push('-af', finalAFilters.join(','));
   }
+
 
   // Muxing queue: large enough to avoid overflow, small enough not to hoard memory
   args.push('-max_muxing_queue_size', '1024');
@@ -398,7 +545,12 @@ function shouldSplitPasses(settings: ConvertSettings, format: string, isVideo: b
   if (!settings.audioEnabled || settings.audioCodec === 'none') return false;
   // Both streams copied: a single remux is already the lightest path
   if (settings.videoCodec === 'copy' && settings.audioCodec === 'copy') return false;
+  // Legacy / telephony codecs cannot be safely stream-copied out of an
+  // intermediate container — encode them in a single pass instead.
+  if (/^(AMR|ADPCM|PCM_|RAW|LPCM)/.test(settings.audioCodec)) return false;
+  if (['H.263', 'H.261', 'H.320', 'MJPEG', 'DIVX'].includes(settings.videoCodec)) return false;
   return true;
+
 }
 
 /** Metadata check: returns true when FFmpeg can read the file's streams */
@@ -515,14 +667,19 @@ export async function convertWithFFmpeg(
   const AUDIO_TMP = `pass_audio.${outputExt}`;
   const tempNames = [inputName, sourceName, outputName, VIDEO_TMP, AUDIO_TMP];
 
-  type Pass = { label: string; args: string[]; from: number; to: number };
+  type Pass = { label: string; args: string[]; fallbackArgs?: string[]; from: number; to: number };
   const passes: Pass[] = split
     ? [
-        { label: 'オーディオ変換中', args: buildFFmpegArgs(sourceName, AUDIO_TMP, settings, format, isVideo, 'audio'), from: 25, to: 40 },
-        { label: 'ビデオ変換中', args: buildFFmpegArgs(sourceName, VIDEO_TMP, settings, format, isVideo, 'video'), from: 40, to: 85 },
+        { label: 'オーディオ変換中', args: buildFFmpegArgs(sourceName, AUDIO_TMP, settings, format, isVideo, 'audio'), fallbackArgs: buildFFmpegArgs(sourceName, AUDIO_TMP, settings, format, isVideo, 'audio', true), from: 25, to: 40 },
+        { label: 'ビデオ変換中', args: buildFFmpegArgs(sourceName, VIDEO_TMP, settings, format, isVideo, 'video'), fallbackArgs: buildFFmpegArgs(sourceName, VIDEO_TMP, settings, format, isVideo, 'video', true), from: 40, to: 85 },
         { label: 'ビデオとオーディオを結合中', args: buildMuxArgs(VIDEO_TMP, AUDIO_TMP, outputName, format), from: 85, to: 90 },
       ]
-    : [{ label: '変換処理中', args: buildFFmpegArgs(sourceName, outputName, settings, format, isVideo), from: 25, to: 90 }];
+    : [{
+        label: '変換処理中',
+        args: buildFFmpegArgs(sourceName, outputName, settings, format, isVideo),
+        fallbackArgs: buildFFmpegArgs(sourceName, outputName, settings, format, isVideo, 'all', true),
+        from: 25, to: 90,
+      }];
 
   onCommand?.(passes.map(p => `ffmpeg ${p.args.join(' ')}`).join('\n'));
   onStatus?.('FFmpeg → 変換実行中...');
@@ -532,7 +689,13 @@ export async function convertWithFFmpeg(
   // with a clear message instead of hanging forever.
   const STALL_MS = 120_000;
 
-  const runPass = async (pass: Pass) => {
+  /** Detailed Japanese failure text: what failed + the incompatible settings */
+  const failureText = (head: string) => {
+    const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
+    return [head, lastLogs, '', describeCodecIssue(settings, format, lastLogs)].filter(Boolean).join('\n');
+  };
+
+  const attempt = async (pass: Pass, args: string[]): Promise<{ rc?: number; error?: any }> => {
     let trackProgress = true;
     let lastActivity = Date.now();
     const onFfProgress = ({ progress }: { progress: number }) => {
@@ -567,28 +730,45 @@ export async function convertWithFFmpeg(
     // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
     // are normal FFmpeg output and are never treated as errors. Failure = thrown
     // exception OR a non-zero exit code returned by exec().
-    let rc: number;
     try {
       onProgress?.(pass.from);
       onStatus?.(`FFmpeg → ${pass.label}...`);
-      rc = await Promise.race([ff.exec(pass.args), stalled]);
-    } catch (err: any) {
+      const rc = await Promise.race([ff.exec(args), stalled]);
+      return { rc };
+    } catch (error: any) {
+      return { error };
+    } finally {
       clearInterval(stallTimer);
+      trackProgress = false;
       try { ff.off('progress', onFfProgress); ff.off('log', onActivityLog); } catch {}
+    }
+  };
+
+  const runPass = async (pass: Pass) => {
+    let { rc, error } = await attempt(pass, pass.args);
+    if (String(error?.message ?? '').includes('キャンセル')) {
       if (ffmpeg) await cleanup(tempNames);
-      if (String(err?.message ?? err).includes('キャンセル')) throw err;
-      const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
-      throw new Error(`FFmpegエラー:\n${lastLogs || err?.message || '変換に失敗しました'}`);
+      throw error;
     }
-    clearInterval(stallTimer);
-    trackProgress = false;
-    ff.off('progress', onFfProgress);
-    ff.off('log', onActivityLog);
+
+    // Legacy codecs (H.263 / AMR / ADPCM ...) often reject the full filter chain.
+    // Retry once with only the essential filters before giving up.
+    if ((error || rc !== 0) && pass.fallbackArgs && ffmpeg?.loaded) {
+      onStatus?.(`FFmpeg → ${pass.label}...（互換設定で再試行中）`);
+      onCommand?.(`ffmpeg ${pass.fallbackArgs.join(' ')}`);
+      ({ rc, error } = await attempt(pass, pass.fallbackArgs));
+    }
+
+    if (error) {
+      if (ffmpeg) await cleanup(tempNames);
+      if (String(error?.message ?? error).includes('キャンセル')) throw error;
+      throw new Error(failureText(`FFmpegエラー（${pass.label}）:\n${error?.message ?? '変換に失敗しました'}`));
+    }
     if (rc !== 0) {
-      const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
       await cleanup(tempNames);
-      throw new Error(`FFmpegエラー (exit code ${rc}):\n${lastLogs || '変換に失敗しました'}`);
+      throw new Error(failureText(`FFmpegエラー（${pass.label} / exit code ${rc}）:`));
     }
+
     if (abortRequested) { await cleanup(tempNames); throw new Error('ユーザーによりキャンセルされました'); }
     onProgress?.(pass.to);
   };

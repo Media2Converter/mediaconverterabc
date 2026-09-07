@@ -569,15 +569,20 @@ const Index: React.FC = () => {
 
       setStatusMessage('エラーを解析中...');
       const errorLines = ffmpegLogs.filter(isFfmpegErrorLog).slice(-5);
-      const errorCode = errorLines.length > 0 ? errorLines.join('\n') : errorMsg;
 
       window.alert(
         [
           'エラーが発生しました。',
           '',
-          errorCode,
-        ].join('\n')
+          errorMsg,
+          errorLines.length > 0 && !errorLines.some(l => errorMsg.includes(l)) ? `\n${errorLines.join('\n')}` : '',
+          '',
+          translateFfmpegError(errorMsg),
+          '',
+          inferErrorCause(errorMsg),
+        ].filter(Boolean).join('\n')
       );
+
 
 
 
