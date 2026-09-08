@@ -158,7 +158,7 @@ export const FORMAT_AUDIO_CODEC_COMPAT: Record<string, string[]> = {
   'AC3': ['AC3'],
   'AAC': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2'],
   'MP3': ['MP3'],
-  'WAV': ['PCM_U4', 'PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'LPCM', 'ADPCM_IMA', 'ADPCM_MS', 'ADPCM_G726'],
+  'WAV': ['PCM_U4', 'PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'LPCM', 'ADPCM_IMA', 'ADPCM_MS', 'ADPCM_G726', 'DPCM'],
   'OGG': ['OGG', 'OPUS', 'FLAC'],
   'AIFF': ['PCM_S16LE', 'PCM_S32LE', 'LPCM'],
   'RAW': ['PCM_U4', 'PCM_S16LE', 'PCM_U8', 'PCM_S32LE', 'PCM_G.711', 'RAW', 'LPCM', 'ADPCM_G721', 'ADPCM_G723', 'ADPCM_G726', 'ADPCM_G727', 'ADPCM_G728', 'ADPCM_OKI'],
