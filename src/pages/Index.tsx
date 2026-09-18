@@ -307,7 +307,7 @@ const TitleWithCodeDownload: React.FC<{ jsonContent: string; ffmpegContent: stri
         onContextMenu={(e) => e.preventDefault()}
         aria-label="メディアコンバータ。長押しでコードをダウンロード"
       >
-        メディア<br />コンバータ
+        メディアコンバータ
       </h1>
       <select
         ref={selectRef}
