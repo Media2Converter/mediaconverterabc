@@ -152,7 +152,7 @@ export const FORMAT_AUDIO_CODEC_COMPAT: Record<string, string[]> = {
   'MOV': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AC3', 'EAC3', 'MP3', 'PCM_S16LE', 'PCM_S32LE', 'LPCM', 'ALAC', 'FLAC'],
   '3G2': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AMR_NB', 'AMR_WB'],
   '3GP': ['AAC', 'AAC_HE_V1', 'AAC_HE_V2', 'AMR_NB', 'AMR_WB'],
-  'AVI': ['MP3', 'PCM_U4', 'PCM_S16LE', 'PCM_S16BE', 'PCM_S24LE', 'PCM_U8', 'PCM_S32LE', 'AC3', 'LPCM', 'ADPCM', 'ADPCM_IMA', 'ADPCM_MS'],
+  'AVI': ['MP3', 'PCM_U4', 'PCM_S16LE', 'PCM_S16BE', 'PCM_S24LE', 'PCM_U8', 'PCM_S32LE', 'AC3', 'LPCM', 'DPCM', 'ADPCM', 'ADPCM_IMA', 'ADPCM_MS'],
   'OPUS': ['OPUS'],
   'EAC3': ['EAC3'],
   'AC3': ['AC3'],
