@@ -2,6 +2,13 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import JSZip from 'jszip';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   VIDEO_FORMATS, AUDIO_FORMATS,
   FORMAT_EXT, isVideoFormat,
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
@@ -148,6 +155,84 @@ const NativeSelectButton: React.FC<{
   );
 };
 
+/** Checkless pull-down menu, optionally opened after a long press. */
+const ChecklessDropdown: React.FC<{
+  ariaLabel: string;
+  children: React.ReactNode;
+  items: { label: string; value: string; disabled?: boolean; destructive?: boolean }[];
+  onSelect: (value: string) => void;
+  title?: string;
+  longPressDelay?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}> = ({ ariaLabel, children, items, onSelect, title, longPressDelay = 0, className, style }) => {
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimer = () => {
+    if (!timerRef.current) return;
+    clearTimeout(timerRef.current);
+    timerRef.current = null;
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    clearTimer();
+    if (longPressDelay === 0) {
+      setOpen(true);
+      return;
+    }
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      setOpen(true);
+    }, longPressDelay);
+  };
+
+  useEffect(() => clearTimer, []);
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={ariaLabel}
+          aria-haspopup="menu"
+          className={className}
+          style={style}
+          onPointerDown={handlePointerDown}
+          onPointerUp={longPressDelay > 0 ? clearTimer : undefined}
+          onPointerCancel={clearTimer}
+          onPointerLeave={longPressDelay > 0 ? clearTimer : undefined}
+          onClick={(event) => event.preventDefault()}
+          onContextMenu={(event) => event.preventDefault()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+              event.preventDefault();
+              clearTimer();
+              setOpen(true);
+            }
+          }}
+        >
+          {children}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={6} className="min-w-[220px] p-1.5">
+        {title && <DropdownMenuLabel className="text-muted-foreground text-[13px] font-medium">{title}</DropdownMenuLabel>}
+        {items.map((item) => (
+          <DropdownMenuItem
+            key={item.value}
+            disabled={item.disabled}
+            onSelect={() => onSelect(item.value)}
+            className={`min-h-11 px-3 text-[17px] ${item.destructive ? 'text-destructive focus:text-destructive' : ''}`}
+          >
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
 /** Hidden native select that auto-opens when `open` becomes true (used for per-file format picker stage 2). */
 const PerFileNativeFormatPicker: React.FC<{
   open: boolean;
@@ -221,20 +306,20 @@ const PreviewOverlay: React.FC<{
       aria-label={title}
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <NativeSelectButton
+        <ChecklessDropdown
           ariaLabel="その他のオプション"
           className="flex items-center justify-center text-foreground active:opacity-60"
           style={{ width: 40, height: 40 }}
           onSelect={v => { if (v === 'download') shareAsCode(); }}
-          pickerHeader="オプション"
-          groups={[{ label: 'オプション', options: [{ label: 'ダウンロード', value: 'download' }] }]}
+          title="オプション"
+          items={[{ label: 'ダウンロード', value: 'download' }]}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <circle cx="5" cy="12" r="2" />
             <circle cx="12" cy="12" r="2" />
             <circle cx="19" cy="12" r="2" />
           </svg>
-        </NativeSelectButton>
+        </ChecklessDropdown>
         <h2 className="text-[31px] font-semibold flex-1 text-center px-2 truncate">{title}</h2>
         <button
           onClick={onClose}
@@ -349,9 +434,6 @@ const Index: React.FC = () => {
   const [batteryWarning, setBatteryWarning] = useState(false);
 
   
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const moreMenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Preview fullscreen overlays
   const [previewView, setPreviewView] = useState<null | 'jsom' | 'ffmpeg'>(null);
 
@@ -689,15 +771,6 @@ const Index: React.FC = () => {
     }
   };
 
-  const handleMoreMenuClick = () => {
-    if (moreMenuTimer.current) clearTimeout(moreMenuTimer.current);
-    moreMenuTimer.current = setTimeout(() => setShowMoreMenu(true), 1000);
-  };
-
-  useEffect(() => {
-    return () => { if (moreMenuTimer.current) clearTimeout(moreMenuTimer.current); };
-  }, []);
-
   const allFormats = (() => {
     if (isMixedMedia) return [];
     if (!isVideo && hasAudioFile) return [{ group: '音声形式', formats: AUDIO_FORMATS }];
@@ -758,28 +831,26 @@ const Index: React.FC = () => {
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
       {/* Edge-pinned more options button (always at viewport corner) */}
       <div className="fixed top-2 right-2 z-[40]">
-        <NativeSelectButton
+        <ChecklessDropdown
           ariaLabel="その他のオプション"
           className="text-foreground p-2 active:opacity-60 bg-background/80 backdrop-blur rounded-full"
           style={{ width: 44, height: 44 }}
-          delay={1000}
+          longPressDelay={1000}
           onSelect={handleMoreMenuSelect}
-          pickerHeader="ビデオ・オーディオコンバータ"
-          groups={[{
-            label: 'ビデオ・オーディオコンバータ',
-            options: moreMenuSections[0].options.map(o => ({
-              label: o.label,
-              value: o.value,
-              disabled: o.value === 'retry' && (converting || !selectedFormat || files.length === 0),
-            })),
-          }]}
+          title="ビデオ・オーディオコンバータ"
+          items={moreMenuSections[0].options.map(o => ({
+            label: o.label,
+            value: o.value,
+            destructive: o.value === 'reset',
+            disabled: o.value === 'retry' && (converting || !selectedFormat || files.length === 0),
+          }))}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="5" cy="12" r="2" />
             <circle cx="12" cy="12" r="2" />
             <circle cx="19" cy="12" r="2" />
           </svg>
-        </NativeSelectButton>
+        </ChecklessDropdown>
       </div>
 
       {/* Header: title (long-press → code download) */}
