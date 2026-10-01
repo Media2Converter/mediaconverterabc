@@ -305,9 +305,9 @@ const TitleWithCodeDownload: React.FC<{ jsonContent: string; ffmpegContent: stri
         onMouseUp={handleEnd}
         onMouseLeave={handleEnd}
         onContextMenu={(e) => e.preventDefault()}
-        aria-label="メディアコンバータ。長押しでコードをダウンロード"
+        aria-label="ビデオ・オーディオコンバータ。長押しでコードをダウンロード"
       >
-        メディアコンバータ
+        ビデオ・オーディオコンバータ
       </h1>
       <select
         ref={selectRef}
@@ -596,19 +596,19 @@ const Index: React.FC = () => {
     const list = convertedResults.length > 0 ? convertedResults : (convertedUrl ? [{ url: convertedUrl, filename: convertedFilename }] : []);
     if (list.length === 0) return;
 
-    // Multiple files → zip as メディアコンバータ.zip
+    // Multiple files → zip as ビデオ・オーディオコンバータ.zip
     if (list.length >= 2) {
       try {
         setStatusMessage('ZIPファイルを作成中...');
         const zip = new JSZip();
-        const folder = zip.folder('メディアコンバータ')!;
+        const folder = zip.folder('ビデオ・オーディオコンバータ')!;
         for (const item of list) {
           const res = await fetch(item.url);
           const blob = await res.blob();
           folder.file(item.filename, blob);
         }
         const zipBlob = await zip.generateAsync({ type: 'blob' });
-        const zipName = 'メディアコンバータ.zip';
+        const zipName = 'ビデオ・オーディオコンバータ.zip';
         const file = new File([zipBlob], zipName, { type: 'application/zip' });
         const navAny = navigator as any;
         if (navAny.canShare && navAny.canShare({ files: [file] })) {
@@ -764,9 +764,9 @@ const Index: React.FC = () => {
           style={{ width: 44, height: 44 }}
           delay={1000}
           onSelect={handleMoreMenuSelect}
-          pickerHeader="メディアコンバータ"
+          pickerHeader="ビデオ・オーディオコンバータ"
           groups={[{
-            label: 'メディアコンバータ',
+            label: 'ビデオ・オーディオコンバータ',
             options: moreMenuSections[0].options.map(o => ({
               label: o.label,
               value: o.value,
