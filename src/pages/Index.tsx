@@ -120,7 +120,7 @@ const NativeSelectButton: React.FC<{
       <button
         type="button"
         onPointerDown={open}
-        onPointerUp={() => { if (timer.current && delay === 0) { /* already opened */ } }}
+        onPointerUp={() => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } }}
         onPointerLeave={() => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } }}
         className="w-full h-full"
         aria-label={ariaLabel}
