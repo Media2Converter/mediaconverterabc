@@ -760,26 +760,28 @@ const Index: React.FC = () => {
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
       {/* Edge-pinned more options button (always at viewport corner) */}
       <div className="fixed top-2 right-2 z-[40]">
-        <ChecklessDropdown
+        <NativeSelectButton
           ariaLabel="その他のオプション"
           className="text-foreground p-2 active:opacity-60 bg-background/80 backdrop-blur rounded-full"
           style={{ width: 44, height: 44 }}
-          longPressDelay={1000}
+          delay={1000}
           onSelect={handleMoreMenuSelect}
-          title="ビデオ・オーディオコンバータ"
-          items={moreMenuSections[0].options.map(o => ({
-            label: o.label,
-            value: o.value,
-            destructive: o.value === 'reset',
-            disabled: o.value === 'retry' && (converting || !selectedFormat || files.length === 0),
-          }))}
+          pickerHeader="ビデオ・オーディオコンバータ"
+          groups={[{
+            label: 'ビデオ・オーディオコンバータ',
+            options: moreMenuSections[0].options.map(o => ({
+              label: o.label,
+              value: o.value,
+              disabled: o.value === 'retry' && (converting || !selectedFormat || files.length === 0),
+            })),
+          }]}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="5" cy="12" r="2" />
             <circle cx="12" cy="12" r="2" />
             <circle cx="19" cy="12" r="2" />
           </svg>
-        </ChecklessDropdown>
+        </NativeSelectButton>
       </div>
 
       {/* Header: title (long-press → code download) */}
