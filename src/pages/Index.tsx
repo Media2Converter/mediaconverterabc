@@ -137,13 +137,15 @@ const NativeSelectButton: React.FC<{
         aria-label={ariaLabel}
       >
         {pickerHeader && <option disabled value="">{pickerHeader}</option>}
-        {groups.map(g => (
-          <optgroup key={g.label} label={g.label}>
+        {groups.map((g, gi) => g.label ? (
+          <optgroup key={gi} label={g.label}>
             {g.options.map(o => (
               <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
             ))}
           </optgroup>
-        ))}
+        ) : g.options.map(o => (
+          <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
+        )))}
       </select>
     </div>
   );
@@ -227,8 +229,7 @@ const PreviewOverlay: React.FC<{
           className="flex items-center justify-center text-foreground active:opacity-60"
           style={{ width: 40, height: 40 }}
           onSelect={v => { if (v === 'download') shareAsCode(); }}
-          pickerHeader="オプション"
-          groups={[{ label: 'オプション', options: [{ label: 'ダウンロード', value: 'download' }] }]}
+          groups={[{ label: '', options: [{ label: 'ダウンロード', value: 'download' }] }]}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <circle cx="5" cy="12" r="2" />
@@ -766,9 +767,8 @@ const Index: React.FC = () => {
           style={{ width: 44, height: 44 }}
           delay={1000}
           onSelect={handleMoreMenuSelect}
-          pickerHeader="ビデオ・オーディオコンバータ"
           groups={[{
-            label: 'ビデオ・オーディオコンバータ',
+            label: '',
             options: moreMenuSections[0].options.map(o => ({
               label: o.label,
               value: o.value,
