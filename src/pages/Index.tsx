@@ -1,13 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import JSZip from 'jszip';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { isUpdatePending, confirmAppUpdate, UPDATE_PENDING_EVENT } from '@/lib/appVersion';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
   FORMAT_EXT, isVideoFormat,
