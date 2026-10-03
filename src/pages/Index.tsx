@@ -131,12 +131,12 @@ const NativeSelectButton: React.FC<{
       <select
         ref={ref}
         value={value || ''}
-        onChange={e => onSelect(e.target.value)}
+        onChange={e => { const v = e.target.value; e.target.value = ''; onSelect(v); }}
         className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
         style={{ fontSize: '20px' }}
         aria-label={ariaLabel}
       >
-        {pickerHeader && <option disabled value="">{pickerHeader}</option>}
+        <option value="" disabled hidden>{pickerHeader || ''}</option>
         {groups.map((g, gi) => g.label ? (
           <optgroup key={gi} label={g.label}>
             {g.options.map(o => (
@@ -662,8 +662,6 @@ const Index: React.FC = () => {
         ...(updatePending ? [{ label: 'アップデート', value: 'update_app' }] : []),
         { label: '再読み込み', value: 'reload' },
         { label: '再試行', value: 'retry' },
-        { label: '初期化', value: 'reset', colorClass: 'text-destructive' },
-        { label: 'FFmpegを初期化', value: 'reset_ffmpeg' },
       ],
     },
   ];

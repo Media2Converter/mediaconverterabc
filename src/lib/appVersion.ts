@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.11";
+export const APP_VERSION = "1.12";
 const VERSION_KEY = "video-audio-converter-version";
 const PENDING_KEY = "video-audio-converter-update-pending";
 export const UPDATE_PENDING_EVENT = "app-update-pending-changed";
@@ -43,5 +43,7 @@ export function checkAppVersionOnLoad(): void {
     return;
   }
   if (saved === APP_VERSION) return;
+  // Cancelled before: stay on the previous state; update only via the menu button.
+  if (isUpdatePending()) return;
   confirmAppUpdate();
 }
