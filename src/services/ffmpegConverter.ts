@@ -588,6 +588,58 @@ async function repairFile(ff: FFmpeg, name: string): Promise<string> {
   }
 }
 
+/**
+ * Dedicated repair FFmpeg.wasm (second, fully independent instance with its own
+ * worker + core). Repairs the input by remuxing with regenerated timestamps, then
+ * is terminated so its memory is released before the converter FFmpeg starts.
+ * Any failure returns the original file unchanged.
+ */
+const REPAIR_TIMEOUT_MS = 300_000;
+async function repairWithRepairFFmpeg(file: File, onStatus?: (s: string) => void): Promise<File> {
+  const repairer = new FFmpeg();
+  const ext = file.name.split('.').pop() || 'mp4';
+  const MOUNT = '/repairin';
+  const inName = `repair_in.${ext}`;
+  const outName = `repair_out.${ext}`;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    onStatus?.('修復用FFmpegを起動中...');
+    const { coreURL, wasmURL } = await getCoreUrls();
+    await repairer.load({ coreURL, wasmURL, classWorkerURL: ffmpegWorkerUrl });
+    let inPath = inName;
+    let mounted = false;
+    try {
+      await repairer.createDir(MOUNT);
+      mounted = await repairer.mount(FFFSType.WORKERFS, { files: [new File([file], inName, { type: file.type })] }, MOUNT);
+      if (mounted) inPath = `${MOUNT}/${inName}`;
+    } catch { mounted = false; }
+    if (!mounted) await repairer.writeFile(inName, await fetchFile(file));
+    onStatus?.('修復用FFmpegで動画を修復中...');
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('repair timeout')), REPAIR_TIMEOUT_MS);
+    });
+    const rc = await Promise.race([repairer.exec([
+      '-y', '-nostdin', '-hide_banner',
+      '-err_detect', 'ignore_err',
+      '-fflags', '+discardcorrupt+genpts+igndts',
+      '-i', inPath,
+      '-map', '0', '-c', 'copy', '-ignore_unknown',
+      '-avoid_negative_ts', 'make_zero',
+      '-max_muxing_queue_size', '9999',
+      outName,
+    ]), timeout]);
+    if (rc !== 0) return file;
+    const data = await repairer.readFile(outName);
+    if (!(data instanceof Uint8Array) || data.byteLength < 1024) return file;
+    return new File([data], file.name, { type: file.type });
+  } catch {
+    return file;
+  } finally {
+    clearTimeout(timer);
+    try { repairer.terminate(); } catch {}
+  }
+}
+
 /** Convert a file using FFmpeg WASM */
 
 export async function convertWithFFmpeg(
@@ -612,7 +664,12 @@ export async function convertWithFFmpeg(
   const rawStatus = onStatus;
   onStatus = rawStatus ? (s: string) => rawStatus(`${s}\n${getMemoryStatus(file.size)}`) : undefined;
 
-  onStatus?.('FFmpeg WASM エンジンを初期化中...');
+  // Step 1: repair with the dedicated repair FFmpeg, then convert with the main one
+  onProgress?.(2);
+  if (isVideo) file = await repairWithRepairFFmpeg(file, onStatus);
+  if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
+
+  onStatus?.('変換用FFmpeg WASM エンジンを初期化中...');
   onProgress?.(5);
   const ff = await getFFmpeg(logCollector);
   onProgress?.(15);
