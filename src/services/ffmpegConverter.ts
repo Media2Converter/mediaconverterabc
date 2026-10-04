@@ -333,6 +333,9 @@ export function buildFFmpegArgs(
     '-analyzeduration', '5M', '-probesize', '5M',
     '-thread_queue_size', '64',
     '-i', inputName,
+    // Run-to-completion flags (output side): never abort on queue overflow / bad frames
+    '-max_muxing_queue_size', '9999',
+    '-max_error_rate', '1.0',
   ];
   const outputIsVideo = isVideoFormat(format);
   const lowerFormat = format.toLowerCase();
@@ -527,6 +530,7 @@ export function buildMuxArgs(videoName: string, audioName: string, outputName: s
     '-i', videoName, '-i', audioName,
     '-map', '0:v:0', '-map', '1:a:0',
     '-c', 'copy',
+    '-max_error_rate', '1.0',
     '-max_muxing_queue_size', '1024',
     '-avoid_negative_ts', 'make_zero',
   ];

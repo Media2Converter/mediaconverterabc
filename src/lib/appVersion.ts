@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.12";
+export const APP_VERSION = "1.13";
 const VERSION_KEY = "video-audio-converter-version";
 const PENDING_KEY = "video-audio-converter-update-pending";
 export const UPDATE_PENDING_EVENT = "app-update-pending-changed";
