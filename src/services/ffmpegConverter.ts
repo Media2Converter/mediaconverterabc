@@ -304,7 +304,6 @@ export function describeCodecIssue(settings: ConvertSettings, format: string, lo
   if (/dimensions|picture size|Invalid frame size/i.test(log)) {
     parts.push('選択した解像度がコーデックの対応範囲外です。');
   }
-  parts.push(`出力形式: ${format} / 映像: ${settings.videoCodec} / 音声: ${settings.audioCodec} / ${settings.resolutionW}×${settings.resolutionH} / ${settings.frequency} / ${settings.channels}`);
   return parts.join('\n');
 }
 
@@ -326,6 +325,7 @@ export function buildFFmpegArgs(
     '-y',
     '-nostdin',
     '-hide_banner',
+    '-stats_period', '1',
     '-err_detect', 'careful+ignore_err',
     '-ignore_unknown',
     '-max_error_rate', '1.0',
@@ -690,7 +690,7 @@ export async function convertWithFFmpeg(
   // Stall watchdog: if the worker crashes (out of memory etc.) ffmpeg.wasm never
   // resolves exec(). Detect "no log / no progress for a long time" and fail
   // with a clear message instead of hanging forever.
-  const STALL_MS = 120_000;
+  const STALL_MS = 600_000;
 
   /** Detailed Japanese failure text: what failed + the incompatible settings */
   const failureText = (head: string) => {
