@@ -151,6 +151,44 @@ const NativeSelectButton: React.FC<{
   );
 };
 
+const LIGHT_VARS: Record<string, string> = {
+  '--background': '0 0% 100%', '--foreground': '0 0% 0%', '--card': '0 0% 96%', '--card-foreground': '0 0% 0%',
+  '--popover': '0 0% 98%', '--popover-foreground': '0 0% 0%', '--secondary': '0 0% 92%', '--secondary-foreground': '0 0% 0%',
+  '--muted': '0 0% 92%', '--muted-foreground': '0 0% 35%', '--accent': '0 0% 90%', '--accent-foreground': '0 0% 0%',
+  '--border': '0 0% 80%', '--input': '0 0% 80%',
+};
+function applyTheme(t: 'light' | 'dark') {
+  const root = document.documentElement;
+  Object.entries(LIGHT_VARS).forEach(([k, v]) => t === 'light' ? root.style.setProperty(k, v) : root.style.removeProperty(k));
+  root.style.colorScheme = t;
+}
+
+/** Native picker (with check on current theme) for ライト / ダーク. */
+const ThemeNativePicker: React.FC<{ open: boolean; value: string; onSelect: (v: string) => void }> = ({ open, value, onSelect }) => {
+  const ref = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (open) {
+      const t = setTimeout(() => { ref.current?.focus(); ref.current?.click(); }, 300);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
+  if (!open) return null;
+  return (
+    <select
+      ref={ref}
+      aria-label="テーマ"
+      value={value}
+      onChange={e => onSelect(e.target.value)}
+      onBlur={() => onSelect('')}
+      className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 pointer-events-auto"
+      style={{ width: 200, height: 40, zIndex: 100 }}
+    >
+      <option value="light">ライト</option>
+      <option value="dark">ダーク</option>
+    </select>
+  );
+};
+
 /** Hidden native select that auto-opens when `open` becomes true (used for per-file format picker stage 2). */
 const PerFileNativeFormatPicker: React.FC<{
   open: boolean;
@@ -571,14 +609,10 @@ const Index: React.FC = () => {
 
       window.alert(
         [
-          'エラーが発生しました。',
-          '',
-          errorMsg,
-          errorLines.length > 0 && !errorLines.some(l => errorMsg.includes(l)) ? `\n${errorLines.join('\n')}` : '',
-          '',
           translateFfmpegError(errorMsg),
           '',
-          inferErrorCause(errorMsg),
+          errorMsg,
+          ...errorLines.filter(l => !errorMsg.includes(l)),
         ].filter(Boolean).join('\n')
       );
 
@@ -656,12 +690,17 @@ const Index: React.FC = () => {
     return () => window.removeEventListener(UPDATE_PENDING_EVENT, sync);
   }, []);
 
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('app-theme') === 'light' ? 'light' : 'dark'));
+  useEffect(() => { applyTheme(theme); }, [theme]);
+
   const moreMenuSections = [
     {
       options: [
         ...(updatePending ? [{ label: 'アップデート', value: 'update_app' }] : []),
         { label: '再読み込み', value: 'reload' },
         { label: '再試行', value: 'retry' },
+        { label: 'テーマ', value: 'theme' },
       ],
     },
   ];
@@ -672,6 +711,9 @@ const Index: React.FC = () => {
         if (confirmAppUpdate()) {
           window.location.reload();
         }
+        break;
+      case 'theme':
+        setThemePickerOpen(true);
         break;
       case 'reload':
         window.location.reload();
@@ -757,6 +799,14 @@ const Index: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center px-5 py-8 max-w-lg mx-auto">
+      <ThemeNativePicker
+        open={themePickerOpen}
+        value={theme}
+        onSelect={v => {
+          setThemePickerOpen(false);
+          if (v === 'light' || v === 'dark') { setTheme(v); try { localStorage.setItem('app-theme', v); } catch {} }
+        }}
+      />
       {/* Edge-pinned more options button (always at viewport corner) */}
       <div className="fixed top-2 right-2 z-[40]">
         <NativeSelectButton
