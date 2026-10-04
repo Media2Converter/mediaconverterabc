@@ -334,7 +334,6 @@ export function buildFFmpegArgs(
     '-thread_queue_size', '64',
     '-i', inputName,
     // Run-to-completion flags (output side): never abort on queue overflow / bad frames
-    '-max_muxing_queue_size', '9999',
     '-max_error_rate', '1.0',
   ];
   const outputIsVideo = isVideoFormat(format);
@@ -505,7 +504,7 @@ export function buildFFmpegArgs(
 
 
   // Muxing queue: large enough to avoid overflow, small enough not to hoard memory
-  args.push('-max_muxing_queue_size', '1024');
+  args.push('-max_muxing_queue_size', '9999');
 
   // Output-side timestamp regeneration + never abort on recoverable errors
   args.push('-fflags', '+genpts', '-avoid_negative_ts', 'make_zero');
@@ -531,7 +530,7 @@ export function buildMuxArgs(videoName: string, audioName: string, outputName: s
     '-map', '0:v:0', '-map', '1:a:0',
     '-c', 'copy',
     '-max_error_rate', '1.0',
-    '-max_muxing_queue_size', '1024',
+    '-max_muxing_queue_size', '9999',
     '-avoid_negative_ts', 'make_zero',
   ];
   if (['3gp', '3g2'].includes(lowerFormat)) {
