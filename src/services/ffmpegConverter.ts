@@ -631,7 +631,7 @@ async function repairWithRepairFFmpeg(file: File, onStatus?: (s: string) => void
     if (rc !== 0) return file;
     const data = await repairer.readFile(outName);
     if (!(data instanceof Uint8Array) || data.byteLength < 1024) return file;
-    return new File([data], file.name, { type: file.type });
+    return new File([data as BlobPart], file.name, { type: file.type });
   } catch {
     return file;
   } finally {
