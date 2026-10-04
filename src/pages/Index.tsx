@@ -38,7 +38,7 @@ const translateFfmpegError = (raw: string): string => {
     [/Permission denied/i, 'アクセスが拒否されました。'],
   ];
   const hits = map.filter(([re]) => re.test(raw)).map(([, ja]) => ja);
-  return hits.length > 0 ? hits.join('\n') : 'エラー内容を日本語に変換できませんでした。原文を確認してください。';
+  return hits.length > 0 ? hits.join('\n') : '';
 };
 
 /** Explain the likely cause of the error in Japanese */
