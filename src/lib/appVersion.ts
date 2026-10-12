@@ -25,6 +25,11 @@ export function confirmAppUpdate(): boolean {
   } catch {
     // Storage unavailable; the dialog choice still applies for this visit.
   }
+  try {
+    window.dispatchEvent(new Event(UPDATE_PENDING_EVENT));
+  } catch {
+    // Event dispatch is best-effort.
+  }
   return accepted;
 }
 
