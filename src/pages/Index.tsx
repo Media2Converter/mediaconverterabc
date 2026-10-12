@@ -699,6 +699,10 @@ const Index: React.FC = () => {
 
   const handleMoreMenuSelect = (value: string) => {
     switch (value) {
+      case 'update_app':
+        // Reload so the version confirmation dialog shows again.
+        window.location.reload();
+        break;
       case 'theme':
         setThemePickerOpen(true);
         break;
