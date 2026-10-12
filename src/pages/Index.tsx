@@ -8,6 +8,7 @@ import {
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog, isFfmpegErrorLog } from '@/services/ffmpegConverter';
+import { isUpdatePending, UPDATE_PENDING_EVENT } from '@/lib/appVersion';
 
 /** Plain-Japanese sentence describing what failed */
 const describeFailure = (errorMsg: string, errorLines: string[]): string => {
@@ -682,12 +683,19 @@ const Index: React.FC = () => {
 
 
   const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const [updatePending, setUpdatePending] = useState(() => isUpdatePending());
+  useEffect(() => {
+    const sync = () => setUpdatePending(isUpdatePending());
+    window.addEventListener(UPDATE_PENDING_EVENT, sync);
+    return () => window.removeEventListener(UPDATE_PENDING_EVENT, sync);
+  }, []);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('app-theme') === 'light' ? 'light' : 'dark'));
   useEffect(() => { applyTheme(theme); }, [theme]);
 
   const moreMenuSections = [
     {
       options: [
+        ...(updatePending ? [{ label: 'アップデート', value: 'update_app' }] : []),
         { label: '再読み込み', value: 'reload' },
         { label: '再試行', value: 'retry' },
         { label: 'テーマ', value: 'theme' },
@@ -697,6 +705,10 @@ const Index: React.FC = () => {
 
   const handleMoreMenuSelect = (value: string) => {
     switch (value) {
+      case 'update_app':
+        // Reload so the version confirmation dialog shows again.
+        window.location.reload();
+        break;
       case 'theme':
         setThemePickerOpen(true);
         break;
