@@ -8,7 +8,7 @@ import {
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog, isFfmpegErrorLog } from '@/services/ffmpegConverter';
-import { isUpdatePending } from '@/lib/appVersion';
+import { isUpdatePending, UPDATE_PENDING_EVENT } from '@/lib/appVersion';
 
 /** Plain-Japanese sentence describing what failed */
 const describeFailure = (errorMsg: string, errorLines: string[]): string => {
@@ -684,6 +684,11 @@ const Index: React.FC = () => {
 
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [updatePending, setUpdatePending] = useState(() => isUpdatePending());
+  useEffect(() => {
+    const sync = () => setUpdatePending(isUpdatePending());
+    window.addEventListener(UPDATE_PENDING_EVENT, sync);
+    return () => window.removeEventListener(UPDATE_PENDING_EVENT, sync);
+  }, []);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('app-theme') === 'light' ? 'light' : 'dark'));
   useEffect(() => { applyTheme(theme); }, [theme]);
 
