@@ -318,15 +318,16 @@ export function buildFFmpegArgs(
   simplify = false,
 ): string[] {
 
-  // Input repair flags: careful detection + ignore errors, never abort on bad packets,
-  // regenerate timestamps. Probe buffers are kept small — 100M probesize alone
-  // would hold up to 100MB of the input in wasm memory before encoding starts.
+  // Input repair flags: loosest error detection + ignore errors, never abort on
+  // bad packets or decoder warnings, regenerate timestamps. Probe buffers are
+  // kept small — 100M probesize alone would hold up to 100MB of the input in
+  // wasm memory before encoding starts.
   const args: string[] = [
     '-y',
     '-nostdin',
     '-hide_banner',
     '-stats_period', '1',
-    '-err_detect', 'careful+ignore_err',
+    '-err_detect', 'ignore_err',
     '-ignore_unknown',
     '-max_error_rate', '1.0',
     '-fflags', '+discardcorrupt+genpts+igndts',
