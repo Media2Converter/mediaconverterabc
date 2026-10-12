@@ -283,19 +283,26 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
     separator: (v as any).separator,
   }));
 
-  const timeOptions = (max: number) => {
+  // ファイルの長さ全体を1秒単位で表示
+  const totalSeconds = Math.max(1, Math.floor(videoDuration || 0));
+  const timeOptions = () => {
     const opts: { label: string; value: string }[] = [];
-    const step = max > 120 ? 5 : max > 30 ? 1 : 0.5;
-    for (let t = 0; t <= max; t += step) {
+    for (let t = 0; t <= totalSeconds; t++) {
       const m = Math.floor(t / 60);
-      const s = (t % 60).toFixed(step < 1 ? 1 : 0);
-      opts.push({ label: `${m}:${s.padStart(step < 1 ? 4 : 2, '0')}`, value: String(t) });
+      const s = t % 60;
+      opts.push({ label: `${m}:${String(s).padStart(2, '0')}`, value: String(t) });
     }
     return opts;
   };
 
-  const startTimeOptions = timeOptions(videoDuration);
-  const endTimeOptions = [{ label: '最後まで', value: '0' }, ...timeOptions(videoDuration).slice(1)];
+  const formatTime = (t: number) => {
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
+
+  const startTimeOptions = timeOptions();
+  const endTimeOptions = [{ label: '最後まで', value: '0' }, ...timeOptions().slice(1)];
 
   const volumeDisplay = settings.volume === 'none' ? '変えない' : `${settings.volume}dB`;
   const volumeIsDestructive = settings.volume !== 'none' && parseInt(settings.volume) >= 120;
