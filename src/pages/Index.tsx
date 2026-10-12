@@ -8,6 +8,7 @@ import {
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
 import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog, isFfmpegErrorLog } from '@/services/ffmpegConverter';
+import { isUpdatePending } from '@/lib/appVersion';
 
 /** Plain-Japanese sentence describing what failed */
 const describeFailure = (errorMsg: string, errorLines: string[]): string => {
