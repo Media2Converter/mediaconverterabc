@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import JSZip from 'jszip';
 import { DetailSettingsModal } from '@/components/converter/DetailSettingsModal';
-import { isUpdatePending, confirmAppUpdate, UPDATE_PENDING_EVENT } from '@/lib/appVersion';
 import {
   VIDEO_FORMATS, AUDIO_FORMATS,
   FORMAT_EXT, isVideoFormat,
@@ -682,14 +681,6 @@ const Index: React.FC = () => {
 
 
 
-  // More menu (•••) options
-  const [updatePending, setUpdatePending] = useState(isUpdatePending());
-  useEffect(() => {
-    const sync = () => setUpdatePending(isUpdatePending());
-    window.addEventListener(UPDATE_PENDING_EVENT, sync);
-    return () => window.removeEventListener(UPDATE_PENDING_EVENT, sync);
-  }, []);
-
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('app-theme') === 'light' ? 'light' : 'dark'));
   useEffect(() => { applyTheme(theme); }, [theme]);
@@ -697,7 +688,6 @@ const Index: React.FC = () => {
   const moreMenuSections = [
     {
       options: [
-        ...(updatePending ? [{ label: 'アップデート', value: 'update_app' }] : []),
         { label: '再読み込み', value: 'reload' },
         { label: '再試行', value: 'retry' },
         { label: 'テーマ', value: 'theme' },
@@ -707,11 +697,6 @@ const Index: React.FC = () => {
 
   const handleMoreMenuSelect = (value: string) => {
     switch (value) {
-      case 'update_app':
-        if (confirmAppUpdate()) {
-          window.location.reload();
-        }
-        break;
       case 'theme':
         setThemePickerOpen(true);
         break;
