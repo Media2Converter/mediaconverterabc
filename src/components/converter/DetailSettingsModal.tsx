@@ -491,10 +491,10 @@ export const DetailSettingsModal: React.FC<Props> = ({ open, onClose, settings, 
             <NativePickerRow label="フレームレート" displayValue={settings.framerate}
               options={framerateOptions} selected={settings.framerate}
               onSelect={v => handleSelect('framerate', v)} pickerHeader="フレームレート" />
-            <NativePickerRow label="開始時間" displayValue={settings.startTime > 0 ? `${settings.startTime}s` : '0:00'}
+            <NativePickerRow label="開始時間" displayValue={formatTime(settings.startTime)}
               options={startTimeOptions} selected={String(settings.startTime)}
               onSelect={v => handleSelect('startTime', v)} pickerHeader="開始時間" />
-            <NativePickerRow label="終了時間" displayValue={settings.endTime > 0 ? `${settings.endTime}s` : '最後まで'}
+            <NativePickerRow label="終了時間" displayValue={settings.endTime > 0 ? formatTime(settings.endTime) : '最後まで'}
               options={endTimeOptions} selected={String(settings.endTime)}
               onSelect={v => handleSelect('endTime', v)} pickerHeader="終了時間" />
             <NativePickerRow label="再生速度" displayValue={`${settings.speed}×`}
