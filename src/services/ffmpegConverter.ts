@@ -750,10 +750,26 @@ export async function convertWithFFmpeg(
   // with a clear message instead of hanging forever.
   const STALL_MS = 600_000;
 
+  /** Human-readable meaning for an FFmpeg exit code, always shown with the code */
+  const exitCodeMeaning = (rc: number): string => {
+    switch (rc) {
+      case 1: return '処理エラー（コーデック非対応・設定値の不整合・ファイル破損など）';
+      case 2: return '引数・オプションの指定ミス';
+      case 134: return '強制終了（メモリ不足の可能性）';
+      case 137: return 'メモリ不足により強制終了されました';
+      case 139: return 'クラッシュ（セグメンテーション違反）';
+      case 255: return '内部エラーによる終了';
+      default: return '不明なエラー';
+    }
+  };
+
   /** Detailed Japanese failure text: what failed + the incompatible settings */
-  const failureText = (head: string) => {
+  const failureText = (head: string, rc?: number) => {
     const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
-    return [head, lastLogs, '', describeCodecIssue(settings, format, lastLogs)].filter(Boolean).join('\n');
+    const codeLine = rc !== undefined
+      ? `エラーコード: exit code ${rc}（${exitCodeMeaning(rc)}）`
+      : '';
+    return [head, codeLine, lastLogs, '', describeCodecIssue(settings, format, lastLogs)].filter(Boolean).join('\n');
   };
 
   const attempt = async (pass: Pass, args: string[]): Promise<{ rc?: number; error?: any }> => {
@@ -827,7 +843,7 @@ export async function convertWithFFmpeg(
     }
     if (rc !== 0) {
       await cleanup(tempNames);
-      throw new Error(failureText(`FFmpegエラー（${pass.label} / exit code ${rc}）:`));
+      throw new Error(failureText(`FFmpegエラー（${pass.label}）:`, rc));
     }
 
     if (abortRequested) { await cleanup(tempNames); throw new Error('ユーザーによりキャンセルされました'); }
