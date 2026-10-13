@@ -843,7 +843,7 @@ export async function convertWithFFmpeg(
     }
     if (rc !== 0) {
       await cleanup(tempNames);
-      throw new Error(failureText(`FFmpegエラー（${pass.label} / exit code ${rc}）:`));
+      throw new Error(failureText(`FFmpegエラー（${pass.label}）:`, rc));
     }
 
     if (abortRequested) { await cleanup(tempNames); throw new Error('ユーザーによりキャンセルされました'); }
