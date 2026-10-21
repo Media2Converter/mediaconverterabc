@@ -867,12 +867,16 @@ export async function convertWithFFmpeg(
     }
 
     if (error) {
-      if (ffmpeg) await cleanup(tempNames);
+      if (ffmpeg) { try { await cleanup(tempNames); } catch {} }
       if (String(error?.message ?? error).includes('キャンセル')) throw error;
       throw new Error(failureText(`FFmpegエラー（${pass.label}）:`, undefined, describeThrown(error)));
     }
     if (rc !== 0) {
-      await cleanup(tempNames);
+      try { await cleanup(tempNames); } catch {}
+      if (typeof rc !== 'number' || !Number.isFinite(rc)) {
+        throw new Error(failureText(`FFmpegエラー（${pass.label}）:`, undefined,
+          `エラーコード: ERR_NO_EXIT_CODE（FFmpegが終了コードを返さずに停止しました。返り値: ${String(rc)}）`));
+      }
       throw new Error(failureText(`FFmpegエラー（${pass.label}）:`, rc));
     }
 
