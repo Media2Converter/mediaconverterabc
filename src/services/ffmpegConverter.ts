@@ -764,12 +764,42 @@ export async function convertWithFFmpeg(
   };
 
   /** Detailed Japanese failure text: what failed + the incompatible settings */
-  const failureText = (head: string, rc?: number) => {
-    const lastLogs = logs.filter(isFfmpegErrorLog).slice(-3).join('\n');
-    const codeLine = rc !== undefined
-      ? `エラーコード: exit code ${rc}（${exitCodeMeaning(rc)}）`
-      : '';
+  const failureText = (head: string, rc?: number, codeLineOverride?: string) => {
+    const errLogs = logs.filter(isFfmpegErrorLog).slice(-3);
+    // When no line is classified as an error, still show the last raw FFmpeg output
+    const lastLogs = (errLogs.length > 0 ? errLogs : logs.slice(-3)).join('\n');
+    const codeLine = codeLineOverride
+      ?? (rc !== undefined ? `エラーコード: exit code ${rc}（${exitCodeMeaning(rc)}）` : '');
     return [head, codeLine, lastLogs, '', describeCodecIssue(settings, format, lastLogs)].filter(Boolean).join('\n');
+  };
+
+  /** Always produce an explicit error code + meaning from any thrown value */
+  const describeThrown = (error: any): string => {
+    let raw = '';
+    if (typeof error === 'string') raw = error;
+    else if (error instanceof Error) raw = `${error.name}: ${error.message}`;
+    else if (error && typeof error === 'object') {
+      raw = String(error.message ?? error.reason ?? error.type ?? '');
+      if (!raw) { try { raw = JSON.stringify(error); } catch { raw = String(error); } }
+    } else if (error !== undefined && error !== null) raw = String(error);
+    raw = raw.trim();
+
+    const rules: [RegExp, string, string][] = [
+      [/memory access out of bounds|out of memory|Cannot enlarge memory|OOM/i, 'ERR_WASM_OUT_OF_MEMORY', 'メモリ不足でFFmpeg.wasmが停止しました'],
+      [/Aborted\(|abort\(/i, 'ERR_WASM_ABORTED', 'FFmpeg.wasmが内部エラーで強制終了しました'],
+      [/RuntimeError|unreachable/i, 'ERR_WASM_RUNTIME', 'FFmpeg.wasm実行中にランタイムエラーが発生しました'],
+      [/terminate/i, 'ERR_FFMPEG_TERMINATED', 'FFmpegが途中で終了されました'],
+      [/not loaded/i, 'ERR_FFMPEG_NOT_LOADED', 'FFmpegが読み込まれていません'],
+      [/import ffmpeg-core|failed to import/i, 'ERR_CORE_IMPORT', 'FFmpegコアファイルを読み込めませんでした'],
+      [/No such file|ErrnoError|errno\s*44/i, 'ERR_FS_NOENT', 'FFmpeg内のファイルが見つかりません'],
+      [/errno\s*\d+|FS error/i, 'ERR_FS', 'FFmpeg内のファイル操作に失敗しました'],
+      [/timeout|timed out/i, 'ERR_TIMEOUT', '処理が時間切れになりました'],
+      [/応答しなく/, 'ERR_STALLED', '変換処理が応答しなくなりました'],
+    ];
+    const hit = rules.find(([re]) => re.test(raw));
+    const code = hit ? hit[1] : (raw ? 'ERR_FFMPEG_EXCEPTION' : 'ERR_UNKNOWN_NO_DETAIL');
+    const meaning = hit ? hit[2] : (raw ? 'FFmpeg実行中に例外が発生しました' : 'FFmpegが詳細を返さずに停止しました（メモリ不足またはWorkerの異常終了の可能性）');
+    return `エラーコード: ${code}（${meaning}）${raw ? `\n詳細: ${raw}` : ''}`;
   };
 
   const attempt = async (pass: Pass, args: string[]): Promise<{ rc?: number; error?: any }> => {
