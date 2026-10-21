@@ -596,7 +596,10 @@ const Index: React.FC = () => {
       setStatusMessage('変換完了！ダウンロードできます');
     } catch (err: any) {
       console.error('FFmpeg conversion error:', err);
-      const errorMsg = err?.message || '不明なエラー';
+      const rawMsg = typeof err === 'string' ? err : (err?.message || '');
+      const errorMsg = rawMsg.includes('エラーコード:') || rawMsg.includes('キャンセル')
+        ? rawMsg
+        : `エラーコード: ${rawMsg ? `${err?.name || 'Error'}（変換前後の処理で例外が発生しました）\n詳細: ${rawMsg}` : 'ERR_UNKNOWN_NO_DETAIL（詳細が返されずに停止しました）'}`;
 
       if (errorMsg.includes('キャンセル')) {
         setStatusMessage('キャンセルしました');
