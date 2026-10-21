@@ -869,7 +869,7 @@ export async function convertWithFFmpeg(
     if (error) {
       if (ffmpeg) await cleanup(tempNames);
       if (String(error?.message ?? error).includes('キャンセル')) throw error;
-      throw new Error(failureText(`FFmpegエラー（${pass.label}）:\n${error?.message ?? '変換に失敗しました'}`));
+      throw new Error(failureText(`FFmpegエラー（${pass.label}）:`, undefined, describeThrown(error)));
     }
     if (rc !== 0) {
       await cleanup(tempNames);
