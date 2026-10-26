@@ -1,6 +1,7 @@
 import { FFmpeg, FFFSType } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { runFFmpegOperation } from './ffmpegOperation';
+import { parseFFmpegMetadata } from './ffmpegMetadata';
 import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
 import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
@@ -572,15 +573,14 @@ function shouldSplitPasses(settings: ConvertSettings, format: string, isVideo: b
 async function readMetadata(ff: FFmpeg, name: string): Promise<{ duration: number; hasAudio: boolean } | null> {
   const metadataName = 'stream_metadata.json';
   try {
-    const rc = await engineOperation(ff, 'メタデータ確認', () => ff.ffprobe([
+    await engineOperation(ff, 'メタデータ確認', () => ff.ffprobe([
       '-v', 'error', '-analyzeduration', '5M', '-probesize', '5M',
       '-show_entries', 'stream=codec_type:format=duration', '-of', 'json', '-o', metadataName, name,
     ]), 60_000);
-    if (rc !== 0) return null;
+    // core 0.12.10 returns -1 even after writing valid ffprobe JSON.
+    // Validate the output, not that sentinel; stale JSON is removed in finally.
     const data = await engineOperation(ff, 'メタデータ読み取り', () => ff.readFile(metadataName, 'utf8'));
-    const metadata = JSON.parse(typeof data === 'string' ? data : new TextDecoder().decode(data));
-    if (!Array.isArray(metadata.streams) || metadata.streams.length === 0) return null;
-    return { duration: Number(metadata.format?.duration) || 0, hasAudio: metadata.streams.some((s: { codec_type?: string }) => s.codec_type === 'audio') };
+    return parseFFmpegMetadata(data);
   } catch {
     if (!ff.loaded || abortRequested) throw new Error(abortRequested ? 'ユーザーによりキャンセルされました' : 'メタデータ確認が応答しません。\nエラーコード: ERR_WORKER_TIMEOUT（FFmpegの終了コードは返されていません）');
     return null;
