@@ -1,5 +1,7 @@
 import { FFmpeg, FFFSType } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { runFFmpegOperation } from './ffmpegOperation';
+import { parseFFmpegMetadata } from './ffmpegMetadata';
 import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
 import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
@@ -140,6 +142,13 @@ async function getCoreUrls() {
 }
 
 const LOAD_TIMEOUT_MS = 120_000;
+
+function engineOperation<T>(ff: FFmpeg, label: string, operation: () => Promise<T>, timeoutMs = LOAD_TIMEOUT_MS): Promise<T> {
+  return runFFmpegOperation(operation, {
+    label, timeoutMs, isCancelled: () => abortRequested,
+    terminate: () => { if (ff === ffmpeg) resetFFmpeg(); else ff.terminate(); },
+  });
+}
 
 export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   if (ffmpeg && ffmpeg.loaded) return ffmpeg;
@@ -333,6 +342,8 @@ export function buildFFmpegArgs(
     '-fflags', '+discardcorrupt+genpts+igndts',
     '-analyzeduration', '5M', '-probesize', '5M',
     '-thread_queue_size', '64',
+    // The core has no pthread support: also constrain decoder and filter threads.
+    '-threads', '1', '-filter_threads', '1', '-filter_complex_threads', '1',
     '-i', inputName,
     // Run-to-completion flags (output side): never abort on queue overflow / bad frames
     '-max_error_rate', '1.0',
@@ -382,7 +393,7 @@ export function buildFFmpegArgs(
         args.push('-preset', 'ultrafast');
         // Minimal-memory encoder config: 1 reference frame, no B-frames, no lookahead
         if (vCodec === 'libx264') args.push('-tune', 'fastdecode', '-x264-params', 'rc-lookahead=0:sync-lookahead=0:ref=1:bframes=0:threads=1:lookahead-threads=1');
-        if (vCodec === 'libx265') args.push('-x265-params', 'log-level=error:rc-lookahead=0:ref=1:bframes=0:pools=1:frame-threads=1');
+        if (vCodec === 'libx265') args.push('-x265-params', 'log-level=error:rc-lookahead=0:ref=1:bframes=0:pools=none:frame-threads=1:wpp=0');
       } else if (vCodec === 'libvpx' || vCodec === 'libvpx-vp9') {
         args.push('-deadline', 'realtime', '-cpu-used', '8');
       }
@@ -461,6 +472,7 @@ export function buildFFmpegArgs(
     }
     args.push('-ac', String(channels));
     args.push('-ar', freq);
+    args.push('-threads:a', '1');
 
     // Resample explicitly to the codec's rate / layout. Never use `pan=mono`
     // (it fails outright when the source is already mono) — aresample+`-ac`
@@ -557,13 +569,23 @@ function shouldSplitPasses(settings: ConvertSettings, format: string, isVideo: b
 
 }
 
-/** Metadata check: returns true when FFmpeg can read the file's streams */
-async function checkMetadata(ff: FFmpeg, name: string): Promise<boolean> {
+/** Probe headers only; decoding frames here used to leave setup stuck at 25%. */
+async function readMetadata(ff: FFmpeg, name: string): Promise<{ duration: number; hasAudio: boolean } | null> {
+  const metadataName = 'stream_metadata.json';
   try {
-    const rc = await ff.exec(['-nostdin', '-v', 'error', '-i', name, '-t', '0.1', '-f', 'null', '-']);
-    return rc === 0;
+    await engineOperation(ff, 'メタデータ確認', () => ff.ffprobe([
+      '-v', 'error', '-analyzeduration', '5M', '-probesize', '5M',
+      '-show_entries', 'stream=codec_type:format=duration', '-of', 'json', '-o', metadataName, name,
+    ]), 60_000);
+    // core 0.12.10 returns -1 even after writing valid ffprobe JSON.
+    // Validate the output, not that sentinel; stale JSON is removed in finally.
+    const data = await engineOperation(ff, 'メタデータ読み取り', () => ff.readFile(metadataName, 'utf8'));
+    return parseFFmpegMetadata(data);
   } catch {
-    return false;
+    if (!ff.loaded || abortRequested) throw new Error(abortRequested ? 'ユーザーによりキャンセルされました' : 'メタデータ確認が応答しません。\nエラーコード: ERR_WORKER_TIMEOUT（FFmpegの終了コードは返されていません）');
+    return null;
+  } finally {
+    if (ff.loaded) { try { await engineOperation(ff, 'メタデータ削除', () => ff.deleteFile(metadataName)); } catch {} }
   }
 }
 
@@ -572,7 +594,7 @@ async function repairFile(ff: FFmpeg, name: string): Promise<string> {
   const ext = name.split('.').pop() || 'mp4';
   const repaired = `repaired_${Date.now()}.${ext}`;
   try {
-    const rc = await ff.exec([
+    const rc = await engineOperation(ff, 'ファイル修復', () => ff.exec([
       '-y', '-nostdin',
       '-err_detect', 'careful',
       '-fflags', '+discardcorrupt+genpts+igndts',
@@ -581,10 +603,11 @@ async function repairFile(ff: FFmpeg, name: string): Promise<string> {
       '-avoid_negative_ts', 'make_zero',
       '-fflags', '+genpts',
       repaired,
-    ]);
+    ]), REPAIR_TIMEOUT_MS);
     if (rc !== 0) return name;
     return repaired;
   } catch {
+    if (!ff.loaded || abortRequested) throw new Error(abortRequested ? 'ユーザーによりキャンセルされました' : 'ファイル修復が応答しません。\nエラーコード: ERR_WORKER_TIMEOUT');
     return name;
   }
 }
@@ -602,24 +625,20 @@ async function repairWithRepairFFmpeg(file: File, onStatus?: (s: string) => void
   const MOUNT = '/repairin';
   const inName = `repair_in.${ext}`;
   const outName = `repair_out.${ext}`;
-  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     onStatus?.('修復用FFmpegを起動中...');
     const { coreURL, wasmURL } = await getCoreUrls();
-    await repairer.load({ coreURL, wasmURL, classWorkerURL: ffmpegWorkerUrl });
+    await engineOperation(repairer, '修復用FFmpegの起動', () => repairer.load({ coreURL, wasmURL, classWorkerURL: ffmpegWorkerUrl }));
     let inPath = inName;
     let mounted = false;
     try {
-      await repairer.createDir(MOUNT);
-      mounted = await repairer.mount(FFFSType.WORKERFS, { files: [new File([file], inName, { type: file.type })] }, MOUNT);
+      await engineOperation(repairer, '修復用入力の準備', () => repairer.createDir(MOUNT));
+      mounted = await engineOperation(repairer, '修復用入力の読み込み', () => repairer.mount(FFFSType.WORKERFS, { files: [new File([file], inName, { type: file.type })] }, MOUNT));
       if (mounted) inPath = `${MOUNT}/${inName}`;
     } catch { mounted = false; }
-    if (!mounted) await repairer.writeFile(inName, await fetchFile(file));
+    if (!mounted) await engineOperation(repairer, '修復用入力の書き込み', async () => repairer.writeFile(inName, await fetchFile(file)));
     onStatus?.('修復用FFmpegで動画を修復中...');
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error('repair timeout')), REPAIR_TIMEOUT_MS);
-    });
-    const rc = await Promise.race([repairer.exec([
+    const rc = await engineOperation(repairer, '動画修復', () => repairer.exec([
       '-y', '-nostdin', '-hide_banner',
       '-err_detect', 'ignore_err',
       '-fflags', '+discardcorrupt+genpts+igndts',
@@ -628,15 +647,14 @@ async function repairWithRepairFFmpeg(file: File, onStatus?: (s: string) => void
       '-avoid_negative_ts', 'make_zero',
       '-max_muxing_queue_size', '9999',
       outName,
-    ]), timeout]);
+    ]), REPAIR_TIMEOUT_MS);
     if (rc !== 0) return file;
-    const data = await repairer.readFile(outName);
+    const data = await engineOperation(repairer, '修復結果の読み取り', () => repairer.readFile(outName));
     if (!(data instanceof Uint8Array) || data.byteLength < 1024) return file;
     return new File([data as BlobPart], file.name, { type: file.type });
   } catch {
     return file;
   } finally {
-    clearTimeout(timer);
     try { repairer.terminate(); } catch {}
   }
 }
@@ -644,6 +662,18 @@ async function repairWithRepairFFmpeg(file: File, onStatus?: (s: string) => void
 /** Convert a file using FFmpeg WASM */
 
 export async function convertWithFFmpeg(
+  ...args: Parameters<typeof convertFileWithFFmpeg>
+): Promise<{ url: string; filename: string }> {
+  // Never keep an idle  WASM heap alongside the next video's repair engine.
+  resetFFmpeg();
+  try {
+    return await convertFileWithFFmpeg(...args);
+  } finally {
+    resetFFmpeg();
+  }
+}
+
+async function convertFileWithFFmpeg(
   file: File,
   format: string,
   settings: ConvertSettings,
@@ -690,25 +720,26 @@ export async function convertWithFFmpeg(
   let inputPath = inputName;
   try {
     const mountFile = new File([file], inputName, { type: file.type });
-    try { await ff.createDir(MOUNT_DIR); } catch {}
-    mounted = await ff.mount(FFFSType.WORKERFS, { files: [mountFile] }, MOUNT_DIR);
+    try { await engineOperation(ff, '入力の準備', () => ff.createDir(MOUNT_DIR)); } catch {}
+    mounted = await engineOperation(ff, '入力の読み込み', () => ff.mount(FFFSType.WORKERFS, { files: [mountFile] }, MOUNT_DIR));
     if (mounted) inputPath = `${MOUNT_DIR}/${inputName}`;
   } catch {
     mounted = false;
   }
   if (!mounted) {
-    await ff.writeFile(inputName, await fetchFile(file));
+    await engineOperation(ff, '入力の書き込み', async () => ff.writeFile(inputName, await fetchFile(file)));
   }
   onProgress?.(25);
 
   const cleanup = async (names: string[]) => {
+    if (!ff.loaded) return;
     for (const n of new Set(names)) {
       if (n.startsWith(MOUNT_DIR)) continue;
-      try { await ff.deleteFile(n); } catch {}
+      try { await engineOperation(ff, '一時ファイルの削除', () => ff.deleteFile(n)); } catch {}
     }
     if (mounted) {
-      try { await ff.unmount(MOUNT_DIR); } catch {}
-      try { await ff.deleteDir(MOUNT_DIR); } catch {}
+      try { await engineOperation(ff, '入力の解放', () => ff.unmount(MOUNT_DIR)); } catch {}
+      try { await engineOperation(ff, '入力フォルダの削除', () => ff.deleteDir(MOUNT_DIR)); } catch {}
     }
   };
 
@@ -717,10 +748,13 @@ export async function convertWithFFmpeg(
   // Pre-conversion metadata check → repair broken/truncated input
   onStatus?.('入力ファイルのメタデータを確認中...');
   let sourceName = inputPath;
-  if (!(await checkMetadata(ff, inputPath))) {
+  let metadata = await readMetadata(ff, inputPath);
+  if (!metadata) {
     onStatus?.('入力ファイルが破損しています。修復中...');
     sourceName = await repairFile(ff, inputPath);
+    metadata = await readMetadata(ff, sourceName);
   }
+  if (metadata && !metadata.hasAudio) settings = { ...settings, audioEnabled: false };
 
   onStatus?.('FFmpegコマンドを生成中...');
   const split = shouldSplitPasses(settings, format, isVideo);
@@ -805,15 +839,28 @@ export async function convertWithFFmpeg(
   const attempt = async (pass: Pass, args: string[]): Promise<{ rc?: number; error?: any }> => {
     let trackProgress = true;
     let lastActivity = Date.now();
+    let lastPct = pass.from;
+    const started = Date.now();
     const onFfProgress = ({ progress }: { progress: number }) => {
       lastActivity = Date.now();
       if (abortRequested || !trackProgress) return;
       if (!Number.isFinite(progress) || progress < 0) return;
       const pct = Math.min(pass.from + Math.min(progress, 1) * (pass.to - pass.from), pass.to);
-      onProgress?.(pct);
+      lastPct = Math.max(lastPct, pct);
+      onProgress?.(lastPct);
       onStatus?.(`FFmpeg → ${pass.label}... ${Math.round(pct)}%`);
     };
-    const onActivityLog = () => { lastActivity = Date.now(); };
+    const onActivityLog = ({ message }: { message: string }) => {
+      lastActivity = Date.now();
+      // stderr timestamps remain available when the core's progress callback is silent.
+      const time = /time=(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(message);
+      if (!time || !metadata?.duration) return;
+      const elapsed = Number(time[1]) * 3600 + Number(time[2]) * 60 + Number(time[3]);
+      const duration = (settings.endTime > 0 ? Math.min(settings.endTime, metadata.duration) : metadata.duration) - settings.startTime;
+      if (duration <= 0) return;
+      lastPct = Math.max(lastPct, pass.from + Math.min(elapsed / (duration / Number(settings.speed || 1)), 0.99) * (pass.to - pass.from));
+      onProgress?.(lastPct);
+    };
     ff.on('progress', onFfProgress);
     ff.on('log', onActivityLog);
 
@@ -829,8 +876,9 @@ export async function convertWithFFmpeg(
         if (Date.now() - lastActivity > STALL_MS) {
           clearInterval(stallTimer);
           resetFFmpeg();
-          reject(new Error('FFmpegエラー:\n変換処理が応答しなくなりました（メモリ不足の可能性があります）。解像度やビットレートを下げて再試行してください。'));
+          reject(new Error('変換処理が応答しません。\nエラーコード: ERR_WORKER_TIMEOUT（10分間応答なし。FFmpegの終了コードは返されていません）'));
         }
+        if (!abortRequested && ff.loaded) onStatus?.(`FFmpeg → ${pass.label}... ${Math.round(lastPct)}%（経過 ${Math.floor((Date.now() - started) / 1000)}秒）`);
       }, 2_000);
     });
 
@@ -888,11 +936,11 @@ export async function convertWithFFmpeg(
     await runPass(pass);
   }
   // Free the intermediate streams before reading the result
-  for (const n of [VIDEO_TMP, AUDIO_TMP]) { try { await ff.deleteFile(n); } catch {} }
+  for (const n of [VIDEO_TMP, AUDIO_TMP]) { try { await engineOperation(ff, '中間ファイルの削除', () => ff.deleteFile(n)); } catch {} }
 
   onStatus?.('出力ファイルのメタデータを確認中...');
   let finalName = outputName;
-  if (!(await checkMetadata(ff, outputName))) {
+  if (!(await readMetadata(ff, outputName))) {
     onStatus?.('出力ファイルが破損しています。修復中...');
     finalName = await repairFile(ff, outputName);
   }
@@ -900,7 +948,7 @@ export async function convertWithFFmpeg(
   onStatus?.('FFmpeg → 出力ファイルを読み取り中...');
   onProgress?.(92);
 
-  const data = await ff.readFile(finalName);
+  const data = await engineOperation(ff, '出力ファイルの読み取り', () => ff.readFile(finalName));
   onProgress?.(96);
   if (!data || (data as Uint8Array).length === 0) {
     await cleanup([inputName, sourceName, outputName, finalName]);
