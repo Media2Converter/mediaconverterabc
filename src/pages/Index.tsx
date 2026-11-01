@@ -702,6 +702,7 @@ const Index: React.FC = () => {
         { label: '再読み込み', value: 'reload' },
         { label: '再試行', value: 'retry' },
         { label: 'テーマ', value: 'theme' },
+        { label: 'FFmpegを初期化', value: 'reset_ffmpeg' },
       ],
     },
   ];
@@ -735,8 +736,21 @@ const Index: React.FC = () => {
         }
         break;
       case 'reset_ffmpeg':
-        resetFFmpeg();
-        window.alert('FFmpegが初期化されました。');
+        if (!window.confirm('FFmpegを初期化してよろしいですか？')) break;
+        setProgress(0);
+        setStatusMessage('FFmpegを初期化中...');
+        setConverting(true);
+        // Let the initializing dialog render before the synchronous reset runs.
+        setTimeout(() => {
+          try {
+            resetFFmpeg();
+          } catch {
+            // Ignore reset failures; the next conversion will recreate the engine.
+          }
+          setConverting(false);
+          setStatusMessage('');
+          window.alert('初期化が完了しました。');
+        }, 100);
         break;
     }
   };
