@@ -1,6 +1,7 @@
 import { FFmpeg, FFFSType } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { runFFmpegOperation } from './ffmpegOperation';
+import { FFmpegStallTracker } from './ffmpegStallStatus';
 import { parseFFmpegMetadata } from './ffmpegMetadata';
 import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
 import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
@@ -841,25 +842,38 @@ async function convertFileWithFFmpeg(
     let lastActivity = Date.now();
     let lastPct = pass.from;
     const started = Date.now();
+    const stallTracker = new FFmpegStallTracker(started);
+    const normalStatus = () => onStatus?.(`FFmpeg → ${pass.label}... ${Math.round(lastPct)}%（経過 ${Math.floor((Date.now() - started) / 1000)}秒）`);
     const onFfProgress = ({ progress }: { progress: number }) => {
       lastActivity = Date.now();
       if (abortRequested || !trackProgress) return;
       if (!Number.isFinite(progress) || progress < 0) return;
+      const advanced = stallTracker.recordProgress(Math.min(progress, 1), Date.now());
       const pct = Math.min(pass.from + Math.min(progress, 1) * (pass.to - pass.from), pass.to);
       lastPct = Math.max(lastPct, pct);
       onProgress?.(lastPct);
-      onStatus?.(`FFmpeg → ${pass.label}... ${Math.round(pct)}%`);
+      if (advanced) normalStatus();
     };
     const onActivityLog = ({ message }: { message: string }) => {
       lastActivity = Date.now();
+      if (abortRequested || !trackProgress) return;
+      stallTracker.recordLog(message, Date.now());
+      const frame = /frame=\s*(\d+)/.exec(message);
+      if (frame && stallTracker.recordProgress(Number(frame[1]), Date.now(), 'frame')) normalStatus();
       // stderr timestamps remain available when the core's progress callback is silent.
       const time = /time=(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(message);
-      if (!time || !metadata?.duration) return;
+      if (!time) return;
       const elapsed = Number(time[1]) * 3600 + Number(time[2]) * 60 + Number(time[3]);
+      const advanced = stallTracker.recordProgress(elapsed, Date.now(), 'time');
+      if (!metadata?.duration) {
+        if (advanced) normalStatus();
+        return;
+      }
       const duration = (settings.endTime > 0 ? Math.min(settings.endTime, metadata.duration) : metadata.duration) - settings.startTime;
       if (duration <= 0) return;
       lastPct = Math.max(lastPct, pass.from + Math.min(elapsed / (duration / Number(settings.speed || 1)), 0.99) * (pass.to - pass.from));
       onProgress?.(lastPct);
+      if (advanced) normalStatus();
     };
     ff.on('progress', onFfProgress);
     ff.on('log', onActivityLog);
@@ -877,9 +891,16 @@ async function convertFileWithFFmpeg(
           clearInterval(stallTimer);
           resetFFmpeg();
           reject(new Error('変換処理が応答しません。\nエラーコード: ERR_WORKER_TIMEOUT（10分間応答なし。FFmpegの終了コードは返されていません）'));
+          return;
         }
-        if (!abortRequested && ff.loaded) onStatus?.(`FFmpeg → ${pass.label}... ${Math.round(lastPct)}%（経過 ${Math.floor((Date.now() - started) / 1000)}秒）`);
-      }, 2_000);
+        const stopped = stallTracker.getState(Date.now(), ff.loaded);
+        if (stopped) {
+          // Stalled status intentionally excludes memory, percentage and phase details.
+          rawStatus?.(`処理停止中：${stopped.seconds}秒\n${stopped.cause}`);
+        } else if (ff.loaded) {
+          normalStatus();
+        }
+      }, 1_000);
     });
 
     // Warnings / info lines on stderr (Stream #, [swscaler], deprecated pixel format, ...)
