@@ -1021,7 +1021,7 @@ const Index: React.FC = () => {
                 {Math.round(progress)}%
               </text>
             </svg>
-            <p className="text-foreground text-[31px] text-center whitespace-pre-line mt-4 max-w-md">{statusMessage}</p>
+            <p aria-live="assertive" aria-atomic="true" className="text-foreground text-[31px] text-center whitespace-pre-line mt-4 max-w-md">{statusMessage}</p>
             <div className="w-full mt-4 flex flex-col gap-2">
               <button
                 onClick={() => setPreviewView('ffmpeg')}
