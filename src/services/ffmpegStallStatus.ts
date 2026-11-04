@@ -1,18 +1,15 @@
 /** A quiet worker is not proof of a crash: report only observed evidence. */
 export class FFmpegStallTracker {
   private lastAdvance: number;
-  private lastResponse: number;
   private evidence: string | undefined;
   private alerted = false;
   private values = new Map<string, number>();
 
   constructor(started: number, private readonly thresholdMs = 5_000) {
     this.lastAdvance = started;
-    this.lastResponse = started;
   }
 
   recordProgress(value: number, now: number, metric = 'progress'): boolean {
-    this.lastResponse = now;
     if (!Number.isFinite(value) || value < 0) return false;
     const previous = this.values.get(metric) ?? 0;
     if (value <= previous) return false;
@@ -24,7 +21,6 @@ export class FFmpegStallTracker {
   }
 
   recordLog(message: string, now: number): void {
-    this.lastResponse = now;
     if (/out of memory|Cannot enlarge memory|failed to allocate memory/i.test(message)) {
       this.evidence = 'メモリの確保に失敗しました。';
     } else if (/memory access out of bounds|RuntimeError.*unreachable/i.test(message)) {
