@@ -668,7 +668,15 @@ export async function convertWithFFmpeg(
   // Never keep an idle  WASM heap alongside the next video's repair engine.
   resetFFmpeg();
   try {
-    return await convertFileWithFFmpeg(...args);
+    try {
+      return await convertFileWithFFmpeg(...args);
+    } catch (e: any) {
+      // An unresponsive engine is restarted once with a fresh worker before failing.
+      if (!String(e?.message ?? e).includes('ERR_ENGINE_UNRESPONSIVE')) throw e;
+      resetFFmpeg();
+      args[6]?.('FFmpegが応答しないため、再起動して再試行中...');
+      return await convertFileWithFFmpeg(...args);
+    }
   } finally {
     resetFFmpeg();
   }
@@ -898,7 +906,13 @@ async function convertFileWithFFmpeg(
           // Stalled status intentionally excludes memory, percentage and phase details.
           const text = `処理停止中：${stopped.seconds}秒\n${stopped.cause}`;
           rawStatus?.(text);
-          if (stallTracker.takeAlert(Date.now())) window.alert(text);
+          if (stallTracker.takeAlert(Date.now())) window.alert(stopped.cause);
+          if (stopped.seconds >= 60) {
+            clearInterval(stallTimer);
+            resetFFmpeg();
+            reject(new Error('ERR_ENGINE_UNRESPONSIVE: FFmpegが60秒間応答しませんでした。'));
+            return;
+          }
         } else if (ff.loaded) {
           normalStatus();
         }
