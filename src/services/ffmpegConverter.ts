@@ -896,7 +896,9 @@ async function convertFileWithFFmpeg(
         const stopped = stallTracker.getState(Date.now(), ff.loaded);
         if (stopped) {
           // Stalled status intentionally excludes memory, percentage and phase details.
-          rawStatus?.(`処理停止中：${stopped.seconds}秒\n${stopped.cause}`);
+          const text = `処理停止中：${stopped.seconds}秒\n${stopped.cause}`;
+          rawStatus?.(text);
+          if (stallTracker.takeAlert(Date.now())) window.alert(text);
         } else if (ff.loaded) {
           normalStatus();
         }

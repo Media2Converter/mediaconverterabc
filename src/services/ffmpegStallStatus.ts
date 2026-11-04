@@ -3,6 +3,7 @@ export class FFmpegStallTracker {
   private lastAdvance: number;
   private lastResponse: number;
   private evidence: string | undefined;
+  private alerted = false;
   private values = new Map<string, number>();
 
   constructor(started: number, private readonly thresholdMs = 5_000) {
@@ -18,6 +19,7 @@ export class FFmpegStallTracker {
     this.values.set(metric, value);
     this.lastAdvance = now;
     this.evidence = undefined;
+    this.alerted = false;
     return true;
   }
 
@@ -33,11 +35,14 @@ export class FFmpegStallTracker {
   getState(now: number, loaded: boolean): { seconds: number; cause: string } | null {
     const elapsed = now - this.lastAdvance;
     if (elapsed < this.thresholdMs) return null;
-    const cause = this.evidence ?? (!loaded
-      ? 'FFmpegが終了しています。'
-      : now - this.lastResponse >= this.thresholdMs
-        ? 'FFmpegから応答がありません。停止原因は確認できません。'
-        : 'FFmpegの進捗が更新されていません。停止原因は確認できません。');
+    const cause = this.evidence ?? (!loaded ? 'FFmpegが終了しています。' : '原因不明');
     return { seconds: Math.floor(elapsed / 1000), cause };
+  }
+
+  /** True once per stall, when it has lasted at least alertMs. */
+  takeAlert(now: number, alertMs = 20_000): boolean {
+    if (this.alerted || now - this.lastAdvance < alertMs) return false;
+    this.alerted = true;
+    return true;
   }
 }
