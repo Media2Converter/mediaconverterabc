@@ -953,7 +953,7 @@ async function convertFileWithFFmpeg(
 
     if (error) {
       if (ffmpeg) { try { await cleanup(tempNames); } catch {} }
-      if (String(error?.message ?? error).includes('キャンセル')) throw error;
+      if (/キャンセル|ERR_ENGINE_UNRESPONSIVE/.test(String(error?.message ?? error))) throw error;
       throw new Error(failureText(`FFmpegエラー（${pass.label}）:`, undefined, describeThrown(error)));
     }
     if (rc !== 0) {
