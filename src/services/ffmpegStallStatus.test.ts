@@ -41,4 +41,18 @@ describe('conversion stall tracking', () => {
     tracker.recordProgress(0.1, 6500);
     expect(tracker.getState(11500, true)?.cause).toBe(unknown);
   });
+
+  it('shows 原因不明 when no cause is observed', () => {
+    expect(new FFmpegStallTracker(0).getState(33000, true)?.cause).toBe('原因不明');
+  });
+
+  it('alerts once after 20 seconds of stall, and again after a new stall', () => {
+    const tracker = new FFmpegStallTracker(0);
+    expect(tracker.takeAlert(19999)).toBe(false);
+    expect(tracker.takeAlert(20000)).toBe(true);
+    expect(tracker.takeAlert(25000)).toBe(false);
+    tracker.recordProgress(0.5, 26000);
+    expect(tracker.takeAlert(45999)).toBe(false);
+    expect(tracker.takeAlert(46000)).toBe(true);
+  });
 });

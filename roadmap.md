@@ -1,5 +1,9 @@
 # Roadmap
 
+## Version 1.63 stall notification
+- [x] Show 原因不明 for an unconfirmed cause and alert once after 20 seconds with the exact status text.
+- [x] Update to version 1.63 and verify timing and native alert text.
+
 ## Version 1.62 stall status
 - [x] Show stalled duration each second and only the supported cause, then restore normal status on progress.
 - [x] Update version to 1.62 and verify stalled/resumed/cancelled conversion.
