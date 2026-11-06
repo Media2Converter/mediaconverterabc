@@ -1,5 +1,10 @@
 # Roadmap
 
+## Version 1.7 sleep prevention
+- [x] Keep the screen awake during conversion and reacquire protection when returning to the page.
+- [x] Avoid premature restarts during slow encoding; bound core downloads and recover an unresponsive engine once.
+- [x] Update to version 1.7 and verify conversion, cancellation, and wake-lock cleanup (20 tests and browser conversion/download/cancellation; physical iOS sleep prevention remains unverified).
+
 ## Version 1.63 stall notification
 - [x] Show 原因不明 for an unconfirmed cause and alert once after 20 seconds with the exact status text.
 - [x] Update to version 1.63 and verify timing and native alert text.

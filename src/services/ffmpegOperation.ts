@@ -1,3 +1,16 @@
+/** Count only observed foreground time; a suspended tab or native dialog is not worker failure. */
+export class FFmpegInactivityClock {
+  private elapsed = 0;
+  constructor(private previous: number, private readonly timeoutMs = 600_000) {}
+  activity(now: number): void { this.elapsed = 0; this.previous = now; }
+  tick(now: number, visible: boolean): boolean {
+    const delta = now - this.previous;
+    this.previous = now;
+    if (visible && delta >= 0 && delta <= 1500) this.elapsed += delta;
+    return this.elapsed >= this.timeoutMs;
+  }
+}
+
 /** Bound worker requests which otherwise never settle after a worker crash. */
 export async function runFFmpegOperation<T>(
   operation: () => Promise<T>,

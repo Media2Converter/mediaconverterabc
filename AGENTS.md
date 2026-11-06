@@ -4,3 +4,5 @@
 - Bound preparation and validation worker requests and terminate conversion engines after each file, because silent worker failures must not leave pending operations or idle WASM heaps.
 - Use header-only FFprobe validation and serialize audio/video passes only when audio is present, because validation should not decode media and silent videos must not enter an audio mux pass.
 - Track stalled conversion status and one-shot notifications using advancing progress/frame/time values; reset notifications on real progress, because repeated logs do not prove progress and silence does not prove a specific crash cause.
+- Hold a best-effort Screen Wake Lock for each conversion, reacquire it when visible, and release it on every exit; never use media playback or worker pings to simulate activity, because iOS controls background suspension.
+- Restart encoding only after a bounded visible inactivity period, not a short progress stall, because slow encoders may still be working without emitting progress.

@@ -1,6 +1,7 @@
 import { FFmpeg, FFFSType } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { runFFmpegOperation } from './ffmpegOperation';
+import { runFFmpegOperation, FFmpegInactivityClock } from './ffmpegOperation';
+import { keepConversionAwake } from './conversionWakeLock';
 import { FFmpegStallTracker } from './ffmpegStallStatus';
 import { parseFFmpegMetadata } from './ffmpegMetadata';
 import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
@@ -107,8 +108,11 @@ const DEV_CORE_JS = '/node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js';
 const DEV_CORE_WASM = '/node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm';
 
 async function fetchCorePair(jsUrl: string, wasmUrl: string): Promise<{ coreURL: string; wasmURL: string }> {
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), 60_000);
+  try {
   // Verify the files really are the core files (an SPA fallback would return HTML)
-  const [jsRes, wasmRes] = await Promise.all([fetch(jsUrl), fetch(wasmUrl)]);
+  const [jsRes, wasmRes] = await Promise.all([fetch(jsUrl, { signal: controller.signal }), fetch(wasmUrl, { signal: controller.signal })]);
   if (!jsRes.ok || !wasmRes.ok) throw new Error(`core assets unavailable (${jsRes.status}/${wasmRes.status})`);
   const jsText = await jsRes.text();
   if (!jsText.includes('createFFmpegCore')) throw new Error('core js invalid');
@@ -121,6 +125,10 @@ async function fetchCorePair(jsUrl: string, wasmUrl: string): Promise<{ coreURL:
     coreURL: URL.createObjectURL(new Blob([jsText], { type: 'text/javascript' })),
     wasmURL: URL.createObjectURL(new Blob([wasmBuf], { type: 'application/wasm' })),
   };
+  } finally {
+    clearTimeout(deadline);
+    controller.abort();
+  }
 }
 
 /** Bundled asset → (dev) node_modules copy → CDN */
@@ -153,27 +161,19 @@ function engineOperation<T>(ff: FFmpeg, label: string, operation: () => Promise<
 
 export async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   if (ffmpeg && ffmpeg.loaded) return ffmpeg;
-  ffmpeg = new FFmpeg();
+  const engine = new FFmpeg();
+  ffmpeg = engine;
   if (onLog) {
-    ffmpeg.on('log', ({ message }) => onLog(message));
+    engine.on('log', ({ message }) => onLog(message));
   }
-  const { coreURL, wasmURL } = await getCoreUrls();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('FFmpeg.wasm の初期化がタイムアウトしました')), LOAD_TIMEOUT_MS);
-  });
   try {
-    await Promise.race([
-      ffmpeg.load({ coreURL, wasmURL, classWorkerURL: ffmpegWorkerUrl }),
-      timeout,
-    ]);
+    const { coreURL, wasmURL } = await getCoreUrls();
+    await engineOperation(engine, 'FFmpeg.wasmの初期化', () => engine.load({ coreURL, wasmURL, classWorkerURL: ffmpegWorkerUrl }));
   } catch (e) {
     resetFFmpeg();
     throw e;
-  } finally {
-    clearTimeout(timer);
   }
-  return ffmpeg;
+  return engine;
 }
 
 
@@ -667,18 +667,20 @@ export async function convertWithFFmpeg(
 ): Promise<{ url: string; filename: string }> {
   // Never keep an idle  WASM heap alongside the next video's repair engine.
   resetFFmpeg();
+  const stopKeepingAwake = keepConversionAwake();
   try {
     try {
       return await convertFileWithFFmpeg(...args);
     } catch (e: any) {
       // An unresponsive engine is restarted once with a fresh worker before failing.
-      if (!String(e?.message ?? e).includes('ERR_ENGINE_UNRESPONSIVE')) throw e;
+      if (abortRequested || !/ERR_ENGINE_UNRESPONSIVE|ERR_WORKER_TIMEOUT/.test(String(e?.message ?? e))) throw e;
       resetFFmpeg();
       args[6]?.('FFmpegが応答しないため、再起動して再試行中...');
       return await convertFileWithFFmpeg(...args);
     }
   } finally {
     resetFFmpeg();
+    stopKeepingAwake();
   }
 }
 
@@ -847,13 +849,13 @@ async function convertFileWithFFmpeg(
 
   const attempt = async (pass: Pass, args: string[]): Promise<{ rc?: number; error?: any }> => {
     let trackProgress = true;
-    let lastActivity = Date.now();
+    const inactivity = new FFmpegInactivityClock(Date.now(), STALL_MS);
     let lastPct = pass.from;
     const started = Date.now();
     const stallTracker = new FFmpegStallTracker(started);
     const normalStatus = () => onStatus?.(`FFmpeg → ${pass.label}... ${Math.round(lastPct)}%（経過 ${Math.floor((Date.now() - started) / 1000)}秒）`);
     const onFfProgress = ({ progress }: { progress: number }) => {
-      lastActivity = Date.now();
+      inactivity.activity(Date.now());
       if (abortRequested || !trackProgress) return;
       if (!Number.isFinite(progress) || progress < 0) return;
       const advanced = stallTracker.recordProgress(Math.min(progress, 1), Date.now());
@@ -863,7 +865,7 @@ async function convertFileWithFFmpeg(
       if (advanced) normalStatus();
     };
     const onActivityLog = ({ message }: { message: string }) => {
-      lastActivity = Date.now();
+      inactivity.activity(Date.now());
       if (abortRequested || !trackProgress) return;
       stallTracker.recordLog(message, Date.now());
       const frame = /frame=\s*(\d+)/.exec(message);
@@ -895,10 +897,10 @@ async function convertFileWithFFmpeg(
           reject(new Error('ユーザーによりキャンセルされました'));
           return;
         }
-        if (Date.now() - lastActivity > STALL_MS) {
+        if (inactivity.tick(Date.now(), document.visibilityState === 'visible')) {
           clearInterval(stallTimer);
           resetFFmpeg();
-          reject(new Error('変換処理が応答しません。\nエラーコード: ERR_WORKER_TIMEOUT（10分間応答なし。FFmpegの終了コードは返されていません）'));
+          reject(new Error('変換処理が応答しません。\nエラーコード: ERR_ENGINE_UNRESPONSIVE（画面表示中に10分間応答なし。FFmpegの終了コードは返されていません）'));
           return;
         }
         const stopped = stallTracker.getState(Date.now(), ff.loaded);
@@ -907,12 +909,6 @@ async function convertFileWithFFmpeg(
           const text = `処理停止中：${stopped.seconds}秒\n${stopped.cause}`;
           rawStatus?.(text);
           if (stallTracker.takeAlert(Date.now())) window.alert(stopped.cause);
-          if (stopped.seconds >= 60) {
-            clearInterval(stallTimer);
-            resetFFmpeg();
-            reject(new Error('ERR_ENGINE_UNRESPONSIVE: FFmpegが60秒間応答しませんでした。'));
-            return;
-          }
         } else if (ff.loaded) {
           normalStatus();
         }
