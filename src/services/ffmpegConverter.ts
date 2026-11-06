@@ -668,6 +668,7 @@ export async function convertWithFFmpeg(
   // Never keep an idle  WASM heap alongside the next video's repair engine.
   resetFFmpeg();
   const stopKeepingAwake = keepConversionAwake();
+  conversionActive = true;
   try {
     try {
       return await convertFileWithFFmpeg(...args);
@@ -679,9 +680,20 @@ export async function convertWithFFmpeg(
       return await convertFileWithFFmpeg(...args);
     }
   } finally {
+    conversionActive = false;
     resetFFmpeg();
     stopKeepingAwake();
   }
+}
+
+let conversionActive = false;
+
+/**
+ * Reopening the site (bfcache restore or a fresh load) may leave a frozen worker
+ * from before; discard it so the next conversion starts on a fresh engine.
+ */
+export function wakeFFmpegOnReopen(): void {
+  if (!conversionActive) resetFFmpeg();
 }
 
 async function convertFileWithFFmpeg(
