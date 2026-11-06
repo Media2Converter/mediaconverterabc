@@ -7,12 +7,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { checkAppVersionOnLoad } from "@/lib/appVersion";
+import { wakeFFmpegOnReopen } from "@/services/ffmpegConverter";
 
 const queryClient = new QueryClient();
 
 const App = () => {
   useEffect(() => {
     checkAppVersionOnLoad();
+    wakeFFmpegOnReopen();
+    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) wakeFFmpegOnReopen(); };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
   return (
