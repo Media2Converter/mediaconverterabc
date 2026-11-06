@@ -1,7 +1,28 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { runFFmpegOperation } from './ffmpegOperation';
+import { FFmpegInactivityClock, runFFmpegOperation } from './ffmpegOperation';
 
 afterEach(() => vi.useRealTimers());
+describe('foreground inactivity recovery', () => {
+  it('does not interrupt a slow encode at 60 seconds; bounds silence at 10 minutes', () => {
+    const clock = new FFmpegInactivityClock(0);
+    for (let t = 1000; t < 600_000; t += 1000) expect(clock.tick(t, true)).toBe(false);
+    expect(clock.tick(600_000, true)).toBe(true);
+  });
+  it('excludes background time and suspended native-dialog time', () => {
+    const clock = new FFmpegInactivityClock(0, 2000);
+    expect(clock.tick(1000, true)).toBe(false);
+    expect(clock.tick(2000, false)).toBe(false);
+    expect(clock.tick(602000, true)).toBe(false);
+    expect(clock.tick(603000, true)).toBe(true);
+  });
+  it('resets the recovery deadline when the worker responds', () => {
+    const clock = new FFmpegInactivityClock(0, 2000);
+    clock.tick(1000, true);
+    clock.activity(1000);
+    expect(clock.tick(2000, true)).toBe(false);
+    expect(clock.tick(3000, true)).toBe(true);
+  });
+});
 describe('FFmpeg worker operation recovery', () => {
   it('returns a completed operation without terminating its engine', async () => {
     const terminate = vi.fn();
