@@ -7,7 +7,9 @@ import {
   getCompatibleAudioCodecs, getCompatibleVideoCodecs,
   type ConvertSettings, defaultSettings,
 } from '@/constants/converterOptions';
-import { convertWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog, isFfmpegErrorLog } from '@/services/ffmpegConverter';
+import { convertWithFFmpeg, repairSampleWithFFmpeg, requestAbort, resetFFmpeg, isFfmpegWarningLog, isFfmpegErrorLog } from '@/services/ffmpegConverter';
+import { SAMPLE_MEDIA_ACCEPT, SAMPLE_REPAIR_ACTION, SAMPLE_REPAIR_GROUP, selectSampleMedia } from '@/services/sampleRepair';
+import { Button } from '@/components/ui/button';
 import { isUpdatePending, UPDATE_PENDING_EVENT } from '@/lib/appVersion';
 
 /** Plain-Japanese sentence describing what failed */
@@ -379,6 +381,11 @@ const Index: React.FC = () => {
   const [detailContext, setDetailContext] = useState<'all' | 'video' | 'audio' | `file:${number}`>('all');
   const [settings, setSettings] = useState<ConvertSettings>(defaultSettings);
   const [converting, setConverting] = useState(false);
+  const [sampleRepairOpen, setSampleRepairOpen] = useState(false);
+  const [sampleFile, setSampleFile] = useState<File | null>(null);
+  const [repairing, setRepairing] = useState(false);
+  const sampleInputRef = useRef<HTMLInputElement>(null);
+  const sampleSectionRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
   const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
   const [convertedFilename, setConvertedFilename] = useState('');
@@ -489,6 +496,7 @@ const Index: React.FC = () => {
 
   const handleFormatSelect = (value: string) => {
     if (!value) return;
+    if (value === SAMPLE_REPAIR_ACTION) { setSampleRepairOpen(true); return; }
     setSelectedFormat(value);
     const compatAudio = getCompatibleAudioCodecs(value);
     if (settings.audioCodec !== 'copy' && settings.audioCodec !== 'none' && !compatAudio.includes(settings.audioCodec)) {
@@ -533,6 +541,41 @@ const Index: React.FC = () => {
     setConverting(false);
     setProgress(0);
     setStatusMessage('キャンセルしました');
+  };
+
+  useEffect(() => {
+    if (sampleRepairOpen) sampleSectionRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [sampleRepairOpen]);
+
+  const handleSampleSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = selectSampleMedia(event.target.files);
+    if (event.target.files?.length && !file) window.alert('ビデオまたはオーディオファイルを一つ選択してください。');
+    if (file) setSampleFile(file);
+    event.target.value = '';
+  };
+
+  const handleSampleRepair = async () => {
+    if (!sampleFile || converting) return;
+    setRepairing(true);
+    setConverting(true);
+    setProgress(0);
+    setConvertedUrl(null);
+    setConvertedResults([]);
+    try {
+      const result = await repairSampleWithFFmpeg(sampleFile, setProgress, setStatusMessage, setFfmpegCommand);
+      const ext = result.filename.split('.').pop() || 'mkv';
+      const filename = `CDF_${String(cdfCounter++).padStart(4, '0')}.${ext}`;
+      setConvertedUrl(result.url);
+      setConvertedFilename(filename);
+      setConvertedResults([{ url: result.url, filename }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('キャンセル')) setStatusMessage('キャンセルしました');
+      else { setStatusMessage('修復に失敗しました。'); window.alert(message); }
+    } finally {
+      setRepairing(false);
+      setConverting(false);
+    }
   };
 
   const handleConvert = async () => {
@@ -786,6 +829,7 @@ const Index: React.FC = () => {
 
   const onFilenamePicked = (v: string) => {
     setPendingFileSelect(false);
+    if (v === SAMPLE_REPAIR_ACTION) { setSampleRepairOpen(true); return; }
     const idx = parseInt(v, 10);
     if (isNaN(idx)) return;
     setPendingFormatForIdx(idx);
@@ -795,6 +839,7 @@ const Index: React.FC = () => {
   const onFormatPicked = (fmt: string) => {
     const idx = pendingFormatForIdx;
     setPendingFormatForIdx(null);
+    if (fmt === SAMPLE_REPAIR_ACTION) { setSampleRepairOpen(true); return; }
     if (!fmt || idx === null) return;
     setPerFileFormats(prev => {
       const next = { ...prev, [idx]: fmt };
@@ -904,12 +949,13 @@ const Index: React.FC = () => {
                 value={selectedFormat}
                 onSelect={(v) => {
                   if (!v) return;
+                  if (v === SAMPLE_REPAIR_ACTION) { setSampleRepairOpen(true); return; }
                   handleFormatSelect(v);
                   setPerFileFormats({ 0: v });
                   setDetailContext('all');
                 }}
                 pickerHeader="形式"
-                groups={singleGroups}
+                groups={[...singleGroups, SAMPLE_REPAIR_GROUP]}
               >
                 <span className="block w-full py-3.5 text-[31px] font-semibold">
                   {selectedFormat ? `形式: ${selectedFormat}` : '形式'}
@@ -933,12 +979,28 @@ const Index: React.FC = () => {
                   label: `${f.name}${perFileFormats[i] ? ` (${perFileFormats[i]})` : ''}`,
                   value: String(i),
                 })),
-              }]}
+              }, SAMPLE_REPAIR_GROUP]}
             >
               <span className="block w-full py-3.5 text-[31px] font-semibold">形式</span>
             </NativeSelectButton>
           );
         })()}
+
+        {sampleRepairOpen && (
+          <div ref={sampleSectionRef} className="w-full flex flex-col">
+            <Button onClick={() => sampleInputRef.current?.click()} disabled={converting}
+              className="w-full h-auto min-h-14 rounded-none py-3.5 text-[31px] whitespace-normal border-b border-primary-foreground/20">
+              サンプルファイルを選択
+            </Button>
+            {sampleFile && (
+              <>
+                <Button onClick={handleSampleRepair} disabled={converting}
+                  className="w-full h-auto min-h-14 rounded-none py-3.5 text-[31px]">開始</Button>
+                <p className="text-muted-foreground text-xl break-all py-2" aria-live="polite">{sampleFile.name}</p>
+              </>
+            )}
+          </div>
+        )}
 
         {files.length > 0 && formatsReady && (
           files.length === 1 ? (
@@ -984,6 +1046,15 @@ const Index: React.FC = () => {
       </div>
 
       <input
+        ref={sampleInputRef}
+        type="file"
+        accept={SAMPLE_MEDIA_ACCEPT}
+        hidden
+        onChange={handleSampleSelected}
+        aria-label="サンプルファイルを選択"
+      />
+
+      <input
         ref={fileInputRef}
         type="file"
         accept="video/*,audio/*,.mp4,.mov,.avi,.mkv,.wmv,.flv,.webm,.m4v,.3gp,.3g2,.mp3,.wav,.aac,.ogg,.flac,.m4a,.wma,.aiff,.opus,.amr"
@@ -994,7 +1065,7 @@ const Index: React.FC = () => {
 
 
       {converting && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="変換中">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={repairing ? '処理中' : '変換中'}>
           <div
             className="relative flex flex-col items-center px-6 py-6"
             style={{
@@ -1081,6 +1152,9 @@ const Index: React.FC = () => {
                 </option>
               ))}
             </optgroup>
+            <optgroup label={SAMPLE_REPAIR_GROUP.label}>
+              <option value={SAMPLE_REPAIR_ACTION}>{SAMPLE_REPAIR_GROUP.options[0].label}</option>
+            </optgroup>
           </select>
           <select
             ref={formatSelectRef}
@@ -1105,6 +1179,9 @@ const Index: React.FC = () => {
                 </optgroup>
               </>
             )}
+            <optgroup label={SAMPLE_REPAIR_GROUP.label}>
+              <option value={SAMPLE_REPAIR_ACTION}>{SAMPLE_REPAIR_GROUP.options[0].label}</option>
+            </optgroup>
           </select>
         </>
       )}

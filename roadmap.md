@@ -1,5 +1,10 @@
 # Roadmap
 
+## Sample media repair
+- [x] Add Other Tools to format menus and a single audio/video sample picker with Start.
+- [x] Repair using FFmpeg stream copy, with progress, cancellation, and downloadable output.
+- [x] Test selection rules and stream-copy arguments; verify video/audio repair and download, with identical encoded packets. Native iOS chooser appearance requires a physical device.
+
 ## Version 1.7 sleep prevention
 - [x] Keep the screen awake during conversion and reacquire protection when returning to the page.
 - [x] Avoid premature restarts during slow encoding; bound core downloads and recover an unresponsive engine once.

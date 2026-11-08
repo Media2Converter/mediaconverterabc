@@ -4,6 +4,7 @@ import { runFFmpegOperation, FFmpegInactivityClock } from './ffmpegOperation';
 import { keepConversionAwake } from './conversionWakeLock';
 import { FFmpegStallTracker } from './ffmpegStallStatus';
 import { parseFFmpegMetadata } from './ffmpegMetadata';
+import { buildSampleRepairArgs, selectSampleMedia } from './sampleRepair';
 import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
 import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
@@ -687,6 +688,88 @@ export async function convertWithFFmpeg(
 }
 
 let conversionActive = false;
+
+/** Explicit stream-copy repair: never return an unchanged input as a successful repair. */
+export async function repairSampleWithFFmpeg(
+  file: File,
+  onProgress?: (pct: number) => void,
+  onStatus?: (status: string) => void,
+  onCommand?: (command: string) => void,
+): Promise<{ url: string; filename: string }> {
+  if (conversionActive) throw new Error('他の処理が実行中です。\nエラーコード: ERR_ENGINE_BUSY');
+  if (!selectSampleMedia([file])) throw new Error('ビデオまたはオーディオファイルを一つ選択してください。\nエラーコード: ERR_INVALID_MEDIA');
+  conversionActive = true;
+  abortRequested = false;
+  resetFFmpeg();
+  const stopKeepingAwake = keepConversionAwake();
+  const logs: string[] = [];
+  let statusTimer: ReturnType<typeof setInterval> | undefined;
+  try {
+    onStatus?.('修復用FFmpegを起動中...');
+    onProgress?.(2);
+    const ff = await getFFmpeg(message => { logs.push(message); if (logs.length > 100) logs.shift(); });
+    const ext = file.name.split('.').pop()?.toLowerCase() || (file.type.startsWith('audio/') ? 'mka' : 'mkv');
+    const inputName = `sample.${ext}`;
+    const outputName = `sample_repaired.${ext}`;
+    let inputPath = inputName;
+    let mounted = false;
+    onStatus?.('サンプルファイルを読み込み中...');
+    try {
+      await engineOperation(ff, 'サンプル入力の準備', () => ff.createDir('/samplein'));
+      mounted = await engineOperation(ff, 'サンプル入力の読み込み', () => ff.mount(FFFSType.WORKERFS, { files: [new File([file], inputName, { type: file.type })] }, '/samplein'));
+    } catch (error) {
+      if (abortRequested || !ff.loaded) throw error;
+    }
+    if (mounted) inputPath = `/samplein/${inputName}`;
+    else await engineOperation(ff, 'サンプル入力の書き込み', async () => ff.writeFile(inputName, await fetchFile(file)));
+    const args = buildSampleRepairArgs(inputPath, outputName);
+    onCommand?.(`ffmpeg ${args.join(' ')}`);
+    onProgress?.(20);
+    const started = Date.now();
+    const tracker = new FFmpegStallTracker(started);
+    ff.on('progress', ({ progress }) => {
+      if (!Number.isFinite(progress) || progress < 0) return;
+      tracker.recordProgress(progress, Date.now());
+      onProgress?.(20 + Math.min(progress, 1) * 65);
+    });
+    ff.on('log', ({ message }) => {
+      tracker.recordLog(message, Date.now());
+      const time = /time=(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(message);
+      if (time) tracker.recordProgress(Number(time[1]) * 3600 + Number(time[2]) * 60 + Number(time[3]), Date.now(), 'time');
+    });
+    const updateStatus = () => {
+      const stopped = tracker.getState(Date.now(), ff.loaded);
+      if (stopped) {
+        onStatus?.(`処理停止中：${stopped.seconds}秒\n${stopped.cause}`);
+        if (tracker.takeAlert(Date.now())) window.alert(stopped.cause);
+      } else onStatus?.(`FFmpegで修復中...（経過 ${Math.floor((Date.now() - started) / 1000)}秒）\n${getMemoryStatus(file.size)}`);
+    };
+    updateStatus();
+    statusTimer = setInterval(updateStatus, 1000);
+    const rc = await engineOperation(ff, 'サンプルファイルの修復', () => ff.exec(args), REPAIR_TIMEOUT_MS);
+    clearInterval(statusTimer);
+    if (rc !== 0) throw new Error(`修復に失敗しました。\nエラーコード: ${Number.isFinite(rc) ? `exit code ${rc}` : 'ERR_NO_EXIT_CODE'}\n${logs.filter(isFfmpegErrorLog).slice(-3).join('\n')}`);
+    onProgress?.(90);
+    onStatus?.('修復結果を確認中...');
+    if (!(await readMetadata(ff, outputName))) throw new Error('修復結果のメタデータを確認できませんでした。\nエラーコード: ERR_REPAIR_INVALID_OUTPUT');
+    const data = await engineOperation(ff, '修復結果の読み取り', () => ff.readFile(outputName));
+    if (!(data instanceof Uint8Array) || data.byteLength === 0) throw new Error('修復結果が空です。\nエラーコード: ERR_REPAIR_EMPTY_OUTPUT');
+    if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
+    const url = URL.createObjectURL(new Blob([data as BlobPart], { type: file.type || 'application/octet-stream' }));
+    onProgress?.(100);
+    onStatus?.('修復が完了しました。');
+    return { url, filename: outputName };
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error);
+    if (/キャンセル|エラーコード:/.test(raw)) throw error;
+    throw new Error(`サンプルファイルの修復に失敗しました。\nエラーコード: ERR_REPAIR_EXCEPTION\n${raw}\n${logs.filter(isFfmpegErrorLog).slice(-3).join('\n')}`);
+  } finally {
+    clearInterval(statusTimer);
+    resetFFmpeg();
+    conversionActive = false;
+    stopKeepingAwake();
+  }
+}
 
 /**
  * Reopening the site (bfcache restore or a fresh load) may leave a frozen worker
