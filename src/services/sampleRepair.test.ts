@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSampleRepairArgs, selectSampleMedia } from './sampleRepair';
+import { buildSampleRepairArgs, selectSampleMedia, sampleSpecsMatch } from './sampleRepair';
 
 describe('sample repair rules', () => {
   it('accepts exactly one media file, not multiple files', () => {
@@ -25,5 +25,31 @@ describe('sample repair rules', () => {
     expect(args.slice(args.indexOf('-i'), args.indexOf('-i') + 2)).toEqual(['-i', '/sample/input.mp4']);
     expect(args.at(-1)).toBe('repaired.mp4');
     expect(args.some(arg => ['-vf', '-af', '-c:v', '-c:a'].includes(arg))).toBe(false);
+  });
+  it('preserves timestamps and packets instead of dropping or regenerating them', () => {
+    const args = buildSampleRepairArgs('input.mp4', 'output.mp4');
+    expect(args).toContain('-copyts');
+    expect(args.slice(args.indexOf('-avoid_negative_ts'), args.indexOf('-avoid_negative_ts') + 2)).toEqual(['-avoid_negative_ts', 'disabled']);
+    expect(args.join(' ')).not.toMatch(/discardcorrupt|genpts|igndts|make_zero/);
+  });
+  it('rebuilds MP4 headers and preserves metadata', () => {
+    const args = buildSampleRepairArgs('input.mp4', 'output.mp4');
+    expect(args.slice(args.indexOf('-movflags'), args.indexOf('-movflags') + 2)).toEqual(['-movflags', '+faststart']);
+    expect(args.slice(args.indexOf('-map_metadata'), args.indexOf('-map_metadata') + 2)).toEqual(['-map_metadata', '0']);
+    expect(buildSampleRepairArgs('input.wav', 'output.wav')).not.toContain('-movflags');
+  });
+  it('rejects a changed resolution rather than downloading it as preserved', () => {
+    const input = JSON.stringify({ streams: [{ codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080 }] });
+    expect(sampleSpecsMatch(input, input)).toBe(true);
+    expect(sampleSpecsMatch(input, JSON.stringify({ streams: [{ codec_type: 'video', codec_name: 'h264', width: 1280, height: 720 }] }))).toBe(false);
+  });
+  it('rejects changed audio codecs, sample rates or channel counts', () => {
+    const stream = { codec_type: 'audio', codec_name: 'aac', sample_rate: '48000', channels: 2 };
+    const input = JSON.stringify({ streams: [stream] });
+    expect(sampleSpecsMatch(input, input)).toBe(true);
+    for (const change of [{ codec_name: 'mp3' }, { sample_rate: '44100' }, { channels: 1 }]) {
+      expect(sampleSpecsMatch(input, JSON.stringify({ streams: [{ ...stream, ...change }] }))).toBe(false);
+    }
+    expect(sampleSpecsMatch(input, JSON.stringify({ streams: [] }))).toBe(false);
   });
 });

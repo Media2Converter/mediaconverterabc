@@ -1,5 +1,9 @@
 # Roadmap
 
+## Header-only sample repair
+- [x] Rebuild container headers without dropping packets or rewriting timestamps; preserve original media specifications.
+- [x] Validate specifications before download; 11 tests passed and browser MP4/WAV repair/download preserved packet hashes, timestamps and stream specifications. Physical iOS remains unverified.
+
 ## Sample media repair
 - [x] Add Other Tools to format menus and a single audio/video sample picker with Start.
 - [x] Repair using FFmpeg stream copy, with progress, cancellation, and downloadable output.

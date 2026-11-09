@@ -15,11 +15,26 @@ export function selectSampleMedia(files: ArrayLike<File> | null): File | null {
 }
 
 export function buildSampleRepairArgs(input: string, output: string): string[] {
-  return [
+  const args = [
     '-y', '-nostdin', '-hide_banner', '-stats_period', '1',
-    '-err_detect', 'ignore_err', '-fflags', '+discardcorrupt+genpts+igndts',
-    '-i', input, '-map', '0', '-c', 'copy', '-ignore_unknown',
-    '-avoid_negative_ts', 'make_zero', '-max_error_rate', '1.0',
-    '-max_muxing_queue_size', '9999', output,
+    '-copyts', '-err_detect', 'careful',
+    '-i', input, '-map', '0', '-map_metadata', '0', '-map_chapters', '0',
+    '-c', 'copy', '-avoid_negative_ts', 'disabled',
+    '-max_muxing_queue_size', '9999',
   ];
+  if (/\.(mp4|mov|m4v|m4a|3gp|3g2)$/i.test(output)) args.push('-movflags', '+faststart');
+  return [...args, output];
+}
+
+const SPEC_FIELDS = ['codec_type', 'codec_name', 'width', 'height', 'pix_fmt', 'sample_rate', 'channels', 'channel_layout'] as const;
+export const SAMPLE_SPEC_ENTRIES = `stream=${SPEC_FIELDS.join(',')}`;
+
+/** Compare stream headers, not container size or bitrate (which remuxing changes). */
+export function sampleSpecsMatch(input: string, output: string): boolean {
+  const before = JSON.parse(input).streams;
+  const after = JSON.parse(output).streams;
+  if (!Array.isArray(before) || !Array.isArray(after) || before.length === 0 || before.length !== after.length) return false;
+  return before.every((stream, index) =>
+    stream && after[index] && SPEC_FIELDS.every(field => stream[field] === after[index][field]),
+  );
 }
