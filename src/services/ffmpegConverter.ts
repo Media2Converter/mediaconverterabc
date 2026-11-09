@@ -4,7 +4,7 @@ import { runFFmpegOperation, FFmpegInactivityClock } from './ffmpegOperation';
 import { keepConversionAwake } from './conversionWakeLock';
 import { FFmpegStallTracker } from './ffmpegStallStatus';
 import { parseFFmpegMetadata } from './ffmpegMetadata';
-import { buildSampleRepairArgs, selectSampleMedia, SAMPLE_SPEC_ENTRIES, sampleSpecsMatch } from './sampleRepair';
+import { buildSampleRepairArgs, selectSampleMedia, SAMPLE_SPEC_ENTRIES, sampleSpecsMatch, sampleReferenceCompatible } from './sampleRepair';
 import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
 import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
@@ -692,12 +692,13 @@ let conversionActive = false;
 /** Header rebuild only: preserve encoded media and verify its specifications. */
 export async function repairSampleWithFFmpeg(
   file: File,
+  reference: File,
   onProgress?: (pct: number) => void,
   onStatus?: (status: string) => void,
   onCommand?: (command: string) => void,
 ): Promise<{ url: string; filename: string }> {
   if (conversionActive) throw new Error('他の処理が実行中です。\nエラーコード: ERR_ENGINE_BUSY');
-  if (!selectSampleMedia([file])) throw new Error('ビデオまたはオーディオファイルを一つ選択してください。\nエラーコード: ERR_INVALID_MEDIA');
+  if (!selectSampleMedia([file]) || !selectSampleMedia([reference])) throw new Error('入力とサンプルにビデオまたはオーディオファイルを一つずつ選択してください。\nエラーコード: ERR_INVALID_MEDIA');
   conversionActive = true;
   abortRequested = false;
   resetFFmpeg();
@@ -709,28 +710,40 @@ export async function repairSampleWithFFmpeg(
     onProgress?.(2);
     const ff = await getFFmpeg(message => { logs.push(message); if (logs.length > 100) logs.shift(); });
     const ext = file.name.split('.').pop()?.toLowerCase() || (file.type.startsWith('audio/') ? 'mka' : 'mkv');
-    const inputName = `sample.${ext}`;
-    const outputName = `sample_repaired.${ext}`;
+    const inputName = `input.${ext}`;
+    const outputName = `input_repaired.${ext}`;
+    const referenceExt = reference.name.split('.').pop()?.toLowerCase() || 'mkv';
+    const referenceName = `reference.${referenceExt}`;
     let inputPath = inputName;
+    let referencePath = referenceName;
     let mounted = false;
-    onStatus?.('サンプルファイルを読み込み中...');
+    onStatus?.('入力とサンプルファイルを読み込み中...');
     try {
       await engineOperation(ff, 'サンプル入力の準備', () => ff.createDir('/samplein'));
-      mounted = await engineOperation(ff, 'サンプル入力の読み込み', () => ff.mount(FFFSType.WORKERFS, { files: [new File([file], inputName, { type: file.type })] }, '/samplein'));
+      mounted = await engineOperation(ff, '修復入力の読み込み', () => ff.mount(FFFSType.WORKERFS, { files: [new File([file], inputName, { type: file.type }), new File([reference], referenceName, { type: reference.type })] }, '/samplein'));
     } catch (error) {
       if (abortRequested || !ff.loaded) throw error;
     }
-    if (mounted) inputPath = `/samplein/${inputName}`;
-    else await engineOperation(ff, 'サンプル入力の書き込み', async () => ff.writeFile(inputName, await fetchFile(file)));
+    if (mounted) {
+      inputPath = `/samplein/${inputName}`;
+      referencePath = `/samplein/${referenceName}`;
+    } else {
+      await engineOperation(ff, '修復入力の書き込み', async () => ff.writeFile(inputName, await fetchFile(file)));
+      await engineOperation(ff, '参照サンプルの書き込み', async () => ff.writeFile(referenceName, await fetchFile(reference)));
+    }
     const probeSpecs = async (path: string, jsonName: string): Promise<string> => {
-      await engineOperation(ff, '修復スペックの確認', () => ff.ffprobe([
+      const code = await engineOperation(ff, '修復スペックの確認', () => ff.ffprobe([
         '-v', 'error', '-show_entries', SAMPLE_SPEC_ENTRIES, '-of', 'json', '-o', jsonName, path,
       ]), 60_000);
+      if (code !== 0) throw new Error(`トラック情報を読み取れないため、互換性を確認できませんでした。\nエラーコード: ERR_REPAIR_UNREADABLE_HEADER\nFFprobe exit code ${code}`);
       const json = await engineOperation(ff, '修復スペックの読み取り', () => ff.readFile(jsonName, 'utf8'));
       return typeof json === 'string' ? json : new TextDecoder().decode(json);
     };
     onStatus?.('元のヘッダー情報を確認中...');
     const originalSpecs = await probeSpecs(inputPath, 'sample_original_specs.json');
+    onStatus?.('入力とサンプルのトラック情報の互換性を確認中...');
+    const referenceSpecs = await probeSpecs(referencePath, 'sample_reference_specs.json');
+    if (!sampleReferenceCompatible(originalSpecs, referenceSpecs)) throw new Error('入力とサンプルのビデオ・オーディオトラック情報が一致しないため、修復できませんでした。\nエラーコード: ERR_REPAIR_REFERENCE_MISMATCH');
     const args = buildSampleRepairArgs(inputPath, outputName);
     onCommand?.(`ffmpeg ${args.join(' ')}`);
     onProgress?.(20);

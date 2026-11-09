@@ -383,8 +383,10 @@ const Index: React.FC = () => {
   const [converting, setConverting] = useState(false);
   const [sampleRepairOpen, setSampleRepairOpen] = useState(false);
   const [sampleFile, setSampleFile] = useState<File | null>(null);
+  const [repairInputFile, setRepairInputFile] = useState<File | null>(null);
   const [repairing, setRepairing] = useState(false);
   const sampleInputRef = useRef<HTMLInputElement>(null);
+  const repairInputRef = useRef<HTMLInputElement>(null);
   const sampleSectionRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
   const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
@@ -555,14 +557,14 @@ const Index: React.FC = () => {
   };
 
   const handleSampleRepair = async () => {
-    if (!sampleFile || converting) return;
+    if (!repairInputFile || !sampleFile || converting) return;
     setRepairing(true);
     setConverting(true);
     setProgress(0);
     setConvertedUrl(null);
     setConvertedResults([]);
     try {
-      const result = await repairSampleWithFFmpeg(sampleFile, setProgress, setStatusMessage, setFfmpegCommand);
+      const result = await repairSampleWithFFmpeg(repairInputFile, sampleFile, setProgress, setStatusMessage, setFfmpegCommand);
       const ext = result.filename.split('.').pop() || 'mkv';
       const filename = `CDF_${String(cdfCounter++).padStart(4, '0')}.${ext}`;
       setConvertedUrl(result.url);
@@ -988,15 +990,20 @@ const Index: React.FC = () => {
 
         {sampleRepairOpen && (
           <div ref={sampleSectionRef} className="w-full flex flex-col">
+            <Button onClick={() => repairInputRef.current?.click()} disabled={converting}
+              className="w-full h-auto min-h-14 rounded-none py-3.5 text-[31px] whitespace-normal border-b border-primary-foreground/20">
+              入力ファイルを選択
+            </Button>
+            {repairInputFile && <p className="text-muted-foreground text-xl break-all py-2" aria-live="assertive">入力：{repairInputFile.name}</p>}
             <Button onClick={() => sampleInputRef.current?.click()} disabled={converting}
               className="w-full h-auto min-h-14 rounded-none py-3.5 text-[31px] whitespace-normal border-b border-primary-foreground/20">
               サンプルファイルを選択
             </Button>
-            {sampleFile && (
+            {sampleFile && <p className="text-muted-foreground text-xl break-all py-2" aria-live="assertive">サンプル：{sampleFile.name}</p>}
+            {repairInputFile && sampleFile && (
               <>
                 <Button onClick={handleSampleRepair} disabled={converting}
                   className="w-full h-auto min-h-14 rounded-none py-3.5 text-[31px]">開始</Button>
-                <p className="text-muted-foreground text-xl break-all py-2" aria-live="polite">{sampleFile.name}</p>
               </>
             )}
           </div>
@@ -1044,6 +1051,20 @@ const Index: React.FC = () => {
           </button>
         )}
       </div>
+
+      <input
+        ref={repairInputRef}
+        type="file"
+        accept={SAMPLE_MEDIA_ACCEPT}
+        hidden
+        onChange={event => {
+          const file = selectSampleMedia(event.target.files);
+          if (event.target.files?.length && !file) window.alert('ビデオまたはオーディオファイルを一つ選択してください。');
+          if (file) setRepairInputFile(file);
+          event.target.value = '';
+        }}
+        aria-label="入力ファイルを選択"
+      />
 
       <input
         ref={sampleInputRef}

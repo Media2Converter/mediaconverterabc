@@ -26,7 +26,7 @@ export function buildSampleRepairArgs(input: string, output: string): string[] {
   return [...args, output];
 }
 
-const SPEC_FIELDS = ['codec_type', 'codec_name', 'width', 'height', 'pix_fmt', 'sample_rate', 'channels', 'channel_layout'] as const;
+const SPEC_FIELDS = ['codec_type', 'codec_name', 'profile', 'level', 'width', 'height', 'pix_fmt', 'sample_rate', 'channels', 'channel_layout', 'bits_per_sample', 'bits_per_raw_sample', 'extradata_size'] as const;
 export const SAMPLE_SPEC_ENTRIES = `stream=${SPEC_FIELDS.join(',')}`;
 
 /** Compare stream headers, not container size or bitrate (which remuxing changes). */
@@ -37,4 +37,25 @@ export function sampleSpecsMatch(input: string, output: string): boolean {
   return before.every((stream, index) =>
     stream && after[index] && SPEC_FIELDS.every(field => stream[field] === after[index][field]),
   );
+}
+
+/** Reference duration, timestamps and container tags are deliberately not copied. */
+export function sampleReferenceCompatible(input: string, reference: string): boolean {
+  try {
+    const before = JSON.parse(input).streams;
+    const sample = JSON.parse(reference).streams;
+    if (!Array.isArray(before) || !Array.isArray(sample)) return false;
+    const media = (streams: Record<string, unknown>[]) => streams.filter(stream => stream && ['video', 'audio'].includes(String(stream.codec_type)));
+    const inputMedia = media(before);
+    const sampleMedia = media(sample);
+    const valid = (stream: Record<string, unknown>) => {
+      if (typeof stream.codec_name !== 'string' || !stream.codec_name || stream.codec_name === 'unknown') return false;
+      if (stream.codec_type === 'video') return Number(stream.width) > 0 && Number(stream.height) > 0;
+      return Number(stream.sample_rate) > 0 && Number(stream.channels) > 0;
+    };
+    return inputMedia.length > 0 && inputMedia.every(valid) && sampleMedia.every(valid)
+      && sampleSpecsMatch(JSON.stringify({ streams: inputMedia }), JSON.stringify({ streams: sampleMedia }));
+  } catch {
+    return false;
+  }
 }

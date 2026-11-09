@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSampleRepairArgs, selectSampleMedia, sampleSpecsMatch } from './sampleRepair';
+import { buildSampleRepairArgs, selectSampleMedia, sampleSpecsMatch, sampleReferenceCompatible } from './sampleRepair';
 
 describe('sample repair rules', () => {
   it('accepts exactly one media file, not multiple files', () => {
@@ -51,5 +51,33 @@ describe('sample repair rules', () => {
       expect(sampleSpecsMatch(input, JSON.stringify({ streams: [{ ...stream, ...change }] }))).toBe(false);
     }
     expect(sampleSpecsMatch(input, JSON.stringify({ streams: [] }))).toBe(false);
+  });
+  it('allows a separate matching sample without copying its duration or metadata', () => {
+    const stream = { codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080, pix_fmt: 'yuv420p' };
+    const input = JSON.stringify({ streams: [{ ...stream, duration: '30' }], format: { tags: { title: 'input' } } });
+    const sample = JSON.stringify({ streams: [{ ...stream, duration: '5' }], format: { tags: { title: 'sample' } } });
+    expect(sampleReferenceCompatible(input, sample)).toBe(true);
+  });
+  it('rejects a sample with different video specifications', () => {
+    const stream = { codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080, profile: 'High', pix_fmt: 'yuv420p' };
+    const input = JSON.stringify({ streams: [stream] });
+    for (const change of [{ width: 1280 }, { height: 720 }, { codec_name: 'hevc' }, { profile: 'Main' }, { pix_fmt: 'yuv422p' }]) {
+      expect(sampleReferenceCompatible(input, JSON.stringify({ streams: [{ ...stream, ...change }] }))).toBe(false);
+    }
+  });
+  it('rejects a sample with different audio specifications or missing tracks', () => {
+    const stream = { codec_type: 'audio', codec_name: 'aac', sample_rate: '48000', channels: 2 };
+    const input = JSON.stringify({ streams: [stream] });
+    expect(sampleReferenceCompatible(input, input)).toBe(true);
+    for (const change of [{ codec_name: 'mp3' }, { sample_rate: '44100' }, { channels: 1 }]) {
+      expect(sampleReferenceCompatible(input, JSON.stringify({ streams: [{ ...stream, ...change }] }))).toBe(false);
+    }
+    expect(sampleReferenceCompatible(input, '{"streams":[]}')).toBe(false);
+  });
+  it('refuses unreadable or incomplete reference headers', () => {
+    expect(sampleReferenceCompatible('invalid', '{}')).toBe(false);
+    expect(sampleReferenceCompatible('{"streams":[]}', '{"streams":[]}')).toBe(false);
+    const incomplete = JSON.stringify({ streams: [{ codec_type: 'video', codec_name: 'h264' }] });
+    expect(sampleReferenceCompatible(incomplete, incomplete)).toBe(false);
   });
 });
