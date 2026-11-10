@@ -4,7 +4,7 @@ import { runFFmpegOperation, FFmpegInactivityClock } from './ffmpegOperation';
 import { keepConversionAwake } from './conversionWakeLock';
 import { FFmpegStallTracker } from './ffmpegStallStatus';
 import { parseFFmpegMetadata } from './ffmpegMetadata';
-import { buildSampleRepairArgs, selectSampleMedia, SAMPLE_SPEC_ENTRIES, sampleSpecsMatch, sampleReferenceCompatible } from './sampleRepair';
+import { buildSampleRepairArgs, selectSampleMedia } from './sampleRepair';
 import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
 import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
@@ -731,19 +731,6 @@ export async function repairSampleWithFFmpeg(
       await engineOperation(ff, '修復入力の書き込み', async () => ff.writeFile(inputName, await fetchFile(file)));
       await engineOperation(ff, '参照サンプルの書き込み', async () => ff.writeFile(referenceName, await fetchFile(reference)));
     }
-    const probeSpecs = async (path: string, jsonName: string): Promise<string> => {
-      const code = await engineOperation(ff, '修復スペックの確認', () => ff.ffprobe([
-        '-v', 'error', '-show_entries', SAMPLE_SPEC_ENTRIES, '-of', 'json', '-o', jsonName, path,
-      ]), 60_000);
-      if (code !== 0) throw new Error(`トラック情報を読み取れないため、互換性を確認できませんでした。\nエラーコード: ERR_REPAIR_UNREADABLE_HEADER\nFFprobe exit code ${code}`);
-      const json = await engineOperation(ff, '修復スペックの読み取り', () => ff.readFile(jsonName, 'utf8'));
-      return typeof json === 'string' ? json : new TextDecoder().decode(json);
-    };
-    onStatus?.('元のヘッダー情報を確認中...');
-    const originalSpecs = await probeSpecs(inputPath, 'sample_original_specs.json');
-    onStatus?.('入力とサンプルのトラック情報の互換性を確認中...');
-    const referenceSpecs = await probeSpecs(referencePath, 'sample_reference_specs.json');
-    if (!sampleReferenceCompatible(originalSpecs, referenceSpecs)) throw new Error('入力とサンプルのビデオ・オーディオトラック情報が一致しないため、修復できませんでした。\nエラーコード: ERR_REPAIR_REFERENCE_MISMATCH');
     const args = buildSampleRepairArgs(inputPath, outputName, referencePath);
     onCommand?.(`ffmpeg ${args.join(' ')}`);
     onProgress?.(20);
@@ -774,8 +761,6 @@ export async function repairSampleWithFFmpeg(
     onProgress?.(90);
     onStatus?.('修復結果を確認中...');
     if (!(await readMetadata(ff, outputName))) throw new Error('修復結果のメタデータを確認できませんでした。\nエラーコード: ERR_REPAIR_INVALID_OUTPUT');
-    const repairedSpecs = await probeSpecs(outputName, 'sample_repaired_specs.json');
-    if (!sampleReferenceCompatible(originalSpecs, repairedSpecs)) throw new Error('元の解像度またはコーデックなどの情報を保持できないため、修復結果を保存できませんでした。\nエラーコード: ERR_REPAIR_SPEC_MISMATCH');
     const data = await engineOperation(ff, '修復結果の読み取り', () => ff.readFile(outputName));
     if (!(data instanceof Uint8Array) || data.byteLength === 0) throw new Error('修復結果が空です。\nエラーコード: ERR_REPAIR_EMPTY_OUTPUT');
     if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
