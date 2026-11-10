@@ -748,12 +748,16 @@ const Index: React.FC = () => {
         { label: '再試行', value: 'retry' },
         { label: 'テーマ', value: 'theme' },
         { label: 'FFmpegを初期化', value: 'reset_ffmpeg' },
+        { label: SAMPLE_REPAIR_GROUP.options[0].label, value: SAMPLE_REPAIR_ACTION },
       ],
     },
   ];
 
   const handleMoreMenuSelect = (value: string) => {
     switch (value) {
+      case SAMPLE_REPAIR_ACTION:
+        setSampleRepairOpen(true);
+        break;
       case 'update_app':
         // Reload so the version confirmation dialog shows again.
         window.location.reload();
@@ -922,15 +926,15 @@ const Index: React.FC = () => {
 
       {/* Buttons: no rounded corners, touching each other */}
       <div className="w-full flex flex-col">
-        <button
+        {!sampleRepairOpen && <button
           onClick={() => fileInputRef.current?.click()}
           className="w-full py-3.5 bg-primary text-primary-foreground text-[31px] font-semibold active:opacity-80 transition-opacity border-b border-primary-foreground/20"
           style={{ borderRadius: 0 }}
         >
           {files.length > 0 ? 'ファイルを追加' : 'ファイルを選択'}
-        </button>
+        </button>}
 
-        {files.length > 0 && (() => {
+        {!sampleRepairOpen && files.length > 0 && (() => {
 
           // Determine picker groups for the single-file case
           const singleFile = files[0];
@@ -957,7 +961,7 @@ const Index: React.FC = () => {
                   setDetailContext('all');
                 }}
                 pickerHeader="形式"
-                groups={[...singleGroups, SAMPLE_REPAIR_GROUP]}
+                groups={singleGroups}
               >
                 <span className="block w-full py-3.5 text-[31px] font-semibold">
                   {selectedFormat ? `形式: ${selectedFormat}` : '形式'}
@@ -981,7 +985,7 @@ const Index: React.FC = () => {
                   label: `${f.name}${perFileFormats[i] ? ` (${perFileFormats[i]})` : ''}`,
                   value: String(i),
                 })),
-              }, SAMPLE_REPAIR_GROUP]}
+              }]}
             >
               <span className="block w-full py-3.5 text-[31px] font-semibold">形式</span>
             </NativeSelectButton>
@@ -1003,13 +1007,15 @@ const Index: React.FC = () => {
             {repairInputFile && sampleFile && (
               <>
                 <Button onClick={handleSampleRepair} disabled={converting}
-                  className="w-full h-auto min-h-14 rounded-none py-3.5 text-[31px]">開始</Button>
+                  className="w-full h-auto min-h-14 rounded-none py-3.5 text-[31px] border-b border-primary-foreground/20">開始</Button>
               </>
             )}
+            <Button onClick={() => { setSampleRepairOpen(false); setRepairInputFile(null); setSampleFile(null); }} disabled={converting}
+              className="w-full h-auto min-h-14 rounded-none py-3.5 text-[31px]">修復モードを終了</Button>
           </div>
         )}
 
-        {files.length > 0 && formatsReady && (
+        {!sampleRepairOpen && files.length > 0 && formatsReady && (
           files.length === 1 ? (
             <button
               type="button"
@@ -1173,9 +1179,6 @@ const Index: React.FC = () => {
                 </option>
               ))}
             </optgroup>
-            <optgroup label={SAMPLE_REPAIR_GROUP.label}>
-              <option value={SAMPLE_REPAIR_ACTION}>{SAMPLE_REPAIR_GROUP.options[0].label}</option>
-            </optgroup>
           </select>
           <select
             ref={formatSelectRef}
@@ -1200,9 +1203,6 @@ const Index: React.FC = () => {
                 </optgroup>
               </>
             )}
-            <optgroup label={SAMPLE_REPAIR_GROUP.label}>
-              <option value={SAMPLE_REPAIR_ACTION}>{SAMPLE_REPAIR_GROUP.options[0].label}</option>
-            </optgroup>
           </select>
         </>
       )}

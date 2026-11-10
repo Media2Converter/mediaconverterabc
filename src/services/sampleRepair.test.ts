@@ -38,6 +38,12 @@ describe('sample repair rules', () => {
     expect(args.slice(args.indexOf('-map_metadata'), args.indexOf('-map_metadata') + 2)).toEqual(['-map_metadata', '0']);
     expect(buildSampleRepairArgs('input.wav', 'output.wav')).not.toContain('-movflags');
   });
+  it('takes container header metadata from the sample but tracks only from the input', () => {
+    const args = buildSampleRepairArgs('in.mov', 'out.mp4', 'sample.mp4');
+    expect(args.filter(a => a === '-i').length).toBe(2);
+    expect(args.slice(args.indexOf('-map_metadata'), args.indexOf('-map_metadata') + 2)).toEqual(['-map_metadata', '1']);
+    expect(args.filter((a, i) => args[i - 1] === '-map')).toEqual(['0:v?', '0:a?']);
+  });
   it('rejects a changed resolution rather than downloading it as preserved', () => {
     const input = JSON.stringify({ streams: [{ codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080 }] });
     expect(sampleSpecsMatch(input, input)).toBe(true);

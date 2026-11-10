@@ -14,11 +14,13 @@ export function selectSampleMedia(files: ArrayLike<File> | null): File | null {
   return /^(video|audio)\//.test(file.type) || (!file.type && MEDIA_EXTENSIONS.has(extension)) ? file : null;
 }
 
-export function buildSampleRepairArgs(input: string, output: string): string[] {
+/** Container and global header come from the reference; encoded packets come only from the input. */
+export function buildSampleRepairArgs(input: string, output: string, reference?: string): string[] {
   const args = [
     '-y', '-nostdin', '-hide_banner', '-stats_period', '1',
     '-copyts', '-err_detect', 'careful',
-    '-i', input, '-map', '0', '-map_metadata', '0', '-map_chapters', '0',
+    '-i', input, ...(reference ? ['-i', reference] : []),
+    '-map', '0:v?', '-map', '0:a?', '-map_metadata', reference ? '1' : '0', '-map_chapters', '-1',
     '-c', 'copy', '-avoid_negative_ts', 'disabled',
     '-max_muxing_queue_size', '9999',
   ];

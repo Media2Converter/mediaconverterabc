@@ -711,8 +711,8 @@ export async function repairSampleWithFFmpeg(
     const ff = await getFFmpeg(message => { logs.push(message); if (logs.length > 100) logs.shift(); });
     const ext = file.name.split('.').pop()?.toLowerCase() || (file.type.startsWith('audio/') ? 'mka' : 'mkv');
     const inputName = `input.${ext}`;
-    const outputName = `input_repaired.${ext}`;
     const referenceExt = reference.name.split('.').pop()?.toLowerCase() || 'mkv';
+    const outputName = `${file.name.replace(/\.[^.]+$/, '')}_repaired.${referenceExt}`;
     const referenceName = `reference.${referenceExt}`;
     let inputPath = inputName;
     let referencePath = referenceName;
@@ -744,7 +744,7 @@ export async function repairSampleWithFFmpeg(
     onStatus?.('入力とサンプルのトラック情報の互換性を確認中...');
     const referenceSpecs = await probeSpecs(referencePath, 'sample_reference_specs.json');
     if (!sampleReferenceCompatible(originalSpecs, referenceSpecs)) throw new Error('入力とサンプルのビデオ・オーディオトラック情報が一致しないため、修復できませんでした。\nエラーコード: ERR_REPAIR_REFERENCE_MISMATCH');
-    const args = buildSampleRepairArgs(inputPath, outputName);
+    const args = buildSampleRepairArgs(inputPath, outputName, referencePath);
     onCommand?.(`ffmpeg ${args.join(' ')}`);
     onProgress?.(20);
     const started = Date.now();
@@ -775,11 +775,11 @@ export async function repairSampleWithFFmpeg(
     onStatus?.('修復結果を確認中...');
     if (!(await readMetadata(ff, outputName))) throw new Error('修復結果のメタデータを確認できませんでした。\nエラーコード: ERR_REPAIR_INVALID_OUTPUT');
     const repairedSpecs = await probeSpecs(outputName, 'sample_repaired_specs.json');
-    if (!sampleSpecsMatch(originalSpecs, repairedSpecs)) throw new Error('元の解像度またはコーデックなどの情報を保持できないため、修復結果を保存できませんでした。\nエラーコード: ERR_REPAIR_SPEC_MISMATCH');
+    if (!sampleReferenceCompatible(originalSpecs, repairedSpecs)) throw new Error('元の解像度またはコーデックなどの情報を保持できないため、修復結果を保存できませんでした。\nエラーコード: ERR_REPAIR_SPEC_MISMATCH');
     const data = await engineOperation(ff, '修復結果の読み取り', () => ff.readFile(outputName));
     if (!(data instanceof Uint8Array) || data.byteLength === 0) throw new Error('修復結果が空です。\nエラーコード: ERR_REPAIR_EMPTY_OUTPUT');
     if (abortRequested) throw new Error('ユーザーによりキャンセルされました');
-    const url = URL.createObjectURL(new Blob([data as BlobPart], { type: file.type || 'application/octet-stream' }));
+    const url = URL.createObjectURL(new Blob([data as BlobPart], { type: reference.type || 'application/octet-stream' }));
     onProgress?.(100);
     onStatus?.('修復が完了しました。');
     return { url, filename: outputName };
