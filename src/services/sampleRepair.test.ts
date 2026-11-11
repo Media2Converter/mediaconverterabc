@@ -26,11 +26,11 @@ describe('sample repair rules', () => {
     expect(args.at(-1)).toBe('repaired.mp4');
     expect(args.some(arg => ['-vf', '-af', '-c:v', '-c:a'].includes(arg))).toBe(false);
   });
-  it('preserves timestamps and packets instead of dropping or regenerating them', () => {
+  it('regenerates broken timestamps so the repaired file plays and converts', () => {
     const args = buildSampleRepairArgs('input.mp4', 'output.mp4');
-    expect(args).toContain('-copyts');
-    expect(args.slice(args.indexOf('-avoid_negative_ts'), args.indexOf('-avoid_negative_ts') + 2)).toEqual(['-avoid_negative_ts', 'disabled']);
-    expect(args.join(' ')).not.toMatch(/discardcorrupt|genpts|igndts|make_zero/);
+    expect(args).not.toContain('-copyts');
+    expect(args.slice(args.indexOf('-avoid_negative_ts'), args.indexOf('-avoid_negative_ts') + 2)).toEqual(['-avoid_negative_ts', 'make_zero']);
+    expect(args.join(' ')).toMatch(/genpts/);
   });
   it('rebuilds MP4 headers and preserves metadata', () => {
     const args = buildSampleRepairArgs('input.mp4', 'output.mp4');

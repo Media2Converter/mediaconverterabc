@@ -18,10 +18,10 @@ export function selectSampleMedia(files: ArrayLike<File> | null): File | null {
 export function buildSampleRepairArgs(input: string, output: string, reference?: string): string[] {
   const args = [
     '-y', '-nostdin', '-hide_banner', '-stats_period', '1',
-    '-copyts', '-err_detect', 'careful',
+    '-fflags', '+genpts+discardcorrupt', '-err_detect', 'ignore_err',
     '-i', input, ...(reference ? ['-i', reference] : []),
-    '-map', '0:v?', '-map', '0:a?', '-map_metadata', reference ? '1' : '0', '-map_chapters', '-1',
-    '-c', 'copy', '-avoid_negative_ts', 'disabled',
+    '-map', '0:v?', '-map', '0:a?', '-map_metadata', reference ? '1' : '0', '-map_chapters', '-1', '-dn', '-sn',
+    '-c', 'copy', '-avoid_negative_ts', 'make_zero', '-reset_timestamps', '0',
     '-max_muxing_queue_size', '9999',
   ];
   if (/\.(mp4|mov|m4v|m4a|3gp|3g2)$/i.test(output)) args.push('-movflags', '+faststart');
