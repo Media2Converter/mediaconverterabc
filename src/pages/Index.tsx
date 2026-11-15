@@ -244,7 +244,7 @@ const PreviewOverlay: React.FC<{
       const file = new File([blob], filename, { type: mime });
       const navAny = navigator as any;
       if (navAny.canShare && navAny.canShare({ files: [file] })) {
-        await navAny.share({ files: [file], title: filename });
+        await navAny.share({ files: [file]});
         return;
       }
       const url = URL.createObjectURL(blob);
@@ -314,7 +314,7 @@ const TitleWithCodeDownload: React.FC<{ jsonContent: string; ffmpegContent: stri
       const file = new File([blob], filename, { type: mime });
       const navAny = navigator as any;
       if (navAny.canShare && navAny.canShare({ files: [file] })) {
-        await navAny.share({ files: [file], title: filename });
+        await navAny.share({ files: [file]});
         return;
       }
       const url = URL.createObjectURL(blob);
@@ -693,7 +693,7 @@ const Index: React.FC = () => {
         const file = new File([zipBlob], zipName, { type: 'application/zip' });
         const navAny = navigator as any;
         if (navAny.canShare && navAny.canShare({ files: [file] })) {
-          await navAny.share({ files: [file], title: zipName });
+          await navAny.share({ files: [file]});
           setStatusMessage('変換完了！ダウンロードできます');
           return;
         }
@@ -716,7 +716,7 @@ const Index: React.FC = () => {
       const file = new File([blob], only.filename, { type: blob.type });
       const navAny = navigator as any;
       if (navAny.canShare && navAny.canShare({ files: [file] })) {
-        await navAny.share({ files: [file], title: only.filename });
+        await navAny.share({ files: [file]});
         return;
       }
     } catch (err) {

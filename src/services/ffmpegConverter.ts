@@ -4,7 +4,7 @@ import { runFFmpegOperation, FFmpegInactivityClock } from './ffmpegOperation';
 import { keepConversionAwake } from './conversionWakeLock';
 import { FFmpegStallTracker } from './ffmpegStallStatus';
 import { parseFFmpegMetadata } from './ffmpegMetadata';
-import { buildSampleRepairArgs, selectSampleMedia } from './sampleRepair';
+import { buildReferenceHeader, buildSampleRepairArgs, REFERENCE_HEADER_ENTRIES, selectSampleMedia } from './sampleRepair';
 import coreJsAsset from '@/assets/ffmpeg-core.js.asset.json';
 import coreWasmAsset from '@/assets/ffmpeg-core.wasm.asset.json';
 import {
@@ -591,6 +591,20 @@ async function readMetadata(ff: FFmpeg, name: string): Promise<{ duration: numbe
   }
 }
 
+/** Header-only probe; returns '{}' when unreadable so repair still proceeds. */
+async function probeHeader(ff: FFmpeg, name: string, out: string): Promise<string> {
+  try {
+    await engineOperation(ff, 'ヘッダー確認', () => ff.ffprobe(['-v', 'error', '-show_entries', REFERENCE_HEADER_ENTRIES, '-of', 'json', '-o', out, name]), 60_000);
+    const data = await engineOperation(ff, 'ヘッダー読み取り', () => ff.readFile(out, 'utf8'));
+    return typeof data === 'string' ? data : '{}';
+  } catch {
+    if (!ff.loaded || abortRequested) throw new Error(abortRequested ? 'ユーザーによりキャンセルされました' : 'ヘッダー確認が応答しません。\nエラーコード: ERR_WORKER_TIMEOUT');
+    return '{}';
+  } finally {
+    if (ff.loaded) { try { await engineOperation(ff, 'ヘッダー削除', () => ff.deleteFile(out)); } catch {} }
+  }
+}
+
 /** Repair a broken/truncated container by remuxing with regenerated timestamps */
 async function repairFile(ff: FFmpeg, name: string): Promise<string> {
   const ext = name.split('.').pop() || 'mp4';
@@ -731,7 +745,9 @@ export async function repairSampleWithFFmpeg(
       await engineOperation(ff, '修復入力の書き込み', async () => ff.writeFile(inputName, await fetchFile(file)));
       await engineOperation(ff, '参照サンプルの書き込み', async () => ff.writeFile(referenceName, await fetchFile(reference)));
     }
-    const args = buildSampleRepairArgs(inputPath, outputName, referencePath);
+    onStatus?.('サンプルファイルのヘッダー情報を読み取り中...');
+    const header = buildReferenceHeader(await probeHeader(ff, inputPath, 'input_header.json'), await probeHeader(ff, referencePath, 'reference_header.json'));
+    const args = buildSampleRepairArgs(inputPath, outputName, referencePath, header);
     onCommand?.(`ffmpeg ${args.join(' ')}`);
     onProgress?.(20);
     const started = Date.now();

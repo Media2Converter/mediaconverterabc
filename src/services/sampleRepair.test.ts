@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSampleRepairArgs, selectSampleMedia, sampleSpecsMatch, sampleReferenceCompatible } from './sampleRepair';
+import { buildReferenceHeader, buildSampleRepairArgs, selectSampleMedia, sampleSpecsMatch, sampleReferenceCompatible } from './sampleRepair';
 
 describe('sample repair rules', () => {
   it('accepts exactly one media file, not multiple files', () => {
@@ -43,6 +43,17 @@ describe('sample repair rules', () => {
     expect(args.filter(a => a === '-i').length).toBe(2);
     expect(args.slice(args.indexOf('-map_metadata'), args.indexOf('-map_metadata') + 2)).toEqual(['-map_metadata', '1']);
     expect(args.filter((a, i) => args[i - 1] === '-map')).toEqual(['0:v?', '0:a?']);
+  });
+  it('copies the sample brand, track timescale and matching codec tags', () => {
+    const input = JSON.stringify({ streams: [{ codec_type: 'video', codec_name: 'hevc', codec_tag_string: 'hev1' }, { codec_type: 'audio', codec_name: 'aac' }] });
+    const ref = JSON.stringify({ streams: [{ codec_type: 'video', codec_name: 'hevc', codec_tag_string: 'hvc1', time_base: '1/600' }, { codec_type: 'audio', codec_name: 'mp3', codec_tag_string: 'mp4a' }], format: { tags: { major_brand: 'qt  ' } } });
+    const header = buildReferenceHeader(input, ref);
+    expect(header).toMatchObject({ brand: 'qt', videoTag: 'hvc1', audioTag: undefined, videoTimescale: 600 });
+    const args = buildSampleRepairArgs('in.mp4', 'out.mov', 'ref.mov', header);
+    expect(args.slice(args.indexOf('-tag:v'), args.indexOf('-tag:v') + 2)).toEqual(['-tag:v', 'hvc1']);
+    expect(args).not.toContain('-tag:a');
+    expect(args.slice(args.indexOf('-video_track_timescale'), args.indexOf('-video_track_timescale') + 2)).toEqual(['-video_track_timescale', '600']);
+    expect(args.slice(args.indexOf('-map_metadata:s:v:0'), args.indexOf('-map_metadata:s:v:0') + 2)).toEqual(['-map_metadata:s:v:0', '1:s:v:0']);
   });
   it('rejects a changed resolution rather than downloading it as preserved', () => {
     const input = JSON.stringify({ streams: [{ codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080 }] });
